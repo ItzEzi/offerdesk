@@ -24,11 +24,12 @@ const DEFAULTS={
   brief:{on:true,hour:8,tz:''},
   rehab:{costs:{},notes:''},
   voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true},
+  markets:{strategy:'',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}
 };
-const TONES={friendly:'warm, direct and respectful of the agent’s time',firm:'polite but firm and businesslike, few words',casual:'casual and Texas-friendly, short sentences'};
+const TONES={friendly:'warm, direct and respectful of the agent’s time',firm:'polite but firm and businesslike, few words',casual:'casual and friendly, short sentences'};
 const ACTION_LABEL={opening:'Opening offer',counter:'Counter',hold:'Hold firm',accept:'Accept their number',creative:'Seller-finance pitch',ask_owner:'Needs your call',walk:'Step back',stop:'They opted out',followup:'Follow-up',custom:'Your instruction',checkin:'Check-in',stall:'Buy time',call:'Ask for a call'};
 const MLS_STATUS={for_sale:['For Sale','blue'],pending:['Pending','orange'],sold:['Sold','red'],off_market:['Off Market','slate'],unknown:['Unknown','slate']};
 const SENTIMENT={warm:['Warm','green'],neutral:['Neutral','slate'],cold:['Cold','blue'],hostile:['Hostile','red']};
@@ -98,6 +99,7 @@ const ICONS={
   wallet:'<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7l12-4 2 4M17 14h.01"/>',
   building:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 7h.01M15 7h.01M9 11h.01M15 11h.01M10 21v-4h4v4"/>',
   gauge:'<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 14l4-4"/>',
+  map:'<path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
   target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
@@ -140,7 +142,7 @@ const state={
   loaded:false,view:'dashboard',dealId:null,busy:{},drafts:{},modal:null,syncing:false,autoRunning:false,cloudSyncing:false,
   lf:{q:'',source:'all',stage:'all',status:'all',sentiment:'all',type:'all',beds:'any',price:'any',state:'all',special:'all',autopilot:'all'},
   leads:{q:'',tag:null,fav:false,type:'all'},
-  page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
+  mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
 };
 const negName=()=>state.settings.neg.name||'Maya';
 
@@ -181,7 +183,7 @@ function cur(){return state.deals[state.dealId]}
 let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
 
 /* ================= routing ================= */
-const VIEWS=['dashboard','listings','leads','deal','practice','stats','settings'];
+const VIEWS=['dashboard','listings','markets','leads','deal','practice','stats','settings'];
 function go(view,id){const h='#'+view+(id?'/'+id:'');if(location.hash===h)route();else location.hash=h}
 function route(){
   const h=(location.hash||'#dashboard').slice(1);const [v,id,sub]=h.split('/');
@@ -190,6 +192,7 @@ function route(){
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if(state.view==='deal'&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
+  if(state.view==='markets')loadDiscover();
   const anchor=state.view==='deal'||state.view==='settings'?sub:id;
   if(anchor){setTimeout(()=>{const el=document.getElementById(anchor);if(el)el.scrollIntoView({block:'start'})},80)}
 }

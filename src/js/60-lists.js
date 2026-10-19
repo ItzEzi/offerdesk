@@ -1,5 +1,6 @@
 /* ================= Listings ================= */
 const SPECIAL=[
+  ['target','In my target markets',d=>!!dealTarget(d)],
   ['reply','Reply waiting',d=>replyWaiting(d)],['draft','Draft ready',d=>!!d.draft],['star','Starred',d=>!!d.starred],
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(zipDom(d)||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
