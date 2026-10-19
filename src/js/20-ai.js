@@ -18,15 +18,39 @@ async function apiText(input,opts){
   const merged=[];for(const m of msgs){const l=merged[merged.length-1];if(l&&l.role===m.role)l.content+='\n\n'+m.content;else merged.push(Object.assign({},m))}
   if(merged[0]&&merged[0].role!=='user')merged.unshift({role:'user',content:'(start)'});
   if(opts.images&&opts.images.length){const last=merged[merged.length-1];const blocks=[];for(const f of opts.images)blocks.push(await imageBlock(f));last.content=[...blocks,{type:'text',text:last.content}]}
-  const model=opts.modelTier==='quick'?'claude-haiku-5-5':(sec.model||'claude-sonnet-5-5');
+  const model=opts.model||(opts.modelTier==='quick'?'claude-haiku-5-5':(sec.model||'claude-sonnet-5-5'));
   let res;
   try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||3000,messages:merged})})}
   catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
-  if(!res.ok){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';
-    throw {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m}}
+  if(!res.ok)throw await apiFail(res);
   const j=await res.json();const text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
   if(!text)throw {code:'empty_completion'};
   return {text,truncated:j.stop_reason==='max_tokens'};
+}
+async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';
+  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m}}
+/* a call where Claude may search the web and open pages (server tools); continues paused turns */
+const WEB_TOOLS=(n)=>[{type:'web_search_20250305',name:'web_search',max_uses:n||6},{type:'web_fetch_20250910',name:'web_fetch',max_uses:n||6,max_content_tokens:12000}];
+async function apiTools(prompt,opts){
+  opts=opts||{};const sec=secrets();if(!sec.apiKey)throw {code:'no_ai'};
+  const model=opts.model||sec.model||'claude-sonnet-5-5';let messages=[{role:'user',content:prompt}];
+  const sources=new Map(),fetchUrl={},failed=[];let text='',searches=0;
+  for(let round=0;round<5;round++){
+    let res;try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||8000,messages,tools:opts.tools||WEB_TOOLS()})})}
+    catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
+    if(!res.ok)throw await apiFail(res);
+    const j=await res.json();const blocks=j.content||[];
+    for(const b of blocks){
+      if(b.type==='server_tool_use'){if(b.name==='web_fetch'&&b.input&&b.input.url)fetchUrl[b.id]=b.input.url;if(b.name==='web_search')searches++}
+      if(b.type==='web_search_tool_result'&&Array.isArray(b.content))for(const r of b.content)if(r&&r.url&&!sources.has(r.url))sources.set(r.url,r.title||r.url);
+      if(b.type==='web_fetch_tool_result'){const c=b.content||{};if(c.type==='web_fetch_result'&&c.url)sources.set(c.url,(c.content&&c.content.title)||c.url);else if(fetchUrl[b.tool_use_id])failed.push({url:fetchUrl[b.tool_use_id],why:c.error_code||'error'})}
+    }
+    text=blocks.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    if(j.stop_reason==='pause_turn'){messages=[...messages,{role:'assistant',content:blocks}];continue}
+    break;
+  }
+  if(!text)throw {code:'empty_completion'};
+  return {text,sources:[...sources].map(([url,title])=>({url,title})),failed,searches};
 }
 function parseLoose(t){
   try{return JSON.parse(t)}catch(e){}
@@ -68,12 +92,14 @@ function dealFacts(d,c){
     `Source: ${d.source==='wholesaler'?'off-market deal from a wholesaler':'listed on the MLS (on-market)'}; status ${mlsOf(d)[0]}`,
     `Current ${d.source==='wholesaler'?'asking':'list'} price: ${money(L)}${priceDropped(d)?` (originally ${money(origList(d))})`:''}`,
     `Type / beds / baths / sqft / lot / year: ${PROP_TYPES[d.propertyType]||'house'} / ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.lotSqft??'?'} sqft lot / ${d.year??'?'}`,
-    dom(d)!=null?`Days on market: ${dom(d)}${d.zipAvgDom?` (ZIP average ${d.zipAvgDom})`:''}`:'',
+    dom(d)!=null?`Days on market: ${dom(d)}${zipDom(d)?` (ZIP median ${zipDom(d)})`:''}`:'',
     `Our ARV: ${money(c.A)}. Our repair estimate: ${money(d.rehab)}.`,
     a&&a.summary?`Photo inspection summary: ${a.summary} Level: ${a.level||'?'}.`:'',
     d.description?`Listing description: ${d.description.slice(0,1500)}`:'',
     d.instructions?`Investor's standing instructions for this deal (follow them): ${d.instructions.slice(0,800)}`:'',
     d.notes?`Investor's private notes (context only, never quote): ${d.notes.slice(0,1200)}`:'',
+    (()=>{const h=historyInsights(d);const ev=histEvents(d);return ev.length?`Property history (oldest first): ${ev.slice(-14).map(e=>`${e.date} ${(HEV[e.event]||HEV.other)[0].toLowerCase()}${e.price?' '+money(e.price):''}`).join('; ')}.${h.length?' What it means: '+h.map(x=>x.text).join(' '):''}`:''})(),
+    marketFacts(d),
     (()=>{const ms=marketSignal(d);return ms?`Negotiation leverage: ${ms.text}. ${ms.level==='rejection'?'The market has been refusing this house at these prices; buyers are not paying the ask.':'The listing is stale; the seller is likely getting flexible.'} You may point to the time on market and the price history, politely.`:''})()
   ].filter(Boolean).join('\n');
 }
@@ -81,9 +107,11 @@ function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)re
 function threadText(d){return (d.thread||[]).slice(-14).map(t=>`[${fmtDate(t.at)} · ${t.dir==='out'?'US':t.dir==='in'?'THEM':'NOTE'} via ${t.channel}${t.price?` · number: ${money(t.price)}`:''}] ${(t.subject?t.subject+' — ':'')+(t.text||'').slice(0,1200)}`).join('\n')||'(no messages yet)'}
 function signRules(){
   const p=state.settings.profile,n=state.settings.neg;
-  return `Sign every message as "${n.name}" on behalf of ${p.name||'the investor'}${p.company?' at '+p.company:''}.${p.phone?' Phone: '+p.phone+'.':''}${p.email?' Email: '+p.email+'.':''}
+  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean);
+  return `You are ${n.name}, ${title}${p.company?' at '+p.company:''}. Write in the first person as ${n.name}; say "we" or "our team" for the buyer. Never write "on behalf of" and never introduce yourself as an assistant.
+End every email with this signature, one item per line: ${sig.map(x=>'"'+x+'"').join(', ')}. End texts with "– ${n.name}".
 Tone: ${TONES[n.tone]||TONES.friendly}. Plain US English. No emojis, no hype.
-Never invent facts about the property, the comps, the seller or the buyer.${n.disclose?` Do not claim to be human. If anyone asks whether they are dealing with a person or an AI, say you are an AI assistant working for ${p.name||'the investor'}, who approves your limits.`:''}${n.optOutLine?' End every email with one short line: "Prefer not to get offers from us? Reply ‘remove’ and we won’t contact you again."':''}`;
+Never invent facts about the property, the comps, the seller or the buyer.${n.disclose?` Do not claim to be human. If anyone asks whether they are dealing with a person or an AI, say honestly that you are an AI acquisitions agent working for ${p.name||'the buyer'}${p.company?' at '+p.company:''}, who approves your limits.`:''}${n.optOutLine?' End every email with one short line: "Prefer not to get offers from us? Reply ‘remove’ and we won’t contact you again."':''}`;
 }
 const counterpart=d=>d.source==='wholesaler'?'the wholesaler':'the listing agent';
 function firstName(d){const n=((d.agent&&d.agent.name)||'').replace(/\(example\)/i,'').trim();return n.split(/\s+/)[0]||'there'}
@@ -179,22 +207,43 @@ ${signRules()}
 
 Reply with only JSON: {"answer":"what you say to the investor, 1 to 5 sentences","draft":null or {"action":"counter|hold|accept|creative|followup|custom","price":number or null,"email":{"subject":"...","body":"..."},"sms":"..."}}`;
 }
+const REHAB_BOOK=[
+  ['paint_int','Interior paint','per sqft of living area',2.75],['paint_ext','Exterior paint','per sqft of living area',2.25],
+  ['lvp','LVP flooring, installed','per sqft',4.5],['carpet','Carpet, installed','per sqft',3],['tile','Tile floor, installed','per sqft',9],['drywall','Drywall and texture repair','per sqft',2],
+  ['kitchen_light','Kitchen refresh (paint cabinets, counters, hardware)','each',9000],['kitchen_mid','Kitchen remodel, mid-grade','each',22000],['kitchen_full','Kitchen full gut','each',35000],
+  ['bath_light','Bathroom refresh','each',3500],['bath_mid','Bathroom remodel','each',9000],['bath_full','Bathroom full gut','each',14000],
+  ['appliances','Appliance package','each',3500],['lighting','Lighting and fixtures','per house',2000],['int_door','Interior door','each',250],['ext_door','Exterior door','each',1200],['windows','Window','each',650],
+  ['roof','Roof replacement (shingle)','per sqft of living area',6.5],['hvac','HVAC system','each',9500],['water_heater','Water heater','each',1800],['panel','Electrical panel','each',3000],
+  ['rewire','Rewire','per sqft',7],['repipe','Plumbing repipe','per sqft',6],['foundation','Foundation repair allowance','each',9000],['siding','Siding repair','per house',4000],
+  ['fence','Fence','per linear ft',35],['landscaping','Landscaping and cleanup','per house',2500],['permits','Permits, dumpster, misc','per house',1500]];
+function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
 function promptDeep(d,nPhotos){
-  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip and wholesale investor in Dallas–Fort Worth. ${nPhotos?`${nPhotos} listing photo(s) are attached. Look at them carefully, room by room.`:'No photos were provided; rely on the text and say what needs a site visit.'} Produce an inspection-style condition report, a rehab scope priced at current DFW contractor rates (labor plus materials) to a clean mid-grade resale finish, and value estimates.
+  const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
+  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
+Work in this order:
+1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
+2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
+3. Rehab quantities from the investor's cost book below. Do not invent prices. For each item needed, give the cost-book key and a quantity: square feet for per-sqft items (base them on the ${d.sqft||'unknown'} sqft living area unless the photos show otherwise), a count for "each" items, and 1 for per-house items. For areas you could not see, include a sensible allowance and mark seen false.
+Cost book (key: item, price, unit):
+${book.map(b=>`- ${b.key}: ${b.label}, ${money(b.cost)} ${b.unit}`).join('\n')}
+4. Anything that is not in the cost book goes in customLines with your best cost for ${where}.
+${R.notes?`The investor's own notes on repair pricing (follow them): ${String(R.notes).slice(0,800)}\n`:''}
 Property: ${[streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(', ')||'unknown'}; ${PROP_TYPES[d.propertyType]||'house'}; ${d.beds??'?'} bed / ${d.baths??'?'} bath; ${d.sqft??'?'} sqft; lot ${d.lotSqft??'?'} sqft; built ${d.year??'?'}.
 Asking/list price: ${money(curList(d))}.
 Listing description: ${(d.description||'none').slice(0,2500)}
 Investor notes: ${(d.notes||'none').slice(0,1000)}
-Comps the investor entered:
+Comps the investor has:
 ${compsText(d)}
-
-Rules: rate a system only from what you can see or what the text says, otherwise "unknown". If no comps were entered, your ARV is a rough estimate from the asking price, location and condition: give a low/high range and mark confidence low. Whole dollars only.
+${(()=>{const m=marketFacts(d);return m?m+'\n':''})()}
+Rules: whole dollars only. If there are few or no comps, your ARV is a rough estimate: give a low/high range and mark confidence low. Renovated homes in a ZIP usually sell above the ZIP's median $/sqft.
 
 Reply with only JSON:
-{"condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
+{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]}],
+"condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
+"notSeen":["areas with no photo, e.g. roof, HVAC, second bathroom"],
 "level":"light refresh|moderate rehab|full gut","summary":"two sentences","suggestions":["specific renovation suggestions"],
-"rehabLines":[{"item":"","detail":"","cost":number}],"contingencyPct":number,
+"rehabItems":[{"key":"cost book key","qty":number,"why":"short reason","seen":true}],"customLines":[{"item":"","detail":"","cost":number}],"contingencyPct":number,
 "arv":{"value":number|null,"low":number|null,"high":number|null,"confidence":"low|medium|high","why":"one sentence"},
 "rent":{"value":number|null,"why":"one sentence"},
 "audience":"home buyer|investor|mixed","audienceConfidence":"low|medium|high","motivation":"distressed property|motivated seller|stale listing|estate or probate|tired landlord|retail listing",
@@ -202,13 +251,16 @@ Reply with only JSON:
 }
 const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
 
-Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["any image or photo-album URLs"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
+Put every URL that could show the property (listing pages, Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and direct image URLs in "photoLinks". Skip unsubscribe, social media and calendar links.
+
+Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
 Message:
 """${t.slice(0,12000)}"""`;
 const P_LISTING=t=>`Extract this property listing (copied from Zillow, Redfin, Realtor.com or the MLS). Use null for anything not stated. Numbers are plain numbers.
 
-Reply with only JSON: {"address":"street","city":"","state":"","zip":"","listPrice":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","mlsStatus":"for_sale|pending|sold|off_market","mlsId":"","daysOnMarket":number|null,"listedDate":"YYYY-MM-DD or null","rent":number|null,"description":"the listing remarks, trimmed","agent":{"name":"","email":"","phone":"","brokerage":""},"priceHistory":[{"date":"YYYY-MM-DD","price":number}],"photoUrls":["direct image URLs if present"]}
+Reply with only JSON: {"address":"street","city":"","state":"","zip":"","listPrice":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","mlsStatus":"for_sale|pending|sold|off_market","mlsId":"","daysOnMarket":number|null,"listedDate":"YYYY-MM-DD or null","rent":number|null,"description":"the listing remarks, trimmed","agent":{"name":"","email":"","phone":"","brokerage":""},"priceHistory":[{"date":"YYYY-MM-DD","price":number}],"history":[{"date":"YYYY-MM-DD","event":"listed|price_cut|price_up|pending|contingent|back_on_market|sold|delisted|relisted|listed_rent|rented|other","price":number|null}],"photoUrls":["direct image URLs if present"]}
+priceHistory is only the current listing's prices. history is the full property history if shown (Zillow "Price history", Redfin "Property history"), including past sales and rentals from earlier years.
 
 Listing:
 """${t.slice(0,14000)}"""`;
@@ -226,6 +278,12 @@ Reply with only JSON: {"rentals":[{"addr":"","rent":number,"beds":number|null,"b
 
 Text:
 """${t.slice(0,12000)}"""`;
+const P_HISTORY=(t,d)=>`This is the price, sale and listing history of the property at ${streetOf(d.address)||'unknown'} (copied from Zillow, Redfin, Realtor.com or the MLS). Extract every event in it. Use null for unknown prices.
+
+Reply with only JSON: {"history":[{"date":"YYYY-MM-DD","event":"listed|price_cut|price_up|pending|contingent|back_on_market|sold|delisted|relisted|listed_rent|rented|other","price":number|null,"note":"short note if useful"}]}
+
+Text:
+\"\"\"${t.slice(0,12000)}\"\"\"`;
 const QUICK=[
   {id:'drop',label:'Drop this deal',c:'red'},
   {id:'harder',label:'Push harder',c:'orange',ins:'Push harder. Be firmer than the ladder suggests: hold our number or move by a small amount only, and lean on the repair costs and days on market.'},

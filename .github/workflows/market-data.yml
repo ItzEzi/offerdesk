@@ -1,0 +1,37 @@
+name: Market data (Redfin)
+
+# Every Wednesday morning, pull Redfin's latest public data and publish it to the
+# "data" branch, where OfferDesk reads it. Redfin updates ZIP data monthly and metro data weekly.
+on:
+  schedule:
+    - cron: '23 7 * * 3'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build market data from Redfin
+        run: python src/market/build_market.py out/market
+      - name: Publish to the data branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b data
+          git add market
+          git -c user.name="OfferDesk market job" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Market data $(date -u +%Y-%m-%d)"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data

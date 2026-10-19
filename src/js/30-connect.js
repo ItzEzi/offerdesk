@@ -20,7 +20,7 @@ async function addPhotoBlobs(dealId,blobs,source){
   for(const f of blobs){
     if(f.type&&!/^image\//.test(f.type))continue;
     if(d.photoIds.length>=24)break;
-    try{const {blob,thumb,w,h}=await downscale(f,1400,.82,180);const id=uid('ph');
+    try{const {blob,thumb,w,h}=await downscale(f,1568,.85,180);const id=uid('ph');
       await IDB.put('photos',{id,dealId,blob,w,h,source:source||'upload',at:nowISO()});
       d.photoIds.push(id);photoObjURL[id]=URL.createObjectURL(blob);if(!d.thumb)d.thumb=thumb;n++}catch(e){}
   }
@@ -191,7 +191,7 @@ async function syncAll(manual){
 const ownThread=d=>d.gmailThreadId&&(!d.gmailAccount||d.gmailAccount===(sendAcct()||{}).id)?d.gmailThreadId:null;
 const canEmail=d=>gmailOn()&&!!(((d.agent&&d.agent.email)||'').trim()||ownThread(d));
 function canText(d){if(smsOn())return !!e164(d.agent&&d.agent.phone);if(gvOn())return !!d.gvThreadId;return false}
-function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.name?`${n.name} | ${p.company||p.name}`:n.name)}
+function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.company?`${n.name} | ${p.company}`:`${n.name} | ${n.title||'Acquisitions'}`)}
 async function sendEmailNow(id,quiet){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return false;const to=((d.agent&&d.agent.email)||'').trim();
   if(!to&&!ownThread(d)){if(!quiet)toast('Add their email in Details first.');return false}
@@ -282,4 +282,5 @@ async function tick(manual){
   if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease()))return}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);
   if(state.settings.auto.enabled)await autopilotRun(false);
+  if(cloudOn()){try{await pushBrief();await briefSync()}catch(e){}}
 }

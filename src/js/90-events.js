@@ -34,7 +34,7 @@ A['modal-parse']=async()=>{const t=(state.drafts['mf-paste']||'').trim();if(!t){
   const res=await runAI('add','Reading the listing…',(ai,signal)=>ai.json(P_LISTING(t),{signal,modelTier:'quick'}));
   if(!res||!state.modal)return;const F=state.modal.form;const ag=res.agent||{};
   Object.assign(F,{address:res.address||F.address,city:res.city||F.city,state:res.state||F.state||'TX',zip:res.zip||F.zip,listPrice:parseNum(res.listPrice)??F.listPrice,beds:parseNum(res.beds)??F.beds,baths:parseNum(res.baths)??F.baths,sqft:parseNum(res.sqft)??F.sqft,lotSqft:parseNum(res.lotSqft)??F.lotSqft,year:parseNum(res.year)??F.year,dom:parseNum(res.daysOnMarket)??F.dom,description:res.description||F.description,agentName:ag.name||F.agentName,agentEmail:ag.email||F.agentEmail,agentPhone:ag.phone||F.agentPhone,brokerage:ag.brokerage||'',listedDate:res.listedDate||'',rent:parseNum(res.rent),propertyType:PROP_TYPES[res.propertyType]?res.propertyType:'single_family',mlsStatus:MLS_STATUS[res.mlsStatus]?res.mlsStatus:'for_sale',mlsId:res.mlsId||'',
-    history:(res.priceHistory||[]).map(p=>({date:p.date,price:parseNum(p.price)})).filter(p=>p.date&&p.price),photoUrls:(res.photoUrls||[]).filter(u=>/^https:\/\//.test(u)).slice(0,24)});
+    history:(res.priceHistory||[]).map(p=>({date:p.date,price:parseNum(p.price)})).filter(p=>p.date&&p.price),histEvents:(res.history||[]).filter(e=>e&&e.date&&HEV[e.event]).map(e=>({date:isoDay(e.date),event:e.event,price:parseNum(e.price),src:'listing page'})),photoUrls:(res.photoUrls||[]).filter(u=>/^https:\/\//.test(u)).slice(0,24)});
   state.modal.mode='type';render();toast('Check the details, then add it.')};
 A['modal-save']=()=>{const F=state.modal.form;if(!(F.address||'').trim()){toast('Add the street address.');return}
   const lp=parseNum(F.listPrice);let hist=(F.history||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -42,6 +42,7 @@ A['modal-save']=()=>{const F=state.modal.form;if(!(F.address||'').trim()){toast(
   hist=hist.map(h=>({date:new Date(h.date).toISOString(),price:h.price})).filter(h=>!isNaN(new Date(h.date)));
   const d=newDeal({source:F.source||'mls',mlsStatus:F.source==='wholesaler'?'off_market':(F.mlsStatus||'for_sale'),mlsId:F.mlsId||'',propertyType:F.propertyType||'single_family',address:F.address.trim(),city:F.city||'',state:F.state||'TX',zip:F.zip||'',listPrice:lp,priceHistory:hist,arv:parseNum(F.arv),arvSource:parseNum(F.arv)?'you':null,rehab:parseNum(F.rehab),beds:parseNum(F.beds),baths:parseNum(F.baths),sqft:parseNum(F.sqft),lotSqft:parseNum(F.lotSqft),year:parseNum(F.year),rent:F.rent||null,description:F.description||'',listingUrl:F.listingUrl||'',listedDate:F.listedDate?new Date(F.listedDate).toISOString():null,domAtAdd:F.listedDate?null:parseNum(F.dom),agent:{name:F.agentName||'',email:F.agentEmail||'',phone:F.agentPhone||'',brokerage:F.brokerage||''},wholesalerName:F.source==='wholesaler'?F.agentName||'':'',autopilot:!!F.autopilot,reviewed:true});
   if((F.photoUrls||[]).length){d.photoUrls=F.photoUrls;d.thumbUrl=F.photoUrls[0]}
+  if((F.histEvents||[]).length)d.history=F.histEvents;
   state.modal=null;saveDeal(d,true);logActivity(d.id,'deal',`Added ${streetOf(d.address)}.`);go('deal',d.id);
   toast(d.arv?'Added. Your ceiling is set.':`Added. Add photos and run ${negName()}’s inspection, or enter the ARV, to get a ceiling.`,4200)};
 A['confirm-yes']=()=>{const m=state.modal;state.modal=null;if(m&&m.run)m.run();render()};
@@ -72,6 +73,17 @@ A['comps-parse']=async()=>{const d=D();const t=(state.drafts['comps-text']||'').
   const dd=state.deals[d.id];dd.comps=(dd.comps||[]).concat(rows.map(x=>({addr:String(x.addr||''),price:parseNum(x.price),sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),soldDate:x.soldDate||'',status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true})));
   state.drafts['comps-text']='';state.compsPaste=false;saveDeal(dd);toast(`Added ${rows.length} comp${rows.length>1?'s':''}`)};
 A.deep=el=>aiDeep(el.dataset.id||state.dealId);
+A.research=()=>{const d=D();if(d)researchDeal(d.id)};
+A['ask-photos']=()=>{const d=D();if(d)askPhotosDraft(d.id)};
+A['hist-add-toggle']=()=>{state.histAdd=!state.histAdd;state.histPaste=false;render()};
+A['hist-paste-toggle']=()=>{state.histPaste=!state.histPaste;state.histAdd=false;render()};
+A['hist-save']=()=>{const d=D();const dt=state.drafts['he-date'];if(!dt){toast('Pick the date.');return}const ev=state.drafts['he-ev']||'listed';d.history=d.history||[];d.history.push({date:dt,event:HEV[ev]?ev:'other',price:parseNum(state.drafts['he-price']),src:'you'});state.drafts['he-price']='';state.histAdd=false;saveDeal(d)};
+A['hist-del']=el=>{const d=D();(d.history||[]).splice(+el.dataset.i,1);saveDeal(d)};
+A['hist-parse']=async()=>{const d=D();const t=(state.drafts['hist-text']||'').trim();if(!t){toast('Paste the history first.');return}
+  const res=await runAI('hist:'+d.id,'Reading the history…',(ai,signal)=>ai.json(P_HISTORY(t,d),{signal,modelTier:'quick'}));if(!res)return;
+  const ev=(res.history||[]).filter(e=>e&&e.date&&!isNaN(new Date(e.date))).map(e=>({date:isoDay(e.date),event:HEV[e.event]?e.event:'other',price:parseNum(e.price),note:String(e.note||'').slice(0,80),src:'pasted'}));
+  const dd=state.deals[d.id];dd.history=dd.history||[];let n=0;for(const e of ev)if(!dd.history.some(x=>isoDay(x.date)===e.date&&x.event===e.event)){dd.history.push(e);n++}
+  state.drafts['hist-text']='';state.histPaste=false;saveDeal(dd);toast(n?`Added ${n} event${n>1?'s':''}`:'No new events found.')};
 A['arv-mode']=el=>{const d=D();d.arvMode=el.dataset.v;saveDeal(d)};
 A['comp-filter']=el=>{state.compFilter=el.dataset.v;render()};
 A['geo-subject']=async()=>{const d=D();if(await geocodeDeal(d)){for(const x of d.comps||[])if(x.lat&&x.lng)x.dist=Math.round(haversine(d.lat,d.lng,x.lat,x.lng)*100)/100;saveDeal(d);toast('Found it. Distances updated.')}else toast('Couldn’t find that address on the map. Check the street, city and ZIP in Details.',5200)};
@@ -159,22 +171,33 @@ A['pr-start']=async()=>{
   const rules=`You are role-playing for negotiation practice. You are a ${role}: ${P.brief}.\n${facts}\nThe user is a real estate investor trying to buy it. Stay in character the whole time and talk like a real ${role} on a phone call: one to four sentences, natural, and push back with questions.\nHidden: the seller would accept as low as ${money(floor)} if the buyer earns it with solid reasoning, flexible terms and certainty to close. Never reveal that number or that a floor exists. Move toward it slowly and only for good reasons. If the buyer is pushy or sloppy, get firmer.\nNever break character and never mention being an AI or a practice exercise.\n\nThe call starts now. Answer the phone as the ${role}.`;
   const s={id:uid('p'),dealId:dealId||null,persona,floor,facts,title:sc.address,turns:[{role:'user',content:rules}],created:nowISO()};
   const res=await runAI('pr-start','Dialing…',(ai,signal)=>ai.text(s.turns,{signal,modelTier:'quick'}));
-  if(!res)return;s.turns.push({role:'assistant',content:res.text.trim()});state.practiceId=s.id;savePractice(s)};
+  if(!res)return;s.turns.push({role:'assistant',content:res.text.trim()});state.practiceId=s.id;savePractice(s);if(state.voiceOn)speakAgent(res.text.trim(),persona)};
 A['pr-send']=async()=>{
   const s=state.practice[state.practiceId];const msg=(state.drafts['pr-msg']||'').trim();if(!s||!msg||state.busy['pr-chat'])return;
   s.turns.push({role:'user',content:msg});state.drafts['pr-msg']='';savePractice(s);
   const turns=[s.turns[0],...s.turns.slice(1).slice(-24)];
   const res=await runAI('pr-chat','',(ai,signal)=>ai.text(turns,{signal,modelTier:'quick'}));
-  const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:res.text.trim()});savePractice(ss)}};
+  const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:res.text.trim()});savePractice(ss);if(state.voiceOn)speakAgent(res.text.trim(),ss.persona)}else voiceBits()};
 A['pr-end']=async()=>{
-  const s=state.practice[state.practiceId];if(!s)return;
+  const s=state.practice[state.practiceId];if(!s)return;stopSpeaking();voiceStopListening();
   const transcript=s.turns.slice(1).map(t=>(t.role==='user'?'INVESTOR: ':'AGENT: ')+t.content).join('\n');
   const d=state.deals[s.dealId];const c=d?calc(d):null;
   const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nJudge: did the investor anchor well, walk the math, ask about the seller's needs, trade concessions instead of giving them away, stay calm, and get a number or next step? Be specific and quote their words where useful.\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences on where it ended and how close they got to the floor","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
   const res=await runAI('pr-end','Grading the call…',(ai,signal)=>ai.json(prompt,{signal}));
   if(!res)return;const ss=state.practice[s.id];ss.feedback={score:parseNum(res.score)??'—',outcome:String(res.outcome||''),wins:(res.wins||[]).map(String),gaps:(res.gaps||[]).map(String),nextMoves:(res.nextMoves||[]).map(String),lines:(res.lines||[]).map(String)};savePractice(ss)};
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
-A['pr-close']=()=>{state.practiceId=null;render()};
+A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
+A.mic=()=>{state.voiceOn=true;if(VOICE.listening)voiceStopListening();else voiceListen();voiceBits()};
+A['voice-mode']=()=>{state.voiceOn=!state.voiceOn;if(!state.voiceOn){stopSpeaking();voiceStopListening()}render()};
+A['voice-stop']=()=>{stopSpeaking();voiceListen()};
+A['voices-load']=()=>loadVoices();
+A['brief-toggle']=()=>{const B=state.settings.brief=state.settings.brief||{};B.on=!B.on;saveSettings();briefSync();toast(B.on?(cloudOn()?`Morning brief on: every day at ${B.hour??8}:00.`:'Morning brief on. Turn on cloud save so it can be emailed.'):'Morning brief off.')};
+A['brief-test']=async()=>{if(!cloudOn()){toast('Turn on cloud save first.');return}state.busy.brief={label:negName()+' is writing your brief…'};render();
+  try{await pushBrief(true);const r=await bridge('brief_test',{},cm().acct);toast(r.sent?'Brief sent. Check your inbox.':r.error==='no_email'?'Add your email in Settings → '+negName()+' & you, then try again.':'Couldn’t send it: '+(r.error||'unknown'),5200);if(r.sent)briefSync()}
+  catch(e){toast(bridgeErr(e),5600)}finally{delete state.busy.brief;render()}};
+A['research-auto']=()=>{const R=state.settings.research=state.settings.research||{};R.auto=R.auto===false;saveSettings()};
+A['big-model']=el=>{state.settings.ai=state.settings.ai||{};state.settings.ai.bigModel=el.dataset.v;saveSettings()};
+A['rehab-reset']=()=>{state.settings.rehab=Object.assign({},state.settings.rehab,{costs:{}});saveSettings();toast('Repair prices reset to the defaults.')};
 A['pr-del']=el=>{delete state.practice[el.dataset.id];if(state.practiceId===el.dataset.id)state.practiceId=null;persist('practice');render()};
 
 /* settings */
@@ -268,7 +291,7 @@ document.addEventListener('change',e=>{
     if(p==='arv')d.arvSource='you';if(p==='rehab')d.rehabSource='you';
     saveDeal(d);return;
   }
-  if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();return}
+  if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();if(/^(brief\.|notify\.email)/.test(t.dataset.fs))briefSync();return}
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey&&e.target.id==='pr-msg'){e.preventDefault();A['pr-send']()}
@@ -318,6 +341,7 @@ async function boot(){
   setInterval(()=>tick(false),3*60*1000);
   setInterval(()=>{if(document.visibilityState==='visible'&&cloudOn())cloudSync()},60*1000);
   checkUpdate();setInterval(checkUpdate,5*60*1000);
+  {let lastW=innerWidth,rt=0;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(Math.abs(innerWidth-lastW)<80)return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;lastW=innerWidth;if(document.getElementById('history'))render()},300)})}
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkUpdate();if(cloudOn())cloudSync()}});
 }
 /* ================= self-update (hosted version) ================= */

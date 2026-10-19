@@ -16,8 +16,8 @@ const COLS={
 const WHOLES={
   settings:{key:'settings',get:()=>state.settings,set:v=>{state.settings=deepMerge(DEFAULTS,v||{})}},
   conn:{key:'conn',get:()=>state.conn,set:v=>{state.conn=v&&typeof v==='object'?v:{}}},
-  secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',accounts:acctList()}},
-    set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;
+  secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',elevenKey:s.elevenKey||'',accounts:acctList()}},
+    set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;if(v.elevenKey)s.elevenKey=v.elevenKey;else delete s.elevenKey;
       const acc=(Array.isArray(v.accounts)?v.accounts:[]).filter(a=>a&&a.id);const mine=acctList().find(a=>a.id===cm().acct);if(mine&&!acc.some(a=>a.id===mine.id))acc.unshift(mine);
       s.accounts=acc;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
 };

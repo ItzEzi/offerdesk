@@ -59,10 +59,12 @@ async function extractDeals(text,meta,busyKey,quiet){
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
+    d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
     state.deals[d.id]=d;saveDeal(d,true);made.push(d.id);
     logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
   }
   render();
+  if(state.settings.research&&state.settings.research.auto&&aiOn())made.forEach(queueResearch);
   return {deals:made,w};
 }
 async function importEmail(id,quiet){
@@ -142,10 +144,15 @@ async function quickAction(id,qa){
 async function aiDeep(id,quiet){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
-  const res=await runAI('deep:'+id,`${negName()} is looking at ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:5000}),quiet);
+  const model=bigModel();
+  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
-  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length});
-  if(Array.isArray(res.rehabLines)&&res.rehabLines.length){dd.rehabLines=res.rehabLines.map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));dd.rehabCont=parseNum(res.contingencyPct)??10;
+  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
+  const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';
+  const fromBook=(Array.isArray(res.rehabItems)?res.rehabItems:[]).filter(x=>book[x.key]&&parseNum(x.qty)>0).map(x=>{const b=book[x.key];const q=parseNum(x.qty);return {item:b.label,detail:`${/house/.test(b.unit)?'':numFmt(q)+(short(b.unit)?' '+short(b.unit):'')+' × '+(b.cost<100&&b.cost%1?'$'+b.cost.toFixed(2):money(b.cost))+' · '}${String(x.why||'')}${x.seen===false?' (not in photos: allowance)':''}`,cost:Math.round(q*b.cost),key:x.key,qty:q,seen:x.seen!==false}});
+  const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));
+  const lines=fromBook.length||custom.length?[...fromBook,...custom]:(Array.isArray(res.rehabLines)?res.rehabLines.map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)})):[]);
+  if(lines.length){dd.rehabLines=lines;dd.rehabCont=parseNum(res.contingencyPct)??10;
     const tot=Math.round(dd.rehabLines.reduce((a,x)=>a+(x.cost||0),0)*(1+(dd.rehabCont||0)/100));if(!dd.rehab||dd.rehabSource==='maya'){dd.rehab=tot;dd.rehabSource='maya'}}
   const av=res.arv&&parseNum(res.arv.value);if(av&&(!dd.arv||dd.arvSource==='maya')){dd.arv=floor500(av);dd.arvSource='maya'}
   const rv=res.rent&&parseNum(res.rent.value);if(rv&&!dd.rent)dd.rentEst=rv;

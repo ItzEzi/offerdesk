@@ -517,6 +517,27 @@ details.card:not([open]){padding-block:13px}
 @media (max-width:860px){.ogrid{grid-template-columns:minmax(0,1fr)}}
 .cm-pt text.cm-far{fill:var(--muted);font-weight:700}
 
+/* listing history + research + photo log */
+.htl{width:100%;height:auto;max-width:760px;display:block}
+.htl-axis{stroke:var(--line-strong);stroke-width:2}.htl-yr{font-size:11px;fill:var(--muted);font-family:inherit}
+.htl-ev circle{stroke:var(--surface);stroke-width:2;fill:var(--s-slate)}.htl-stem{stroke:var(--line-strong);stroke-width:1}
+.htl-lab{font-size:11px;font-weight:700;fill:var(--ink);font-family:inherit}.htl-date{font-size:10px;fill:var(--muted);font-family:inherit}
+.htl-lab,.htl-date{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}.htl-now{fill:var(--muted)}.htl-brk rect{fill:var(--surface)}.htl-brk path{stroke:var(--muted);stroke-width:1.5;fill:none}
+.htl-ev.blue circle{fill:var(--s-blue)}.htl-ev.red circle{fill:var(--s-red)}.htl-ev.orange circle{fill:var(--s-orange)}.htl-ev.amber circle{fill:var(--s-amber)}.htl-ev.green circle{fill:var(--s-green)}.htl-ev.purple circle{fill:var(--s-purple)}
+.plog{display:grid;gap:8px;margin-top:8px}.plog-row{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:8px}
+.plog-row img{width:84px;height:63px;object-fit:cover;border-radius:6px}.plog-n{display:grid;place-items:center;width:84px;height:63px;border-radius:6px;background:var(--sunk);font-weight:800;color:var(--muted)}
+.plog-row p{margin:2px 0}
+
+/* voice practice + brief */
+.voicebar{display:flex;align-items:center;gap:14px;border:1px solid var(--line);border-radius:14px;padding:10px 14px;background:var(--sunk)}
+.mic{width:54px;height:54px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--brand);color:#fff;flex:none;cursor:pointer;box-shadow:0 4px 14px rgba(62,91,246,.35)}
+.mic .i{width:24px;height:24px}.mic.on{background:var(--s-red);animation:pulse 1s ease-in-out infinite alternate}.mic.talking{background:var(--s-green)}
+.vdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--s-gray);margin-right:6px;vertical-align:1px}.vdot.rec{background:var(--s-red)}.vdot.talk{background:var(--s-green)}.vdot.err{background:var(--s-orange)}
+.brief-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.brief-cols ul{margin:6px 0 0;padding-left:18px;font-size:13px;display:grid;gap:4px}
+details.card>summary{cursor:pointer}
+
+.spark{width:100%;height:30px;display:block;margin-top:2px;overflow:visible}.spark path{fill:none;stroke:var(--s-blue);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}.spark.amber path{stroke:var(--s-amber)}
+
 </style>
 </head>
 <body>
@@ -531,6 +552,8 @@ details.card:not([open]){padding-block:13px}
  * Connects OfferDesk to your Gmail, optionally to a Twilio number for texts,
  * and saves your OfferDesk data (deals, photos, settings) to a Google Drive
  * folder called "OfferDesk Cloud" so every device you use sees the same desk.
+ * It can also open links that come with a deal (Google Drive photo folders, deal pages)
+ * and email you Maya's morning brief every day.
  * It runs inside your own Google account. Nothing is stored anywhere else.
  * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
  */
@@ -561,6 +584,10 @@ function doPost(e) {
       case 'photo_put': return json_(photoPut_(req));
       case 'photo_get': return json_(photoGet_(String(req.id || '')));
       case 'photo_del': return json_(photoDel_(req.ids || []));
+      case 'fetch_url': return json_(fetchUrl_(String(req.url || '')));
+      case 'drive_image': return json_(driveImage_(String(req.id || '')));
+      case 'brief_setup': return json_(briefSetup_(req));
+      case 'brief_test': return json_(morningBrief());
       case 'attachments': return json_({ ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) });
       case 'search': return json_({ ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) });
       case 'send': return json_(send_(req));
@@ -831,6 +858,96 @@ function photoDel_(ids) {
   return { ok: true, deleted: n };
 }
 
+/* ---------- open a link that came with a deal ---------- */
+function fetchUrl_(url) {
+  if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'bad_url' };
+  var folder = url.match(/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([\w-]{10,})/);
+  if (folder) {
+    try {
+      var f = DriveApp.getFolderById(folder[1]); var it = f.getFiles(); var imgs = [];
+      while (it.hasNext() && imgs.length < 40) { var x = it.next(); var mt = x.getMimeType() || ''; if (mt.indexOf('image/') === 0) imgs.push({ id: x.getId(), name: x.getName(), type: mt, size: x.getSize() }); }
+      return { ok: true, kind: 'drive_folder', title: f.getName(), images: imgs };
+    } catch (e) { return { ok: true, kind: 'blocked', status: 'drive_no_access' }; }
+  }
+  var file = url.match(/drive\.google\.com\/file\/d\/([\w-]{10,})/) || url.match(/drive\.google\.com\/(?:open|uc)\?(?:.*&)?id=([\w-]{10,})/);
+  if (file) {
+    try { var fl = DriveApp.getFileById(file[1]); var t = fl.getMimeType() || ''; return { ok: true, kind: 'drive_file', title: fl.getName(), images: t.indexOf('image/') === 0 ? [{ id: fl.getId(), name: fl.getName(), type: t, size: fl.getSize() }] : [] }; }
+    catch (e) { return { ok: true, kind: 'blocked', status: 'drive_no_access' }; }
+  }
+  var res;
+  try {
+    res = UrlFetchApp.fetch(url, { followRedirects: true, muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
+  } catch (e) { return { ok: true, kind: 'blocked', status: 'fetch_failed' }; }
+  var code = res.getResponseCode(); var h = res.getHeaders(); var ct = String(h['Content-Type'] || h['content-type'] || '');
+  if (code >= 400) return { ok: true, kind: 'blocked', status: code };
+  if (ct.indexOf('image/') === 0) return { ok: true, kind: 'image', images: [{ url: url, type: ct }] };
+  var html = res.getContentText(); if (html.length > 2500000) html = html.slice(0, 2500000);
+  var title = ((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').replace(/\s+/g, ' ').trim();
+  if (/captcha|access denied|are you a robot|px-captcha|request unsuccessful/i.test(title + html.slice(0, 3000))) return { ok: true, kind: 'blocked', status: 'robot_check' };
+  var imgs = [], re = /(?:src|content|data-src|href)=["']([^"']+?\.(?:jpe?g|png|webp)(?:\?[^"']*)?)["']/gi, m;
+  while ((m = re.exec(html)) && imgs.length < 60) { var u = absUrl_(m[1], url); if (imgs.indexOf(u) < 0) imgs.push(u); }
+  var text = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr|h\d)>/gi, '\n').replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim().slice(0, 40000);
+  return { ok: true, kind: 'page', status: code, title: title.slice(0, 200), images: imgs, text: text };
+}
+function absUrl_(u, base) { u = u.replace(/&amp;/g, '&'); if (/^https?:/i.test(u)) return u; if (u.indexOf('//') === 0) return 'https:' + u; var m = base.match(/^(https?:\/\/[^\/]+)/); return m ? (u.charAt(0) === '/' ? m[1] + u : m[1] + '/' + u) : u; }
+function driveImage_(id) {
+  try { var f = DriveApp.getFileById(id); if (f.getSize() > 7 * 1024 * 1024) return { ok: false, error: 'too_big' }; var b = f.getBlob(); return { ok: true, type: b.getContentType(), data: Utilities.base64Encode(b.getBytes()) }; }
+  catch (e) { return { ok: false, error: 'drive_no_access' }; }
+}
+
+/* ---------- Maya's morning brief ---------- */
+function briefSetup_(req) {
+  var props = PropertiesService.getScriptProperties();
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'morningBrief') ScriptApp.deleteTrigger(t); });
+  if (!req.on) { props.setProperty('BRIEF_ON', 'no'); return { ok: true, on: false }; }
+  if (!req.email) return { ok: false, error: 'no_email' };
+  var hour = Math.max(0, Math.min(23, Number(req.hour) || 8)); var tz = String(req.tz || Session.getScriptTimeZone());
+  props.setProperties({ BRIEF_ON: 'yes', BRIEF_TO: String(req.email), BRIEF_HOUR: String(hour), BRIEF_TZ: tz });
+  ScriptApp.newTrigger('morningBrief').timeBased().everyDays(1).atHour(hour).nearMinute(0).inTimezone(tz).create();
+  return { ok: true, on: true, hour: hour, tz: tz };
+}
+function readPart_(name) { var f = partFile_(name); if (!f) return null; try { return JSON.parse(f.getBlob().getDataAsString('UTF-8')); } catch (e) { return null; } }
+function morningBrief() {
+  var to = prop_('BRIEF_TO'); if (!to) return { ok: false, error: 'no_email' };
+  var part = readPart_('brief'); var b = part && part.v; if (!b) return { ok: false, error: 'no_brief' };
+  var overnight = [];
+  try {
+    var agents = (b.agents || []).filter(function (x) { return /@/.test(x); }).slice(0, 40);
+    if (agents.length) GmailApp.search('newer_than:1d -from:me from:(' + agents.join(' OR ') + ')', 0, 15).forEach(function (t) { var m = t.getMessages(); m = m[m.length - 1]; overnight.push({ from: m.getFrom(), subject: m.getSubject(), text: (m.getPlainBody() || '').slice(0, 300), at: m.getDate().toISOString() }); });
+  } catch (e) {}
+  var sec = readPart_('secrets'); var key = sec && sec.v && sec.v.apiKey; var html = null;
+  if (key) { try { html = briefAI_(key, b, overnight); } catch (e) { html = null; } }
+  if (!html) html = briefHtml_(b, overnight);
+  var name = (b.neg || 'Maya') + ' · OfferDesk';
+  var day = Utilities.formatDate(new Date(), prop_('BRIEF_TZ') || Session.getScriptTimeZone(), 'EEE, MMM d');
+  var subject = 'Morning brief · ' + day + ' · ' + (b.needs || []).length + ' need you' + (overnight.length ? ' · ' + overnight.length + ' new repl' + (overnight.length === 1 ? 'y' : 'ies') : '');
+  GmailApp.sendEmail(to, subject, html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 5000), { htmlBody: html, name: name });
+  return { ok: true, sent: true, subject: subject };
+}
+function briefAI_(key, b, overnight) {
+  var prompt = 'You are ' + (b.neg || 'Maya') + ', an acquisitions manager for a real estate investor. Write this morning\'s brief email in simple HTML (only h3, p, ul, li, b, a). Be short and scannable: 1) what needs his decision today, 2) replies that came in overnight, 3) deals worth a look with their deal scores and why, 4) follow-ups and price drops, 5) a one-line pipeline snapshot. Link every deal to its OfferDesk page. Use only the data below; do not invent anything. If a section is empty, skip it. No greeting fluff, no sign-off beyond your name.\n\nData from OfferDesk (as of ' + b.at + '):\n' + JSON.stringify(b).slice(0, 30000) + '\n\nEmails from agents in the last 24 hours (Gmail):\n' + JSON.stringify(overnight).slice(0, 6000);
+  var res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', { method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, payload: JSON.stringify({ model: 'claude-sonnet-5-5', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] }) });
+  if (res.getResponseCode() >= 300) return null;
+  var j = JSON.parse(res.getContentText()); var t = (j.content || []).filter(function (x) { return x.type === 'text'; }).map(function (x) { return x.text; }).join('').trim();
+  t = t.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '');
+  return t ? '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#141A2E">' + t + '</div>' : null;
+}
+function briefHtml_(b, overnight) {
+  var e = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var link = function (x) { return '<a href="' + e(b.url + '#deal/' + x.id) + '">' + e(x.addr) + '</a>'; };
+  var sec = function (title, list, fn) { return list && list.length ? '<h3>' + title + '</h3><ul>' + list.map(function (x) { return '<li>' + fn(x) + '</li>'; }).join('') + '</ul>' : ''; };
+  return '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#141A2E">' +
+    sec('Needs your call', b.needs, function (x) { return link(x) + ': ' + e(x.why); }) +
+    sec('Replies overnight', overnight, function (x) { return e(x.from) + ': ' + e(x.subject) + ' — ' + e(x.text.slice(0, 140)); }) +
+    sec('Replies waiting', b.replies, function (x) { return link(x) + (x.their ? ' · their number $' + Number(x.their).toLocaleString('en-US') : ''); }) +
+    sec('Worth a look', b.top, function (x) { return link(x) + ' · score ' + x.score + ' (' + e(x.best) + ')' + (x.at80 ? ' · 80+ at $' + Number(x.at80).toLocaleString('en-US') : ''); }) +
+    sec('New deals', b.newDeals, function (x) { return link(x) + ' · ' + e(x.src); }) +
+    sec('Follow-ups due', b.follow, function (x) { return link(x) + ' · follow-up #' + x.step; }) +
+    sec('Price drops', b.drops, function (x) { return link(x) + ' · now $' + Number(x.to).toLocaleString('en-US'); }) +
+    '<p>' + e(b.statsLine || '') + '</p><p>— ' + e(b.neg || 'Maya') + '</p></div>';
+}
+
 function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k); }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 </script>
@@ -842,7 +959,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261019-1549';
+const APP_V='20261019-1639';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -857,11 +974,16 @@ const DEFAULTS={
   profile:{name:'',company:'',email:'',phone:''},
   buy:{strategy:'flip',targetRoi:20,minProfit:30000,holdMonths:5,holdCostMonthly:1200,buyCostPct:2,sellCostPct:8,wsBuyerPct:70,wsFee:10000,anchorGap:10,targetPct:40,maxRounds:4,escalatePct:95,closeDays:14,optionDays:7,emd:1000},
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
-  neg:{name:'Maya',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
+  neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
   auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
+  research:{auto:true},
+  ai:{bigModel:'claude-opus-5-5'},
+  brief:{on:true,hour:8,tz:''},
+  rehab:{costs:{},notes:''},
+  voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}
@@ -959,7 +1081,8 @@ const pct=(n,d=1)=>n==null||!isFinite(n)?'—':(n*100).toFixed(d)+'%';
 const numFmt=n=>n==null||!isFinite(n)?'—':Math.round(n).toLocaleString('en-US');
 const floor500=n=>Math.floor(n/500)*500;
 const round500=n=>Math.round(n/500)*500;
-const fmtDate=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:d.getFullYear()!==new Date().getFullYear()?'numeric':undefined})};
+const dateOf=iso=>new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(iso))?iso+'T12:00:00':iso);
+const fmtDate=iso=>{if(!iso)return '';const d=dateOf(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:d.getFullYear()!==new Date().getFullYear()?'numeric':undefined})};
 const fmtWhen=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})};
 const daysSince=iso=>{if(!iso)return null;const t=new Date(iso).getTime();return isNaN(t)?null:Math.max(0,Math.floor((Date.now()-t)/DAY))};
 function ago(iso){const d=daysSince(iso);if(d==null)return '';if(d===0){const m=Math.floor((Date.now()-new Date(iso).getTime())/6e4);return m<1?'just now':m<60?m+' min ago':Math.floor(m/60)+' h ago'}return d===1?'1 day ago':d+' days ago'}
@@ -1026,7 +1149,7 @@ function route(){
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
   state.bellOpen=false;window.scrollTo(0,0);render();
-  if(state.view==='deal'&&state.dealId)ensurePhotoUrls(state.dealId);
+  if(state.view==='deal'&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   const anchor=state.view==='deal'||state.view==='settings'?sub:id;
   if(anchor){setTimeout(()=>{const el=document.getElementById(anchor);if(el)el.scrollIntoView({block:'start'})},80)}
 }
@@ -1157,7 +1280,7 @@ function compGrid(d){
 function marketSignal(d){
   if(d.source==='wholesaler')return null;
   const h=d.priceHistory||[];let cuts=0;for(let i=1;i<h.length;i++)if(h[i].price<h[i-1].price)cuts++;
-  const o=origList(d),L=curList(d);const drop=o&&L&&o>L?(o-L)/o:0;const dm=dom(d);const avg=d.zipAvgDom||null;
+  const o=origList(d),L=curList(d);const drop=o&&L&&o>L?(o-L)/o:0;const dm=dom(d);const avg=zipDom(d);
   const rejection=(cuts>=2&&drop>=.10&&dm!=null&&dm>=90)||(drop>=.2&&dm!=null&&dm>=60);
   const stale=!rejection&&((cuts>=1&&dm!=null&&dm>=(avg||60))||(dm!=null&&(avg?dm>=avg*2:dm>=120)));
   if(!rejection&&!stale)return null;
@@ -1229,6 +1352,7 @@ function scoreMods(d,c){
   const lvl=String((d.analysis&&d.analysis.level)||'').toLowerCase();if(lvl.includes('gut'))mods.push(['Full-gut rehab',-5]);
   if(d.rehab&&c.A&&d.rehab/c.A>.4)mods.push(['Repairs over 40% of ARV',-5]);
   const ms=marketSignal(d);if(ms&&ms.level==='rejection')mods.push(['Market rejection: resale risk',-8]);
+  mods.push(...marketMods(d,c));
   return mods;
 }
 const STRAT_LABEL={flip:'Fix & flip',wholesale:'Wholesale',brrrr:'BRRRR',rental:'Rental (all cash)'};
@@ -1291,15 +1415,39 @@ async function apiText(input,opts){
   const merged=[];for(const m of msgs){const l=merged[merged.length-1];if(l&&l.role===m.role)l.content+='\n\n'+m.content;else merged.push(Object.assign({},m))}
   if(merged[0]&&merged[0].role!=='user')merged.unshift({role:'user',content:'(start)'});
   if(opts.images&&opts.images.length){const last=merged[merged.length-1];const blocks=[];for(const f of opts.images)blocks.push(await imageBlock(f));last.content=[...blocks,{type:'text',text:last.content}]}
-  const model=opts.modelTier==='quick'?'claude-haiku-5-5':(sec.model||'claude-sonnet-5-5');
+  const model=opts.model||(opts.modelTier==='quick'?'claude-haiku-5-5':(sec.model||'claude-sonnet-5-5'));
   let res;
   try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||3000,messages:merged})})}
   catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
-  if(!res.ok){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';
-    throw {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m}}
+  if(!res.ok)throw await apiFail(res);
   const j=await res.json();const text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
   if(!text)throw {code:'empty_completion'};
   return {text,truncated:j.stop_reason==='max_tokens'};
+}
+async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';
+  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m}}
+/* a call where Claude may search the web and open pages (server tools); continues paused turns */
+const WEB_TOOLS=(n)=>[{type:'web_search_20250305',name:'web_search',max_uses:n||6},{type:'web_fetch_20250910',name:'web_fetch',max_uses:n||6,max_content_tokens:12000}];
+async function apiTools(prompt,opts){
+  opts=opts||{};const sec=secrets();if(!sec.apiKey)throw {code:'no_ai'};
+  const model=opts.model||sec.model||'claude-sonnet-5-5';let messages=[{role:'user',content:prompt}];
+  const sources=new Map(),fetchUrl={},failed=[];let text='',searches=0;
+  for(let round=0;round<5;round++){
+    let res;try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||8000,messages,tools:opts.tools||WEB_TOOLS()})})}
+    catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
+    if(!res.ok)throw await apiFail(res);
+    const j=await res.json();const blocks=j.content||[];
+    for(const b of blocks){
+      if(b.type==='server_tool_use'){if(b.name==='web_fetch'&&b.input&&b.input.url)fetchUrl[b.id]=b.input.url;if(b.name==='web_search')searches++}
+      if(b.type==='web_search_tool_result'&&Array.isArray(b.content))for(const r of b.content)if(r&&r.url&&!sources.has(r.url))sources.set(r.url,r.title||r.url);
+      if(b.type==='web_fetch_tool_result'){const c=b.content||{};if(c.type==='web_fetch_result'&&c.url)sources.set(c.url,(c.content&&c.content.title)||c.url);else if(fetchUrl[b.tool_use_id])failed.push({url:fetchUrl[b.tool_use_id],why:c.error_code||'error'})}
+    }
+    text=blocks.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    if(j.stop_reason==='pause_turn'){messages=[...messages,{role:'assistant',content:blocks}];continue}
+    break;
+  }
+  if(!text)throw {code:'empty_completion'};
+  return {text,sources:[...sources].map(([url,title])=>({url,title})),failed,searches};
 }
 function parseLoose(t){
   try{return JSON.parse(t)}catch(e){}
@@ -1341,12 +1489,14 @@ function dealFacts(d,c){
     `Source: ${d.source==='wholesaler'?'off-market deal from a wholesaler':'listed on the MLS (on-market)'}; status ${mlsOf(d)[0]}`,
     `Current ${d.source==='wholesaler'?'asking':'list'} price: ${money(L)}${priceDropped(d)?` (originally ${money(origList(d))})`:''}`,
     `Type / beds / baths / sqft / lot / year: ${PROP_TYPES[d.propertyType]||'house'} / ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.lotSqft??'?'} sqft lot / ${d.year??'?'}`,
-    dom(d)!=null?`Days on market: ${dom(d)}${d.zipAvgDom?` (ZIP average ${d.zipAvgDom})`:''}`:'',
+    dom(d)!=null?`Days on market: ${dom(d)}${zipDom(d)?` (ZIP median ${zipDom(d)})`:''}`:'',
     `Our ARV: ${money(c.A)}. Our repair estimate: ${money(d.rehab)}.`,
     a&&a.summary?`Photo inspection summary: ${a.summary} Level: ${a.level||'?'}.`:'',
     d.description?`Listing description: ${d.description.slice(0,1500)}`:'',
     d.instructions?`Investor's standing instructions for this deal (follow them): ${d.instructions.slice(0,800)}`:'',
     d.notes?`Investor's private notes (context only, never quote): ${d.notes.slice(0,1200)}`:'',
+    (()=>{const h=historyInsights(d);const ev=histEvents(d);return ev.length?`Property history (oldest first): ${ev.slice(-14).map(e=>`${e.date} ${(HEV[e.event]||HEV.other)[0].toLowerCase()}${e.price?' '+money(e.price):''}`).join('; ')}.${h.length?' What it means: '+h.map(x=>x.text).join(' '):''}`:''})(),
+    marketFacts(d),
     (()=>{const ms=marketSignal(d);return ms?`Negotiation leverage: ${ms.text}. ${ms.level==='rejection'?'The market has been refusing this house at these prices; buyers are not paying the ask.':'The listing is stale; the seller is likely getting flexible.'} You may point to the time on market and the price history, politely.`:''})()
   ].filter(Boolean).join('\n');
 }
@@ -1354,9 +1504,11 @@ function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)re
 function threadText(d){return (d.thread||[]).slice(-14).map(t=>`[${fmtDate(t.at)} · ${t.dir==='out'?'US':t.dir==='in'?'THEM':'NOTE'} via ${t.channel}${t.price?` · number: ${money(t.price)}`:''}] ${(t.subject?t.subject+' — ':'')+(t.text||'').slice(0,1200)}`).join('\n')||'(no messages yet)'}
 function signRules(){
   const p=state.settings.profile,n=state.settings.neg;
-  return `Sign every message as "${n.name}" on behalf of ${p.name||'the investor'}${p.company?' at '+p.company:''}.${p.phone?' Phone: '+p.phone+'.':''}${p.email?' Email: '+p.email+'.':''}
+  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean);
+  return `You are ${n.name}, ${title}${p.company?' at '+p.company:''}. Write in the first person as ${n.name}; say "we" or "our team" for the buyer. Never write "on behalf of" and never introduce yourself as an assistant.
+End every email with this signature, one item per line: ${sig.map(x=>'"'+x+'"').join(', ')}. End texts with "– ${n.name}".
 Tone: ${TONES[n.tone]||TONES.friendly}. Plain US English. No emojis, no hype.
-Never invent facts about the property, the comps, the seller or the buyer.${n.disclose?` Do not claim to be human. If anyone asks whether they are dealing with a person or an AI, say you are an AI assistant working for ${p.name||'the investor'}, who approves your limits.`:''}${n.optOutLine?' End every email with one short line: "Prefer not to get offers from us? Reply ‘remove’ and we won’t contact you again."':''}`;
+Never invent facts about the property, the comps, the seller or the buyer.${n.disclose?` Do not claim to be human. If anyone asks whether they are dealing with a person or an AI, say honestly that you are an AI acquisitions agent working for ${p.name||'the buyer'}${p.company?' at '+p.company:''}, who approves your limits.`:''}${n.optOutLine?' End every email with one short line: "Prefer not to get offers from us? Reply ‘remove’ and we won’t contact you again."':''}`;
 }
 const counterpart=d=>d.source==='wholesaler'?'the wholesaler':'the listing agent';
 function firstName(d){const n=((d.agent&&d.agent.name)||'').replace(/\(example\)/i,'').trim();return n.split(/\s+/)[0]||'there'}
@@ -1452,22 +1604,43 @@ ${signRules()}
 
 Reply with only JSON: {"answer":"what you say to the investor, 1 to 5 sentences","draft":null or {"action":"counter|hold|accept|creative|followup|custom","price":number or null,"email":{"subject":"...","body":"..."},"sms":"..."}}`;
 }
+const REHAB_BOOK=[
+  ['paint_int','Interior paint','per sqft of living area',2.75],['paint_ext','Exterior paint','per sqft of living area',2.25],
+  ['lvp','LVP flooring, installed','per sqft',4.5],['carpet','Carpet, installed','per sqft',3],['tile','Tile floor, installed','per sqft',9],['drywall','Drywall and texture repair','per sqft',2],
+  ['kitchen_light','Kitchen refresh (paint cabinets, counters, hardware)','each',9000],['kitchen_mid','Kitchen remodel, mid-grade','each',22000],['kitchen_full','Kitchen full gut','each',35000],
+  ['bath_light','Bathroom refresh','each',3500],['bath_mid','Bathroom remodel','each',9000],['bath_full','Bathroom full gut','each',14000],
+  ['appliances','Appliance package','each',3500],['lighting','Lighting and fixtures','per house',2000],['int_door','Interior door','each',250],['ext_door','Exterior door','each',1200],['windows','Window','each',650],
+  ['roof','Roof replacement (shingle)','per sqft of living area',6.5],['hvac','HVAC system','each',9500],['water_heater','Water heater','each',1800],['panel','Electrical panel','each',3000],
+  ['rewire','Rewire','per sqft',7],['repipe','Plumbing repipe','per sqft',6],['foundation','Foundation repair allowance','each',9000],['siding','Siding repair','per house',4000],
+  ['fence','Fence','per linear ft',35],['landscaping','Landscaping and cleanup','per house',2500],['permits','Permits, dumpster, misc','per house',1500]];
+function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
 function promptDeep(d,nPhotos){
-  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip and wholesale investor in Dallas–Fort Worth. ${nPhotos?`${nPhotos} listing photo(s) are attached. Look at them carefully, room by room.`:'No photos were provided; rely on the text and say what needs a site visit.'} Produce an inspection-style condition report, a rehab scope priced at current DFW contractor rates (labor plus materials) to a clean mid-grade resale finish, and value estimates.
+  const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
+  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
+Work in this order:
+1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
+2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
+3. Rehab quantities from the investor's cost book below. Do not invent prices. For each item needed, give the cost-book key and a quantity: square feet for per-sqft items (base them on the ${d.sqft||'unknown'} sqft living area unless the photos show otherwise), a count for "each" items, and 1 for per-house items. For areas you could not see, include a sensible allowance and mark seen false.
+Cost book (key: item, price, unit):
+${book.map(b=>`- ${b.key}: ${b.label}, ${money(b.cost)} ${b.unit}`).join('\n')}
+4. Anything that is not in the cost book goes in customLines with your best cost for ${where}.
+${R.notes?`The investor's own notes on repair pricing (follow them): ${String(R.notes).slice(0,800)}\n`:''}
 Property: ${[streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(', ')||'unknown'}; ${PROP_TYPES[d.propertyType]||'house'}; ${d.beds??'?'} bed / ${d.baths??'?'} bath; ${d.sqft??'?'} sqft; lot ${d.lotSqft??'?'} sqft; built ${d.year??'?'}.
 Asking/list price: ${money(curList(d))}.
 Listing description: ${(d.description||'none').slice(0,2500)}
 Investor notes: ${(d.notes||'none').slice(0,1000)}
-Comps the investor entered:
+Comps the investor has:
 ${compsText(d)}
-
-Rules: rate a system only from what you can see or what the text says, otherwise "unknown". If no comps were entered, your ARV is a rough estimate from the asking price, location and condition: give a low/high range and mark confidence low. Whole dollars only.
+${(()=>{const m=marketFacts(d);return m?m+'\n':''})()}
+Rules: whole dollars only. If there are few or no comps, your ARV is a rough estimate: give a low/high range and mark confidence low. Renovated homes in a ZIP usually sell above the ZIP's median $/sqft.
 
 Reply with only JSON:
-{"condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
+{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]}],
+"condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
+"notSeen":["areas with no photo, e.g. roof, HVAC, second bathroom"],
 "level":"light refresh|moderate rehab|full gut","summary":"two sentences","suggestions":["specific renovation suggestions"],
-"rehabLines":[{"item":"","detail":"","cost":number}],"contingencyPct":number,
+"rehabItems":[{"key":"cost book key","qty":number,"why":"short reason","seen":true}],"customLines":[{"item":"","detail":"","cost":number}],"contingencyPct":number,
 "arv":{"value":number|null,"low":number|null,"high":number|null,"confidence":"low|medium|high","why":"one sentence"},
 "rent":{"value":number|null,"why":"one sentence"},
 "audience":"home buyer|investor|mixed","audienceConfidence":"low|medium|high","motivation":"distressed property|motivated seller|stale listing|estate or probate|tired landlord|retail listing",
@@ -1475,13 +1648,16 @@ Reply with only JSON:
 }
 const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
 
-Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["any image or photo-album URLs"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
+Put every URL that could show the property (listing pages, Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and direct image URLs in "photoLinks". Skip unsubscribe, social media and calendar links.
+
+Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
 Message:
 """${t.slice(0,12000)}"""`;
 const P_LISTING=t=>`Extract this property listing (copied from Zillow, Redfin, Realtor.com or the MLS). Use null for anything not stated. Numbers are plain numbers.
 
-Reply with only JSON: {"address":"street","city":"","state":"","zip":"","listPrice":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","mlsStatus":"for_sale|pending|sold|off_market","mlsId":"","daysOnMarket":number|null,"listedDate":"YYYY-MM-DD or null","rent":number|null,"description":"the listing remarks, trimmed","agent":{"name":"","email":"","phone":"","brokerage":""},"priceHistory":[{"date":"YYYY-MM-DD","price":number}],"photoUrls":["direct image URLs if present"]}
+Reply with only JSON: {"address":"street","city":"","state":"","zip":"","listPrice":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","mlsStatus":"for_sale|pending|sold|off_market","mlsId":"","daysOnMarket":number|null,"listedDate":"YYYY-MM-DD or null","rent":number|null,"description":"the listing remarks, trimmed","agent":{"name":"","email":"","phone":"","brokerage":""},"priceHistory":[{"date":"YYYY-MM-DD","price":number}],"history":[{"date":"YYYY-MM-DD","event":"listed|price_cut|price_up|pending|contingent|back_on_market|sold|delisted|relisted|listed_rent|rented|other","price":number|null}],"photoUrls":["direct image URLs if present"]}
+priceHistory is only the current listing's prices. history is the full property history if shown (Zillow "Price history", Redfin "Property history"), including past sales and rentals from earlier years.
 
 Listing:
 """${t.slice(0,14000)}"""`;
@@ -1499,6 +1675,12 @@ Reply with only JSON: {"rentals":[{"addr":"","rent":number,"beds":number|null,"b
 
 Text:
 """${t.slice(0,12000)}"""`;
+const P_HISTORY=(t,d)=>`This is the price, sale and listing history of the property at ${streetOf(d.address)||'unknown'} (copied from Zillow, Redfin, Realtor.com or the MLS). Extract every event in it. Use null for unknown prices.
+
+Reply with only JSON: {"history":[{"date":"YYYY-MM-DD","event":"listed|price_cut|price_up|pending|contingent|back_on_market|sold|delisted|relisted|listed_rent|rented|other","price":number|null,"note":"short note if useful"}]}
+
+Text:
+\"\"\"${t.slice(0,12000)}\"\"\"`;
 const QUICK=[
   {id:'drop',label:'Drop this deal',c:'red'},
   {id:'harder',label:'Push harder',c:'orange',ins:'Push harder. Be firmer than the ladder suggests: hold our number or move by a small amount only, and lean on the repair costs and days on market.'},
@@ -1535,7 +1717,7 @@ async function addPhotoBlobs(dealId,blobs,source){
   for(const f of blobs){
     if(f.type&&!/^image\//.test(f.type))continue;
     if(d.photoIds.length>=24)break;
-    try{const {blob,thumb,w,h}=await downscale(f,1400,.82,180);const id=uid('ph');
+    try{const {blob,thumb,w,h}=await downscale(f,1568,.85,180);const id=uid('ph');
       await IDB.put('photos',{id,dealId,blob,w,h,source:source||'upload',at:nowISO()});
       d.photoIds.push(id);photoObjURL[id]=URL.createObjectURL(blob);if(!d.thumb)d.thumb=thumb;n++}catch(e){}
   }
@@ -1706,7 +1888,7 @@ async function syncAll(manual){
 const ownThread=d=>d.gmailThreadId&&(!d.gmailAccount||d.gmailAccount===(sendAcct()||{}).id)?d.gmailThreadId:null;
 const canEmail=d=>gmailOn()&&!!(((d.agent&&d.agent.email)||'').trim()||ownThread(d));
 function canText(d){if(smsOn())return !!e164(d.agent&&d.agent.phone);if(gvOn())return !!d.gvThreadId;return false}
-function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.name?`${n.name} | ${p.company||p.name}`:n.name)}
+function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.company?`${n.name} | ${p.company}`:`${n.name} | ${n.title||'Acquisitions'}`)}
 async function sendEmailNow(id,quiet){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return false;const to=((d.agent&&d.agent.email)||'').trim();
   if(!to&&!ownThread(d)){if(!quiet)toast('Add their email in Details first.');return false}
@@ -1797,6 +1979,7 @@ async function tick(manual){
   if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease()))return}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);
   if(state.settings.auto.enabled)await autopilotRun(false);
+  if(cloudOn()){try{await pushBrief();await briefSync()}catch(e){}}
 }
 
 /* ================= cloud save (Google Drive, through the bridge) ================= */
@@ -1817,8 +2000,8 @@ const COLS={
 const WHOLES={
   settings:{key:'settings',get:()=>state.settings,set:v=>{state.settings=deepMerge(DEFAULTS,v||{})}},
   conn:{key:'conn',get:()=>state.conn,set:v=>{state.conn=v&&typeof v==='object'?v:{}}},
-  secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',accounts:acctList()}},
-    set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;
+  secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',elevenKey:s.elevenKey||'',accounts:acctList()}},
+    set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;if(v.elevenKey)s.elevenKey=v.elevenKey;else delete s.elevenKey;
       const acc=(Array.isArray(v.accounts)?v.accounts:[]).filter(a=>a&&a.id);const mine=acctList().find(a=>a.id===cm().acct);if(mine&&!acc.some(a=>a.id===mine.id))acc.unshift(mine);
       s.accounts=acc;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
 };
@@ -2123,10 +2306,12 @@ async function extractDeals(text,meta,busyKey,quiet){
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
+    d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
     state.deals[d.id]=d;saveDeal(d,true);made.push(d.id);
     logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
   }
   render();
+  if(state.settings.research&&state.settings.research.auto&&aiOn())made.forEach(queueResearch);
   return {deals:made,w};
 }
 async function importEmail(id,quiet){
@@ -2206,10 +2391,15 @@ async function quickAction(id,qa){
 async function aiDeep(id,quiet){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
-  const res=await runAI('deep:'+id,`${negName()} is looking at ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:5000}),quiet);
+  const model=bigModel();
+  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
-  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length});
-  if(Array.isArray(res.rehabLines)&&res.rehabLines.length){dd.rehabLines=res.rehabLines.map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));dd.rehabCont=parseNum(res.contingencyPct)??10;
+  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
+  const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';
+  const fromBook=(Array.isArray(res.rehabItems)?res.rehabItems:[]).filter(x=>book[x.key]&&parseNum(x.qty)>0).map(x=>{const b=book[x.key];const q=parseNum(x.qty);return {item:b.label,detail:`${/house/.test(b.unit)?'':numFmt(q)+(short(b.unit)?' '+short(b.unit):'')+' × '+(b.cost<100&&b.cost%1?'$'+b.cost.toFixed(2):money(b.cost))+' · '}${String(x.why||'')}${x.seen===false?' (not in photos: allowance)':''}`,cost:Math.round(q*b.cost),key:x.key,qty:q,seen:x.seen!==false}});
+  const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));
+  const lines=fromBook.length||custom.length?[...fromBook,...custom]:(Array.isArray(res.rehabLines)?res.rehabLines.map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)})):[]);
+  if(lines.length){dd.rehabLines=lines;dd.rehabCont=parseNum(res.contingencyPct)??10;
     const tot=Math.round(dd.rehabLines.reduce((a,x)=>a+(x.cost||0),0)*(1+(dd.rehabCont||0)/100));if(!dd.rehab||dd.rehabSource==='maya'){dd.rehab=tot;dd.rehabSource='maya'}}
   const av=res.arv&&parseNum(res.arv.value);if(av&&(!dd.arv||dd.arvSource==='maya')){dd.arv=floor500(av);dd.arvSource='maya'}
   const rv=res.rent&&parseNum(res.rent.value);if(rv&&!dd.rent)dd.rentEst=rv;
@@ -2291,12 +2481,14 @@ function doRender(){
   const fid=ae&&ae.id&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)?ae.id:null;
   const fval=fid?ae.value:null;let sel=null;try{if(fid&&ae.type!=='number'&&ae.type!=='range')sel=[ae.selectionStart,ae.selectionEnd]}catch(e){}
   const scrolls={};document.querySelectorAll('[data-keep-scroll]').forEach(el=>{if(el.id)scrolls[el.id]=[el.scrollTop,el.scrollLeft]});
+  const opens={};document.querySelectorAll('details[id]').forEach(el=>{opens[el.id]=el.open});
   const y=window.scrollY;
   $('#topbar').innerHTML=topbarHTML();
   $('#alertbar').innerHTML=alertHTML();
   $('#main').innerHTML=state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`;
   $('#modal-root').innerHTML=modalHTML();
   for(const [id,[t,l]] of Object.entries(scrolls)){const el=document.getElementById(id);if(el){el.scrollTop=t;el.scrollLeft=l}}
+  for(const [id,o] of Object.entries(opens)){const el=document.getElementById(id);if(el)el.open=o}
   window.scrollTo(0,y);
   if(fid){const el=document.getElementById(fid);if(el){if(el.type!=='checkbox'&&el.type!=='file'&&el.value!==fval)el.value=fval;el.focus({preventScroll:true});try{if(sel&&sel[0]!=null)el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
   document.querySelectorAll('[data-stick]').forEach(el=>el.scrollTop=el.scrollHeight);
@@ -2384,7 +2576,7 @@ function viewDashboard(){
   const feed=acts.length?`<div class="todo">${acts.map(a=>{const s=ACT_STYLE[a.kind]||ACT_STYLE.info;return `<button class="act-row" style="border:1px solid var(--line);border-radius:12px" ${a.dealId&&state.deals[a.dealId]?`data-act="open" data-id="${a.dealId}"`:''}><span class="ai" style="background:${s[1]}">${ico(s[0])}</span><span><span class="small" style="display:block">${esc(a.text)}</span><span class="xs muted">${ago(a.at)}</span></span></button>`}).join('')}</div>`:`<p class="small muted">${n}’s sends, agents’ replies and new deals show up here.</p>`;
   const live=ds.filter(d=>['sent','negotiating'].includes(d.stage));
   const liveHTML=live.length?`<section class="card"><div class="card-head"><span class="ci blue">${ico('trend')}</span><div><h2>Live offers</h2><p>Blue dot: your offer · ring: their number · red line: your ceiling</p></div></div><div class="tbl-wrap" style="border:0"><table class="tbl" style="min-width:720px"><thead><tr><th>Property</th><th class="r">Asking</th><th class="r">Your last</th><th class="r">Their last</th><th class="r">Ceiling</th><th style="width:32%">Where it stands</th></tr></thead><tbody>${live.map(d=>{const c=calc(d);return `<tr data-act="open" data-id="${d.id}"><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}</b><span class="ps">${esc(STAGE_LABEL[d.stage])}</span></div></div></td><td class="r ask tnum">${moneyK(curList(d))}</td><td class="r offer tnum">${moneyK(lastOurPrice(d))}</td><td class="r tnum">${moneyK(lastTheirPrice(d))}</td><td class="r ceil tnum">${c.ready?moneyK(c.mao):'—'}</td><td>${railHTML(d,c,true)}</td></tr>`}).join('')}</tbody></table></div></section>`:'';
-  return `<div class="wrap page">${head}${setup}${strip}<div class="split"><section class="card" id="needs"><div class="card-head"><span class="ci orange">${ico('bolt')}</span><div><h2>Needs you</h2><p>Replies, drafts and follow-ups, most urgent first</p></div></div>${todoHTML}</section><section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}’s activity</h2><p>What she did and what came in</p></div></div>${feed}</section></div>${liveHTML}</div>`;
+  return `<div class="wrap page">${head}${setup}${briefCardHTML()}${strip}<div class="split"><section class="card" id="needs"><div class="card-head"><span class="ci orange">${ico('bolt')}</span><div><h2>Needs you</h2><p>Replies, drafts and follow-ups, most urgent first</p></div></div>${todoHTML}</section><section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}’s activity</h2><p>What she did and what came in</p></div></div>${feed}</section></div>${liveHTML}</div>`;
 }
 function setupHTML(){
   const steps=[[aiOn(),`Give ${esc(negName())} a brain`,'Add your Anthropic API key','#settings/connections'],[gmailOn(),'Connect Gmail','So she can send emails and read replies','#settings/connections'],[cloudOn(),'Turn on cloud save','Your desk on every device, saved in Google Drive','#settings/connections/conn-cloud'],[smsOn()||gvOn(),'Connect texting','Twilio or Google Voice for automatic texts','#settings/connections'],[!!state.settings.profile.phone&&!!state.settings.profile.name,'Fill in your details','Name and US phone for signatures','#settings/maya'],[state.settings.auto.enabled,'Turn on autopilot','She sends, follows up and negotiates for you','#settings/autopilot']];
@@ -2423,7 +2615,7 @@ function railHTML(d,c,mini){
 /* ================= Listings ================= */
 const SPECIAL=[
   ['reply','Reply waiting',d=>replyWaiting(d)],['draft','Draft ready',d=>!!d.draft],['star','Starred',d=>!!d.starred],
-  ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(d.zipAvgDom||45))}],
+  ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(zipDom(d)||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
   ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}]];
@@ -2564,9 +2756,9 @@ function viewDeal(){
     <button class="btn" data-act="star" data-id="${d.id}" style="color:${d.starred?'var(--s-amber)':'inherit'}">${d.starred?icoFill('star'):ico('star')}${d.starred?'Starred':'Star'}</button>
     ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
   const dm=dom(d);
-  const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${d.zipAvgDom?`<span class="bchip">ZIP avg ${d.zipAvgDom} days</span>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
+  const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${zipDom(d)?`<span class="bchip">ZIP median ${zipDom(d)} days</span>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
-  const main=[overviewCard(d,c),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
+  const main=[historyCard(d),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
   return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${mayaPanel(d,c)}</aside></div></div>`;
 }
 function overviewCard(d,c){
@@ -2640,8 +2832,10 @@ function eyesCard(d,c){
   if(a){
     const C=a.condition||{};const areas=[['structure','Structure'],['roof','Roof'],['exterior','Exterior'],['kitchen','Kitchen'],['bathrooms','Bathrooms'],['living_bedrooms','Living & bedrooms'],['flooring','Flooring'],['mechanicals','Mechanicals']];
     const lvl=String(a.level||'').toLowerCase();const lc=lvl.includes('light')?'green':lvl.includes('gut')?'red':'amber';
-    report=`<div class="row"><span class="pill ${lc==='green'?'green':lc==='red'?'red':'orange'}">${esc(a.level||'Report')}</span><span class="small muted">${a.photos?`From ${a.photos} photo${a.photos>1?'s':''}`:'From the listing text only'} · ${fmtWhen(a.at)}</span></div>
+    report=`<div class="row"><span class="pill ${lc==='green'?'green':lc==='red'?'red':'orange'}">${esc(a.level||'Report')}</span><span class="small muted">${a.photos?`From ${a.photos} photo${a.photos>1?'s':''}`:'From the listing text only'} · ${fmtWhen(a.at)}${a.model?` · ${/opus/.test(a.model)?'Opus 5.5':/haiku/.test(a.model)?'Haiku 5.5':'Sonnet 5.5'}`:''}</span></div>
     ${a.summary?`<p>${esc(a.summary)}</p>`:''}
+    ${(a.notSeen||[]).length?`<div class="note amber row" style="justify-content:space-between"><span><b>Not in the photos:</b> ${a.notSeen.map(esc).join(', ')}. Those repair lines are allowances.</span><button class="btn sm" data-act="ask-photos">${ico('mail')}Ask for these photos</button></div>`:''}
+    ${(a.photoLog||[]).length?`<details id="plog"><summary>What ${n} saw in each photo (${a.photoLog.length})</summary><div class="plog">${a.photoLog.map(p=>{const tid=(d.photoIds||[])[(p.photo||1)-1];const src=tid?photoObjURL[tid]:(d.photoUrls||[])[(p.photo||1)-1-(d.photoIds||[]).length];return `<div class="plog-row">${src?`<img src="${esc(src)}" alt="" loading="lazy">`:`<span class="plog-n">${esc(p.photo)}</span>`}<div><b>${esc(String(p.area||'').replace(/^./,m=>m.toUpperCase()))}</b>${p.condition?` <span class="rate ${['good','fair','poor'].includes(p.condition)?p.condition:'unknown'}"><i></i>${esc(p.condition)}</span>`:''}<p class="small">${esc(p.sees||'')}</p>${(p.flags||[]).length?`<span class="xs muted">${p.flags.map(esc).join(' · ')}</span>`:''}</div></div>`}).join('')}</div></details>`:''}
     <div class="insp">${areas.map(([k,l])=>{const v=C[k]||{};const r=['good','fair','poor'].includes(v.rating)?v.rating:'unknown';return `<div class="insp-item"><div class="row" style="justify-content:space-between"><b>${l}</b><span class="rate ${r}"><i></i>${r==='unknown'?'Not visible':r}</span></div><span class="small muted">${esc(v.notes||'—')}</span></div>`}).join('')}</div>
     ${(a.suggestions||[]).length?`<div><b>Renovation suggestions</b><ul class="small" style="margin:6px 0 0;padding-left:18px">${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`:''}
     <div class="kpis">${a.arv&&a.arv.value?`<div class="kpi purple"><span class="lab">${n}’s ARV estimate</span><span class="val">${money(a.arv.value)}</span><span class="sub">${a.arv.low?moneyK(a.arv.low)+'–'+moneyK(a.arv.high)+' · ':''}${esc(a.arv.confidence||'low')} confidence${a.arv.why?' · '+esc(a.arv.why):''}</span><button class="btn sm" data-act="use-arv" data-v="${floor500(a.arv.value)}" data-src="maya" style="justify-self:start;margin-top:4px">Use as ARV</button></div>`:''}
@@ -2681,12 +2875,12 @@ function timelineCard(d,c){
   const ev=[];
   (d.priceHistory||[]).forEach((p,i)=>ev.push({lane:0,x:day(p.date),label:(i?'':'Listed ')+moneyK(p.price),kind:'price'}));
   (d.thread||[]).forEach(t=>{if(t.dir!=='note')ev.push({lane:t.dir==='out'?1:2,x:day(t.at),label:t.price?moneyK(t.price):t.channel,kind:t.dir})});
-  const todayX=day(nowISO());const maxX=Math.max(todayX,d.zipAvgDom||0,...ev.map(e=>e.x))+4;
+  const todayX=day(nowISO());const maxX=Math.max(todayX,zipDom(d)||0,...ev.map(e=>e.x))+4;
   const W=700,H=176,l=58,r=16,X=v=>l+v/maxX*(W-l-r);const ys=[40,86,130];const step=maxX>180?30:maxX>90?14:maxX>40?7:5;
   let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Deal timeline in days on market">`;
   ['Price','You','Them'].forEach((nm,i)=>svg+=`<line class="lane" x1="${l}" x2="${W-r}" y1="${ys[i]}" y2="${ys[i]}"/><text x="4" y="${ys[i]+4}">${nm}</text>`);
   for(let v=0;v<=maxX;v+=step)svg+=`<text x="${X(v)}" y="${H-6}" text-anchor="middle">${Math.round(v)}d</text>`;
-  if(d.zipAvgDom)svg+=`<line x1="${X(d.zipAvgDom)}" x2="${X(d.zipAvgDom)}" y1="18" y2="${H-22}" stroke="var(--s-amber)" stroke-dasharray="4 4" stroke-width="1.5"/><text x="${X(d.zipAvgDom)+4}" y="13" style="fill:var(--t-amber)">ZIP avg ${d.zipAvgDom}d</text>`;
+  if(zipDom(d))svg+=`<line x1="${X(zipDom(d))}" x2="${X(zipDom(d))}" y1="18" y2="${H-22}" stroke="var(--s-amber)" stroke-dasharray="4 4" stroke-width="1.5"/><text x="${X(zipDom(d))+4}" y="13" style="fill:var(--t-amber)">ZIP avg ${zipDom(d)}d</text>`;
   svg+=`<line x1="${X(todayX)}" x2="${X(todayX)}" y1="18" y2="${H-22}" stroke="var(--ink)" stroke-width="1"/><text x="${X(todayX)-4}" y="13" text-anchor="end">Today · ${Math.round(todayX)}d</text>`;
   ev.forEach(e=>{const x=X(e.x),y=ys[e.lane];
     if(e.kind==='price')svg+=`<rect x="${x-5}" y="${y-5}" width="10" height="10" transform="rotate(45 ${x} ${y})" fill="var(--s-green)"/>`;
@@ -2694,10 +2888,10 @@ function timelineCard(d,c){
     else svg+=`<circle cx="${x}" cy="${y}" r="5.5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/>`;
     svg+=`<text x="${x}" y="${y-10}" text-anchor="middle">${esc(e.label)}</text>`});
   svg+='</svg>';
-  const crossed=d.zipAvgDom&&todayX>d.zipAvgDom;
+  const crossed=zipDom(d)&&todayX>zipDom(d);
   return `<section class="card tl" id="timeline"><div class="card-head"><span class="ci slate">${ico('clock')}</span><div><h2>Deal timeline</h2><p>Offers, replies and price changes in days on market</p></div><div class="ch-r"><button class="btn sm" data-act="price-drop">Log a price change</button></div></div><div class="tbl-wrap" style="border:0">${svg}</div>
-  ${crossed?`<div class="note amber">Past the ZIP average by ${Math.round(todayX-d.zipAvgDom)} days. Sellers often get flexible here; a good moment to follow up.</div>`:''}
-  ${!d.zipAvgDom?'<p class="small muted">Add the ZIP’s average days on market in Details to see when this seller crosses it.</p>':''}</section>`;
+  ${crossed?`<div class="note amber">Past the ZIP average by ${Math.round(todayX-zipDom(d))} days. Sellers often get flexible here; a good moment to follow up.</div>`:''}
+  ${!zipDom(d)?'<p class="small muted">Add the ZIP’s average days on market in Details (or it fills in from Redfin market data) to see when this seller crosses it.</p>':''}</section>`;
 }
 function detailsCard(d,c){
   const a=d.agent||{};const isWs=d.source==='wholesaler';const ck=d.checklist||{};
@@ -2709,7 +2903,7 @@ function detailsCard(d,c){
   ${f('pd-list','_list',isWs?'Asking price':'List price',curList(d),'num')}${f('pd-beds','beds','Beds',d.beds,'num')}${f('pd-baths','baths','Baths',d.baths,'num')}${f('pd-sqft','sqft','Sq ft',d.sqft,'num')}${f('pd-lot','lotSqft','Lot sq ft',d.lotSqft,'num')}${f('pd-year','year','Year built',d.year,'num')}
   <label class="field"><span>Property type</span><select class="input" id="pd-type" data-fd="propertyType">${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${(d.propertyType||'single_family')===k?'selected':''}>${v}</option>`).join('')}</select></label>
   <label class="field"><span>MLS status</span><select class="input" id="pd-mls" data-fd="mlsStatus">${Object.entries(MLS_STATUS).map(([k,v])=>`<option value="${k}" ${(d.mlsStatus||'')===k?'selected':''}>${v[0]}</option>`).join('')}</select></label>
-  ${f('pd-mlsid','mlsId','MLS ID',d.mlsId)}${f('pd-zipdom','zipAvgDom','ZIP avg days on market',d.zipAvgDom,'num')}
+  ${f('pd-mlsid','mlsId','MLS ID',d.mlsId)}${f('pd-zipdom','zipAvgDom','ZIP avg days on market',d.zipAvgDom,'num',d.zipDomAuto?'placeholder="'+d.zipDomAuto+' (Redfin)"':'')}
   <label class="field"><span>Listed on</span><input class="input" type="date" id="pd-listed" data-fd="listedDate" data-t="date" value="${esc(d.listedDate?isoDay(d.listedDate):'')}"></label>${f('pd-url','listingUrl','Listing link',d.listingUrl)}</div>
   <label class="field"><span>Listing description</span><textarea class="input" id="pd-desc" data-fd="description" rows="3">${esc(d.description)}</textarea></label>
   <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>
@@ -2830,7 +3024,7 @@ function compsCard(d,c){
     <td class="r">${inp(i,'dist',x.dist,60,'num')}</td><td>${inp(i,'soldDate',x.soldDate||'',132,'date')}<div class="xs muted">${r.ageMo!=null?(r.ageMo<1?'this month':Math.round(r.ageMo)+' mo ago'):''}</div></td>
     <td class="c"><input type="checkbox" id="cp-r${i}" data-fd="comps.${i}.reno" data-t="bool" ${x.reno===false?'':'checked'} aria-label="Renovated"></td>
     <td class="r tnum"><b>${r.match}%</b>${r.use&&r.share?`<div class="xs muted">${pct(r.share,0)} weight</div>`:''}</td><td><button class="btn ghost sm" data-act="comp-del" data-i="${i}" aria-label="Remove comp">${ico('close')}</button></td></tr>`}).join('')}</tbody></table></div>`:g.rows.length?`<p class="small muted">No ${f.replace('_',' ')} comps.</p>`:`<p class="small muted">No comps yet. Add renovated houses that sold nearby so ${n} can defend your ARV.</p>`;
-  const how=`<details><summary>How to pull comps from Redfin in 1 minute</summary><ol class="steps" style="margin-top:8px"><li>On redfin.com, search the subject’s neighborhood and switch the filter to <b>Sold</b>, last 6 months. Add For sale too if you want the competition.</li><li>Scroll under the list and click <b>Download All</b>. You get a CSV file.</li><li>Click <b>Import CSV</b> above. OfferDesk works out distances, flags as-is sales, and picks the comps that count.</li></ol></details>`;
+  const how=`<details id="comps-how"><summary>How to pull comps from Redfin in 1 minute</summary><ol class="steps" style="margin-top:8px"><li>On redfin.com, search the subject’s neighborhood and switch the filter to <b>Sold</b>, last 6 months. Add For sale too if you want the competition.</li><li>Scroll under the list and click <b>Download All</b>. You get a CSV file.</li><li>Click <b>Import CSV</b> above. OfferDesk works out distances, flags as-is sales, and picks the comps that count.</li></ol></details>`;
   return `<section class="card" id="comps">${head}${paste}${sig}${arvBlock}${map}${filt}${table}${how}</section>`;
 }
 /* a small map drawn from the comps' coordinates, centered on the subject */
@@ -2946,7 +3140,7 @@ function offerModalHTML(m){
     <div class="qchips" style="padding:0">${REWRITES.filter(r=>r.id!=='creative'||state.settings.creative.enabled).map(r=>`<button class="qchip ${r.id==='creative'?'purple':'blue'}" data-act="offer-rewrite" data-q="${r.id}" ${busy?'disabled':''}>${esc(r.label)}</button>`).join('')}</div>
     <div class="chat-in" style="padding:0;border:0"><input class="input" id="of-ins" data-draft value="${esc(state.drafts['of-ins']||'')}" placeholder="Ask ${n} to change the letter…"><button class="btn sm" data-act="offer-rewrite" data-q="custom" ${busy?'disabled':''}>${ico('spark')}Ask ${n}</button></div>
     ${busyHTML('rw:'+d.id,false)}${busyHTML('deal:'+d.id,false)}
-    <details><summary>Text message version (${(dr.sms||'').length} chars)</summary><textarea class="input" id="of-sms" data-fd="draft.sms" rows="3" style="margin-top:6px">${esc(dr.sms)}</textarea></details></div>`;
+    <details id="of-smsd"><summary>Text message version (${(dr.sms||'').length} chars)</summary><textarea class="input" id="of-sms" data-fd="draft.sms" rows="3" style="margin-top:6px">${esc(dr.sms)}</textarea></details></div>`;
   const notify=state.settings.notify||{};const ccTo=notify.email||state.settings.profile.email;
   const foot=`<div class="ofoot"><div class="row" style="gap:10px">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot for this deal')}<span class="small"><b>${n} autopilot</b><span class="muted"> · replies, negotiates up to your max, follows up</span></span></div>
     ${ccTo&&ce?`<label class="check small"><input type="checkbox" id="of-cc" data-fs="notify.ccMe" data-t="bool" ${notify.ccMe?'checked':''}><span>CC me (${esc(ccTo)})</span></label>`:''}
@@ -2999,6 +3193,372 @@ async function aiRewrite(id,q){
   saveDeal(dd);
 }
 
+/* ================= listing history ================= */
+const HEV={listed:['Listed','blue'],price_cut:['Price cut','red'],price_up:['Price raised','orange'],pending:['Pending','amber'],contingent:['Contingent','amber'],back_on_market:['Back on market','blue'],sold:['Sold','green'],delisted:['Delisted','slate'],relisted:['Relisted','blue'],listed_rent:['Listed for rent','purple'],rented:['Rented','purple'],other:['Event','slate']};
+const bigModel=()=>{const m=(state.settings.ai||{}).bigModel;return m==='same'?undefined:(m||'claude-opus-5-5')};
+function histEvents(d){
+  const ev=(d.history||[]).filter(e=>e&&e.date&&!isNaN(new Date(e.date))).map(e=>Object.assign({},e,{date:isoDay(e.date)}));
+  const ph=(d.priceHistory||[]).filter(p=>p&&p.date&&p.price);
+  ph.forEach((p,i)=>{const date=isoDay(p.date);const kind=i===0?'listed':p.price<ph[i-1].price?'price_cut':p.price>ph[i-1].price?'price_up':null;if(!kind)return;
+    const near=x=>Math.abs(new Date(x.date)-new Date(date))<=5*DAY;
+    if(!ev.some(x=>near(x)&&(x.event===kind||(kind==='listed'&&x.event==='relisted'))&&(x.price==null||Math.abs(x.price-p.price)<=1000)))ev.push({date,event:kind,price:p.price,src:'listing'})});
+  ev.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  let last=null;for(const e of ev){if(e.price&&['listed','relisted','price_cut','price_up','back_on_market'].includes(e.event)){e.delta=last!=null&&e.event!=='listed'&&e.event!=='relisted'?e.price-last:null;last=e.price}if(e.event==='sold')last=null}
+  return ev;
+}
+function historyInsights(d){
+  const ev=histEvents(d);if(!ev.length)return [];const out=[];const L=curList(d);const now=Date.now();const ms=x=>new Date(x).getTime();
+  const sales=ev.filter(e=>e.event==='sold'&&e.price);const lastSale=sales[sales.length-1];
+  if(lastSale){
+    const after=ev.filter(e=>['listed','relisted'].includes(e.event)&&e.price&&e.date>lastSale.date&&ms(e.date)-ms(lastSale.date)<=460*DAY);const flip=after.find(e=>e.price>=lastSale.price*1.2);
+    const yrs=(now-ms(lastSale.date))/(365*DAY);
+    if(flip){const m=Math.max(1,Math.round((ms(flip.date)-ms(lastSale.date))/(30*DAY)));out.push({k:'flip',cls:'purple',text:`Flip pattern: sold for ${money(lastSale.price)} on ${fmtDate(lastSale.date)}, then listed at ${money(flip.price)} ${m} month${m===1?'':'s'} later (+${Math.round((flip.price/lastSale.price-1)*100)}%). It’s likely already renovated, and the seller’s cost is roughly that purchase plus their rehab.`})}
+    else out.push({k:'sale',cls:yrs>=10?'green':'slate',text:`Last sold for ${money(lastSale.price)} on ${fmtDate(lastSale.date)} (${yrs<1?Math.max(1,Math.round(yrs*12))+' months':Math.round(yrs)+' years'} ago)${L?`. Today’s asking is ${L>=lastSale.price?'+':'−'}${Math.abs(Math.round((L/lastSale.price-1)*100))}% vs that sale`:''}.${yrs>=10?' Long ownership usually means lots of equity: a good fit for a discount or seller financing.':''}`});
+  }
+  const lastList=[...ev].reverse().find(e=>['listed','relisted'].includes(e.event));
+  if(lastList){const cuts=ev.filter(e=>e.event==='price_cut'&&e.date>=lastList.date);if(cuts.length){const tot=cuts.reduce((a,e)=>a+Math.abs(e.delta||0),0);out.push({k:'cuts',cls:'red',text:`${cuts.length} price cut${cuts.length>1?'s':''} since it was listed on ${fmtDate(lastList.date)}${tot?`, ${money(tot)} in total`:''}. The seller is chasing the market.`})}}
+  const relists=ev.filter(e=>['delisted','relisted','back_on_market'].includes(e.event)&&now-ms(e.date)<=3*365*DAY).length;
+  if(relists>=2)out.push({k:'relist',cls:'orange',text:`Pulled and relisted ${relists} times in the last 3 years: it has struggled to sell. Ask what went wrong before.`});
+  const pend=ev.filter(e=>['pending','contingent'].includes(e.event));const lp=pend[pend.length-1];
+  if(lp&&!ev.some(e=>e.event==='sold'&&e.date>=lp.date)&&ev.some(e=>e.date>lp.date&&['back_on_market','price_cut','relisted','listed'].includes(e.event)))out.push({k:'fell',cls:'orange',text:`Went under contract on ${fmtDate(lp.date)} and came back on the market: a deal fell through (inspection or financing?). Ask the agent why.`});
+  const rent=[...ev].reverse().find(e=>['listed_rent','rented'].includes(e.event));
+  if(rent&&now-ms(rent.date)<=3*365*DAY)out.push({k:'rent',cls:'blue',text:`${rent.event==='rented'?'Rented':'Listed for rent'}${rent.price?' at '+money(rent.price)+'/mo':''} on ${fmtDate(rent.date)}. Possibly a tired landlord, and a real rent number for your rental math.`});
+  return out;
+}
+function historyCard(d){
+  const ev=histEvents(d);const ins=historyInsights(d);const n=esc(negName());const busy=state.busy['research:'+d.id]||state.busy['hist:'+d.id];
+  let svg='';
+  if(ev.length){
+    const T=e=>dateOf(e.date).getTime();const t0=T(ev[0]),t1=Math.max(Date.now(),T(ev[ev.length-1]));
+    const W=Math.round(Math.min(760,Math.max(330,(window.innerWidth||800)-(window.innerWidth<720?64:330)))),l=18,r=18;
+    /* the axis is time-based but squeezes long quiet gaps (marked ≈) and spreads out clusters, so recent activity stays readable */
+    const kt=[...new Set([...ev.map(T),t1])].sort((a,b)=>a-b);const YR=365*DAY,BRK=2*YR;
+    const eff=[0];for(let i=1;i<kt.length;i++)eff.push(eff[i-1]+Math.min(kt[i]-kt[i-1],YR));const tot=eff[eff.length-1]||1;
+    const kp=kt.map((t,i)=>l+(W-l-r)*(kt.length>1?.55*eff[i]/tot+.45*i/(kt.length-1):0));
+    const X=t=>{if(kt.length<2||t<=kt[0])return kp[0];for(let i=1;i<kt.length;i++)if(t<=kt[i])return kp[i-1]+(kp[i]-kp[i-1])*(t-kt[i-1])/((kt[i]-kt[i-1])||1);return kp[kp.length-1]};
+    const lab=e=>(HEV[e.event]||HEV.other)[0]+(e.price?' '+(/rent/.test(e.event)?money(e.price)+'/mo':moneyK(e.price)):'');
+    const md=e=>{const x=dateOf(e.date);return x.toLocaleDateString('en-US',{month:'short'})+' ’'+String(x.getFullYear()).slice(2)};
+    /* lanes: 1 above, 1 below, 2 above, 2 below; each label takes the first lane where it fits */
+    const LANES=[[-1,1],[1,1],[-1,2],[1,2],[-1,3],[1,3]];const used=LANES.map(()=>[]);
+    const placed=ev.map(e=>{const x=X(T(e));const w=Math.max(lab(e).length*6.3,md(e).length*5.6)+10;
+      let anchor='middle',a=x-w/2;if(a<2){anchor='start';a=Math.max(2,x-6)}else if(x+w/2>W-2){anchor='end';a=Math.min(W-2,x+6)-w}
+      const b=a+w;let li=LANES.findIndex((_,k)=>used[k].every(([p,q])=>b<=p||a>=q));if(li<0)li=LANES.length-1;used[li].push([a,b]);
+      return {e,x,anchor,ax:anchor==='start'?a:anchor==='end'?b:x,lane:LANES[li]}});
+    const upN=Math.max(1,...placed.filter(p=>p.lane[0]<0).map(p=>p.lane[1])),dnN=Math.max(1,...placed.filter(p=>p.lane[0]>0).map(p=>p.lane[1]));
+    const y0=14+upN*30,H=y0+24+dnN*30;
+    svg=`<svg viewBox="0 0 ${W} ${H}" class="htl" role="img" aria-label="Listing history timeline"><line x1="${l}" x2="${W-r}" y1="${y0}" y2="${y0}" class="htl-axis"/>`;
+    let lastTick=-99;for(let y=new Date(t0).getFullYear()+1;y<=new Date(t1).getFullYear();y++){const t=new Date(y,0,1).getTime();const i=kt.findIndex(k=>k>=t);if(i>0&&kt[i]-kt[i-1]>BRK)continue;const x=X(t);if(x-lastTick<38||x>W-r-44)continue;lastTick=x;svg+=`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y0-5}" y2="${y0+5}" class="htl-axis"/><text x="${(x+3).toFixed(1)}" y="${y0+14}" class="htl-yr">${y}</text>`}
+    for(let i=1;i<kt.length;i++)if(kt[i]-kt[i-1]>BRK){const x=(kp[i-1]+kp[i])/2;svg+=`<g class="htl-brk"><rect x="${(x-7).toFixed(1)}" y="${y0-7}" width="14" height="14"/><path d="M${(x-6).toFixed(1)} ${y0+5}l5-10M${(x+1).toFixed(1)} ${y0+5}l5-10"/></g><text x="${x.toFixed(1)}" y="${y0+16}" text-anchor="middle" class="htl-yr">${Math.round((kt[i]-kt[i-1])/YR)} yrs</text>`}
+    svg+=`<circle cx="${W-r}" cy="${y0}" r="3" class="htl-now"/><text x="${W-r}" y="${y0+14}" text-anchor="end" class="htl-yr">Today</text>`;
+    placed.forEach(({e,x,anchor,ax,lane})=>{const h=HEV[e.event]||HEV.other;const up=lane[0]<0;const ly=up?y0-14-(lane[1]-1)*30:y0+24+(lane[1]-1)*30+10;
+      svg+=`<g class="htl-ev ${h[1]}"><line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y0}" y2="${up?ly+3:ly-11}" class="htl-stem"/><circle cx="${x.toFixed(1)}" cy="${y0}" r="6"/><text x="${ax.toFixed(1)}" y="${up?ly-11:ly}" text-anchor="${anchor}" class="htl-lab">${esc(lab(e))}</text><text x="${ax.toFixed(1)}" y="${up?ly:ly+11}" text-anchor="${anchor}" class="htl-date">${esc(md(e))}</text><title>${esc(fmtDate(e.date)+' · '+h[0]+(e.price?' '+money(e.price):'')+(e.note?' · '+e.note:''))}</title></g>`});
+    svg+='</svg>';
+  }
+  const rows=ev.slice().reverse().map(e=>{const h=HEV[e.event]||HEV.other;const k=(d.history||[]).findIndex(x=>x.date&&isoDay(x.date)===e.date&&x.event===e.event&&(x.price||null)===(e.price||null));
+    return `<tr style="cursor:default"><td class="tnum">${esc(fmtDate(e.date))}</td><td><span class="tag ${h[1]}">${h[0]}</span>${e.note?` <span class="xs muted">${esc(e.note)}</span>`:''}</td><td class="r tnum">${money(e.price)}</td><td class="r tnum">${e.delta?`<span style="color:${e.delta<0?'var(--t-red)':'var(--t-orange)'}">${e.delta<0?'−':'+'}${money(Math.abs(e.delta)).replace('−','')}</span>`:''}</td><td class="xs muted">${e.url?`<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.src||'source')}</a>`:esc(e.src==='listing'?'this listing':e.src==='web'?'found online':e.src||'you')}</td><td>${k>=0?`<button class="btn ghost sm" data-act="hist-del" data-i="${k}" aria-label="Remove event">${ico('close')}</button>`:''}</td></tr>`}).join('');
+  const add=state.histAdd?`<div class="row" style="align-items:flex-end"><label class="field" style="width:150px"><span>Date</span><input class="input" type="date" id="he-date" data-draft value="${esc(state.drafts['he-date']||'')}"></label><label class="field" style="width:170px"><span>What happened</span><select class="input" id="he-ev" data-draft>${Object.entries(HEV).map(([k,v])=>`<option value="${k}" ${(state.drafts['he-ev']||'listed')===k?'selected':''}>${v[0]}</option>`).join('')}</select></label><label class="field" style="width:130px"><span>Price</span><input class="input tnum" id="he-price" data-draft value="${esc(state.drafts['he-price']||'')}" inputmode="numeric"></label><button class="btn primary sm" data-act="hist-save">Add</button></div>`:'';
+  const paste=state.histPaste?`<textarea class="input" id="hist-text" data-draft rows="4" placeholder="Paste the “Price history” section from Zillow or the “Property history” from Redfin">${esc(state.drafts['hist-text']||'')}</textarea><div class="row"><button class="btn primary sm" data-act="hist-parse">Read history</button></div>`:'';
+  return `<section class="card" id="history"><div class="card-head"><span class="ci blue">${ico('clock')}</span><div><h2>Listing history</h2><p>What happened to this property before you showed up</p></div><div class="ch-r">${aiOn()?`<button class="btn sm" data-act="research" ${busy?'disabled':''}>${ico('spark')}${n} looks it up</button>`:''}<button class="btn sm" data-act="hist-paste-toggle">${ico('copy')}Paste history</button><button class="btn sm" data-act="hist-add-toggle">${ico('plus')}Add event</button></div></div>
+  ${busyHTML('research:'+d.id)}${busyHTML('hist:'+d.id)}${add}${paste}
+  ${ins.map(x=>`<div class="note ${x.cls==='slate'?'':x.cls}">${esc(x.text)}</div>`).join('')}
+  ${ev.length?`<div class="tbl-wrap" style="border:0">${svg}</div><details id="hist-all" ${ev.length<=6?'open':''}><summary>All ${ev.length} event${ev.length>1?'s':''}</summary><div class="tbl-wrap" style="margin-top:8px"><table class="tbl" style="min-width:560px"><thead><tr><th>Date</th><th>Event</th><th class="r">Price</th><th class="r">Change</th><th>Source</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></details>`:`<p class="small muted">No history yet. Paste Zillow’s “Price history” (or Redfin’s “Property history”), or let ${n} look it up: past sales, price cuts, failed contracts and flips tell you how motivated the seller is.</p>`}
+  </section>`;
+}
+
+/* ================= Maya's research (links, web, comps, claims check) ================= */
+const SKIP_LINK=/unsubscribe|optout|opt-out|manage.?preferences|facebook\.com|instagram\.com|linkedin\.com|twitter\.com|x\.com\/|tiktok\.com|youtube\.com\/(?:channel|@)|calendly\.com|mailto:|list-manage\.com\/(?:unsubscribe|profile)/i;
+function dealLinks(d){
+  const set=new Set();const add=u=>{u=String(u||'').trim().replace(/[)>.,;]+$/,'');if(/^https?:\/\/\S+$/i.test(u)&&!SKIP_LINK.test(u)&&u.length<500)set.add(u)};
+  (d.links||[]).forEach(add);if(d.listingUrl)add(d.listingUrl);
+  const first=(d.thread||[]).find(t=>t.dir==='in');if(first)(String(first.text||'').match(/https?:\/\/[^\s"'<>]+/g)||[]).forEach(add);
+  return [...set].filter(u=>!/\.(jpe?g|png|webp|gif)(\?|$)/i.test(u)).slice(0,6);
+}
+function promptResearch(d,ctx){
+  const c=calc(d);const ws=d.wsClaims||{};const isWs=d.source==='wholesaler';
+  const where=[streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(', ');
+  return `You are ${negName()}, an acquisitions analyst for a real estate investor (flips, BRRRR, wholesale). Research this property so the investor knows everything that matters before making an offer. Use web search, and open the links below with web fetch when useful. Use only what you actually find, and name the source for each fact. If a site blocks you, say so and use search instead. Do not guess.
+
+Property: ${where||'unknown address'}
+${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
+${(d.description||'').slice(0,1200)}
+${ctx.links.length?`Links that came with the deal (open the ones that help):\n${ctx.links.map(u=>'- '+u).join('\n')}`:''}
+${ctx.pages.length?`Pages we already opened for you (trimmed):\n${ctx.pages.map(p=>`--- ${p.url} (${p.title||''})\n${p.text.slice(0,6000)}`).join('\n')}`:''}
+${ctx.blocked.length?`These links blocked our robot: ${ctx.blocked.join(', ')}`:''}
+
+Find:
+1. Property facts from public sources (listing sites, county records): beds, baths, living sqft, lot, year built, type.
+2. The property's history: every listing, price change, pending, sale, delisting, relisting and rental you can find, with dates and prices.
+3. Recently sold comparable homes: within about 1 mile, sold in the last 12 months, similar size and beds. Include address, price, sale date, sqft, beds, baths, distance if shown, the listing URL, and whether the listing says renovated/updated (reno true) or as-is/needs work (reno false). Five to eight good ones beats many weak ones.
+4. A market rent estimate with the source.
+5. Check every number the ${isWs?'wholesaler':'listing'} gives against what you found.
+6. Red flags: flood zone, foundation, fire, tenant-occupied, HOA, code violations, unpermitted work, auctions or liens, anything odd in the history.
+Our current ARV on file is ${money(c.A)}; give your own view of ARV from the comps.
+
+Finish with only this JSON (no text after it):
+{"facts":{"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other|null","source":"url"},
+"history":[{"date":"YYYY-MM-DD","event":"listed|price_cut|price_up|pending|contingent|back_on_market|sold|delisted|relisted|listed_rent|rented|other","price":number|null,"url":"source url"}],
+"comps":[{"addr":"street, city","price":number,"soldDate":"YYYY-MM-DD","sqft":number|null,"beds":number|null,"baths":number|null,"dist":number|null,"status":"sold|for_sale|pending","reno":true|false|null,"url":""}],
+"rent":{"value":number|null,"why":"one sentence","source":"url"},
+"arv":{"value":number|null,"low":number|null,"high":number|null,"why":"one or two sentences"},
+"claimsCheck":[{"claim":"what they say","found":"what you found","verdict":"matches|off|unverified"}],
+"redFlags":["..."],"couldNotOpen":["urls you could not read"],
+"summary":"three or four plain sentences for the investor: is this worth pursuing and why"}`;
+}
+async function openLinks(id,links){
+  const d=state.deals[id];const pages=[],blocked=[];let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos};
+  for(const u of links.slice(0,5)){
+    let r;try{r=await bridge('fetch_url',{url:u})}catch(e){blocked.push(u);continue}
+    if(r.kind==='blocked'){blocked.push(u);continue}
+    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){
+      const blobs=[];for(const im of r.images.slice(0,Math.max(0,16-photoCount(state.deals[id])))){try{const x=await bridge('drive_image',{id:im.id});if(x.data)blobs.push(b64ToBlob(x.data,x.type))}catch(e){}}
+      if(blobs.length)photos+=await addPhotoBlobs(id,blobs,'link');continue}
+    if(r.kind==='image'){photos+=addPhotoUrls(id,[u]);continue}
+    if(r.kind==='page'){if(r.text)pages.push({url:u,title:r.title||'',text:r.text});
+      const imgs=(r.images||[]).filter(x=>!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis/i.test(x));
+      if(imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
+  }
+  return {pages,blocked,photos};
+}
+async function researchDeal(id,quiet){
+  const d=state.deals[id];if(!d)return;if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return}
+  if(state.busy['research:'+id])return;
+  const links=dealLinks(d);const before=photoCount(d);
+  state.busy['research:'+id]={label:links.length&&gmailOn()?`${negName()} is opening the links…`:`${negName()} is researching ${streetOf(d.address)}…`};render();
+  let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
+  const dd=state.deals[id];if(!dd)return;
+  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:bigModel(),maxTokens:9000}),quiet);
+  if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
+  const d2=state.deals[id];if(!d2)return;
+  applyResearch(d2,j,res,got);
+  saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
+  const fresh=photoCount(d2)>before;
+  if(photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(!quiet)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
+}
+function applyResearch(d,j,res,got){
+  const f=j.facts||{};for(const k of ['beds','baths','sqft','lotSqft','year']){const v=parseNum(f[k]);if(v!=null&&d[k]==null)d[k]=v}
+  const hist=(Array.isArray(j.history)?j.history:[]).map(e=>({date:e.date?isoDay(e.date):'',event:HEV[e.event]?e.event:'other',price:parseNum(e.price),url:String(e.url||''),src:'web'})).filter(e=>e.date&&!isNaN(new Date(e.date)));
+  d.history=d.history||[];for(const e of hist)if(!d.history.some(x=>isoDay(x.date)===e.date&&x.event===e.event))d.history.push(e);
+  const have=new Set((d.comps||[]).map(x=>normAddr(x.addr)));const comps=(Array.isArray(j.comps)?j.comps:[]).filter(x=>parseNum(x.price)&&x.addr&&!have.has(normAddr(x.addr))&&normAddr(x.addr)!==normAddr(streetOf(d.address)));
+  d.comps=(d.comps||[]).concat(comps.slice(0,12).map(x=>({addr:String(x.addr),price:parseNum(x.price),soldDate:x.soldDate?isoDay(x.soldDate):'',sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true,url:String(x.url||''),web:true})));
+  const rv=j.rent&&parseNum(j.rent.value);if(rv&&!d.rent)d.rentEst=rv;
+  d.research={at:nowISO(),summary:String(j.summary||''),claims:(j.claimsCheck||[]).slice(0,12).map(x=>({claim:String(x.claim||''),found:String(x.found||''),verdict:['matches','off','unverified'].includes(x.verdict)?x.verdict:'unverified'})),
+    redFlags:(j.redFlags||[]).map(String).slice(0,10),arv:j.arv||null,rent:j.rent||null,couldNotOpen:[...new Set([...(j.couldNotOpen||[]).map(String),...(got.blocked||[]),...(res.failed||[]).map(x=>x.url)])].slice(0,8),
+    sources:(res.sources||[]).slice(0,14),searches:res.searches||0,photos:got.photos||0,comps:comps.length,events:hist.length};
+}
+function researchCard(d){
+  const R=d.research;const n=esc(negName());const busy=state.busy['research:'+d.id];const links=dealLinks(d);
+  const vt={matches:['Matches','green'],off:['Off','red'],unverified:['Unverified','slate']};
+  if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="research" ${busy||!aiOn()?'disabled':''}>${ico('spark')}Research this deal</button></div></div>${busyHTML('research:'+d.id)}
+    <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}Takes about a minute and usually costs 10–30¢ on your Anthropic account. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
+  const arv=R.arv&&parseNum(R.arv.value);
+  return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm" data-act="research" ${busy?'disabled':''}>${ico('refresh')}Run again</button></div></div>${busyHTML('research:'+d.id)}
+  ${R.summary?`<p>${esc(R.summary)}</p>`:''}
+  ${arv?`<div class="row"><span class="chip">${n}’s ARV view <b>${money(arv)}</b>${R.arv.low?` (${moneyK(R.arv.low)}–${moneyK(R.arv.high)})`:''}</span>${R.arv.why?`<span class="small muted">${esc(R.arv.why)}</span>`:''}</div>`:''}
+  ${R.claims.length?`<div class="tbl-wrap"><table class="tbl" style="min-width:620px"><thead><tr><th>They say</th><th>${n} found</th><th>Verdict</th></tr></thead><tbody>${R.claims.map(x=>`<tr style="cursor:default"><td>${esc(x.claim)}</td><td>${esc(x.found)}</td><td><span class="tag ${vt[x.verdict][1]}">${vt[x.verdict][0]}</span></td></tr>`).join('')}</tbody></table></div>`:''}
+  ${R.redFlags.length?`<div class="note red"><b>Red flags:</b> ${R.redFlags.map(esc).join(' · ')}</div>`:''}
+  ${R.couldNotOpen.length?`<p class="xs muted">Couldn’t open: ${R.couldNotOpen.map(u=>esc(u.replace(/^https?:\/\//,'').slice(0,60))).join(' · ')}. Paste the page text into the listing if it matters.</p>`:''}
+  ${R.sources.length?`<details id="rs-src"><summary>Sources (${R.sources.length})</summary><ul class="small" style="margin:6px 0 0;padding-left:18px">${R.sources.map(s=>`<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc((s.title||s.url).slice(0,90))}</a></li>`).join('')}</ul></details>`:''}
+  <p class="xs muted">Comps and history found online are marked as such. Check the important ones before you rely on them.</p></section>`;
+}
+/* new wholesaler deals get researched one at a time in the background */
+const RQ={list:[],running:false};
+function queueResearch(id){if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
+async function drainResearch(){if(RQ.running)return;RQ.running=true;try{while(RQ.list.length){const id=RQ.list.shift();if(state.deals[id])await researchDeal(id,true)}}finally{RQ.running=false}}
+function askPhotosDraft(id){
+  const d=state.deals[id];const a=d&&d.analysis;if(!a)return;const miss=(a.notSeen||[]).slice(0,6);if(!miss.length)return;
+  const who=firstName(d);const n=state.settings.neg;const p=state.settings.profile;
+  const body=`Hi ${who},\n\nThanks for sending ${streetOf(d.address)}. Before we put numbers on it, could you send photos of: ${miss.join(', ')}? That's what we need to price the repairs properly.\n\nThanks,\n${n.name}\n${n.title||'Acquisitions Manager'}${p.company?', '+p.company:''}${p.phone?'\n'+p.phone:''}`;
+  setDraft(id,{kind:'custom',action:'custom',price:null,email:{subject:`Photos for ${streetOf(d.address)}?`,body},sms:`Hi ${who}, could you send photos of ${miss.slice(0,3).join(', ')} for ${streetOf(d.address)}? Thanks – ${n.name}`,why:`${negName()} couldn’t see these in the photos: ${miss.join(', ')}.`});
+  state.mayaTab='chat';toast('Draft ready in the panel on the right.');
+}
+
+/* ================= market data (Redfin, refreshed weekly by a GitHub job) ================= */
+const MKT_BASES=['https://raw.githubusercontent.com/ItzEzi/offerdesk/data/market/','market/'];
+const MKT={idx:null,idxAt:0,base:null,states:{},loading:{},failed:{}};
+async function mktFetch(path){
+  const bases=MKT.base?[MKT.base]:MKT_BASES;
+  for(const b of bases){try{const r=await fetch(b+path,{cache:'no-cache'});if(r.ok){const j=await r.json();MKT.base=b;return j}}catch(e){}}
+  return null;
+}
+async function marketIndex(){
+  if(MKT.idx&&Date.now()-MKT.idxAt<6*3600e3)return MKT.idx;
+  if(!MKT.idx&&MKT.idxFail&&Date.now()-MKT.idxFail<30*60e3)return null;
+  const j=await mktFetch('index.json?d='+isoDay());if(j){MKT.idx=j;MKT.idxAt=Date.now()}else MKT.idxFail=Date.now();return MKT.idx;
+}
+async function loadMarketState(st){
+  st=String(st||'').toUpperCase();if(!/^[A-Z]{2}$/.test(st))return null;
+  if(MKT.states[st])return MKT.states[st];if(MKT.failed[st]&&Date.now()-MKT.failed[st]<30*60e3)return null;
+  if(MKT.loading[st])return MKT.loading[st];
+  MKT.loading[st]=(async()=>{const idx=await marketIndex();const f=idx&&idx.files&&idx.files[st];if(!f){MKT.failed[st]=Date.now();return null}
+    const zips=await mktFetch(f.zips+'?v='+encodeURIComponent(idx.redfinUpdated||idx.updated||''));const metros=f.metros?await mktFetch(f.metros+'?v='+encodeURIComponent(idx.updated||'')):null;
+    if(!zips){MKT.failed[st]=Date.now();return null}MKT.states[st]={zips,metros};return MKT.states[st]})().finally(()=>{delete MKT.loading[st]});
+  return MKT.loading[st];
+}
+function zipOf(d){const m=String(d.zip||'').match(/\d{5}/)||String(d.address||'').match(/\b(\d{5})(?:-\d{4})?\b\s*$/);return m?m[0].slice(0,5):null}
+function stateOf(d){const s=String(d.state||'').trim().toUpperCase();return /^[A-Z]{2}$/.test(s)?s:null}
+function marketFor(d){const st=stateOf(d),z=zipOf(d);if(!st||!z)return null;const S=MKT.states[st];if(!S||!S.zips||!S.zips.zips)return null;const Z=S.zips.zips[z];if(!Z)return {none:true,zip:z,state:st,S};
+  const metro=Z.metro&&S.metros&&S.metros.metros?S.metros.metros[Z.metro]:null;return {zip:z,state:st,Z,metro,S}}
+async function ensureMarket(d){if(!d)return;const st=stateOf(d);if(!st||MKT.states[st])return;const r=await loadMarketState(st);if(r){const m=marketFor(d);if(m&&m.Z&&m.Z.l&&m.Z.l.dom!=null&&d.zipAvgDom==null&&d.zipDomAuto!==m.Z.l.dom){d.zipDomAuto=m.Z.l.dom;saveDeal(d,true)}render()}}
+const zipDom=d=>d.zipAvgDom??d.zipDomAuto??null;
+function marketFacts(d){
+  const m=marketFor(d);if(!m||!m.Z)return '';const l=m.Z.l||{};const S=m.S.zips;
+  const yo=v=>v==null?'':` (${v>=0?'+':''}${Math.round(v*10)/10}% a year)`;
+  return `ZIP ${m.zip} market, single-family homes (Redfin, 3 months to ${S.periodEnd||'latest'}): median sale ${money(l.price)}${yo(l.priceYoy)}, ${l.ppsf?'$'+Math.round(l.ppsf)+'/sqft':'?'}${yo(l.ppsfYoy)}, median ${l.dom??'?'} days on market, sale-to-list ${l.stl!=null?l.stl+'%':'?'}, ${l.mos!=null?l.mos+' months of supply':'supply unknown'}, ${l.sold??'?'} sold${l.pdPct!=null?`, ${Math.round(l.pdPct)}% of active listings had a price drop`:''}.`;
+}
+function mktTone(l){if(l.mos==null)return null;return l.mos<3?['Seller’s market','green']:l.mos<=6?['Balanced market','blue']:['Buyer’s market','orange']}
+function spark(vals,cls){const v=(vals||[]).map(x=>x==null?null:+x);const f=v.filter(x=>x!=null);if(f.length<2)return '';const lo=Math.min(...f),hi=Math.max(...f),W=120,H=30;const X=i=>i/(v.length-1)*W,Y=x=>H-3-(hi===lo?.5:(x-lo)/(hi-lo))*(H-6);
+  let p='';v.forEach((x,i)=>{if(x==null)return;p+=(p?'L':'M')+X(i).toFixed(1)+','+Y(x).toFixed(1)});return `<svg class="spark ${cls||''}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${p}"/></svg>`}
+function marketCard(d,c){
+  const st=stateOf(d),z=zipOf(d);if(!st||!z)return '';const m=marketFor(d);
+  if(!m){return MKT.failed[st]?'':`<section class="card" id="market"><div class="card-head"><span class="ci teal">${ico('trend')}</span><div><h2>ZIP ${esc(z)} market</h2><p>Loading Redfin data…</p></div></div></section>`}
+  if(m.none)return `<section class="card" id="market"><div class="card-head"><span class="ci teal">${ico('trend')}</span><div><h2>ZIP ${esc(z)} market</h2><p>Redfin has no single-family data for this ZIP</p></div></div></section>`;
+  const l=m.Z.l||{},s=m.Z.s||{},S=m.S.zips;const tone=mktTone(l);
+  const k=(lab,val,sub,sp,cls)=>`<div class="kpi ${cls||''}"><span class="lab">${lab}</span><span class="val">${val}</span>${sub?`<span class="sub">${sub}</span>`:''}${sp||''}</div>`;
+  const yy=v=>v==null?'':`<span style="color:${v>=0?'var(--t-green)':'var(--t-red)'}">${v>=0?'+':''}${(Math.round(v*10)/10)}% YoY</span>`;
+  let arvNote='';
+  if(c.ready&&d.sqft&&l.ppsf){const a=c.A/d.sqft;const r=a/l.ppsf-1;arvNote=`<div class="note ${r>.45?'red':r<-.05?'amber':'green'}">Your ARV is <b>$${Math.round(a)}/sqft</b>, ${r>=0?Math.round(r*100)+'% above':Math.round(-r*100)+'% below'} this ZIP’s median sale ($${Math.round(l.ppsf)}/sqft). ${r>.45?'That’s optimistic: renovated homes usually sell 10–35% above the median. Back it with strong comps.':r<-.05?'That’s below the median, which is conservative for a renovated house. Check your comps; you may be leaving room.':'That fits a renovated house in this ZIP.'}</div>`}
+  const mt=m.metro;const wk=mt&&mt.l;
+  return `<section class="card" id="market"><div class="card-head"><span class="ci teal">${ico('trend')}</span><div><h2>ZIP ${esc(z)} market</h2><p>Single-family homes · Redfin, 3 months to ${esc(S.periodEnd||'')} · ${esc(m.Z.metro||'')}</p></div><div class="ch-r">${tone?`<span class="pill ${tone[1]}">${tone[0]}</span>`:''}</div></div>
+  <div class="kpis">${k('Median sale price',money(l.price),yy(l.priceYoy),spark(s.price,'blue'))}${k('Price per sqft',l.ppsf?'$'+Math.round(l.ppsf):'—',yy(l.ppsfYoy),spark(s.ppsf,'blue'))}${k('Median days on market',l.dom!=null?l.dom+' days':'—',l.stl!=null?`Sale-to-list ${l.stl}%`:'',spark(s.dom,'amber'))}${k('Months of supply',l.mos!=null?l.mos:'—',`${l.sold??'—'} sold · ${l.active??'—'} active${l.pdPct!=null?` · ${Math.round(l.pdPct)}% cut price`:''}`,spark(s.mos,'amber'))}</div>
+  ${arvNote}
+  ${wk?`<p class="small muted"><b>${esc(m.Z.metro)}</b>, last 4 weeks (updated ${esc(mt.periodEnd||'')}): median sale ${money(wk.price)}${wk.priceYoy!=null?` (${wk.priceYoy>=0?'+':''}${Math.round(wk.priceYoy*10)/10}% YoY)`:''}, ${wk.dom??'?'} days on market, pending sales ${wk.pendYoy!=null?(wk.pendYoy>=0?'+':'')+Math.round(wk.pendYoy)+'% YoY':'—'}, new listings ${wk.newYoy!=null?(wk.newYoy>=0?'+':'')+Math.round(wk.newYoy)+'% YoY':'—'}.</p>`:''}
+  <p class="xs muted">Redfin publishes ZIP data monthly and metro data weekly; OfferDesk checks for new data every week.</p></section>`;
+}
+/* market-based risk adjustments for the deal score */
+function marketMods(d,c){const m=marketFor(d);if(!m||!m.Z)return [];const l=m.Z.l||{};const out=[];
+  if(l.mos!=null&&l.mos>=6)out.push([`Slow ZIP: ${l.mos} months of supply`,-5]);
+  if(l.priceYoy!=null&&l.priceYoy<=-5)out.push([`ZIP prices down ${Math.round(-l.priceYoy)}% in a year`,-4]);
+  if(c.ready&&d.sqft&&l.ppsf&&c.A/d.sqft>l.ppsf*1.45)out.push(['ARV far above the ZIP’s $/sqft',-6]);
+  return out}
+
+/* ================= voice practice (your mic in, ElevenLabs voice out) ================= */
+const VOICE={rec:null,listening:false,speaking:false,audio:null,interim:'',final:'',voices:null,err:''};
+const DEFAULT_VOICE='JBFqnCBsd6RMkjVDRZzb';
+const voiceSet=()=>state.settings.voice||{};
+const SR=()=>window.SpeechRecognition||window.webkitSpeechRecognition||null;
+function voiceBits(){const el=document.getElementById('voice-status');if(el)el.innerHTML=voiceStatusHTML();const b=document.getElementById('mic-btn');if(b){b.classList.toggle('on',VOICE.listening);b.classList.toggle('talking',VOICE.speaking);b.setAttribute('aria-pressed',String(VOICE.listening))}}
+function voiceStatusHTML(){
+  if(VOICE.speaking)return `<span class="vdot talk"></span>The agent is talking… <button class="linkbtn" data-act="voice-stop">Interrupt</button>`;
+  if(VOICE.listening)return `<span class="vdot rec"></span>Listening… ${VOICE.interim?`<span class="muted">“${esc(VOICE.interim)}”</span>`:'<span class="muted">say your line</span>'}`;
+  if(state.busy['pr-chat'])return `<span class="vdot"></span>The agent is thinking…`;
+  return VOICE.err?`<span class="vdot err"></span>${esc(VOICE.err)}`:`Tap the mic and talk. ${voiceSet().handsFree!==false?'It keeps listening after each reply until you tap it again.':''}`;
+}
+function voiceListen(){
+  const R=SR();if(!R){VOICE.err='Voice needs Chrome, Edge or Safari. You can still type.';voiceBits();return}
+  stopSpeaking();if(VOICE.rec){try{VOICE.rec.abort()}catch(e){}}
+  const r=new R();r.lang='en-US';r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
+  VOICE.final='';VOICE.interim='';VOICE.err='';
+  r.onresult=e=>{let fin='',int='';for(let i=e.resultIndex;i<e.results.length;i++){const x=e.results[i];if(x.isFinal)fin+=x[0].transcript;else int+=x[0].transcript}if(fin)VOICE.final+=fin;VOICE.interim=(VOICE.final+' '+int).trim();voiceBits()};
+  r.onerror=e=>{VOICE.err=e.error==='not-allowed'||e.error==='service-not-allowed'?'Allow the microphone for this site in your browser, then try again.':e.error==='no-speech'?'Didn’t hear anything. Tap the mic to try again.':'';voiceBits()};
+  r.onend=()=>{VOICE.listening=false;VOICE.rec=null;const t=VOICE.final.trim();VOICE.interim='';VOICE.final='';voiceBits();
+    if(t&&state.voiceOn&&state.practiceId){state.drafts['pr-msg']=t;A['pr-send']()}};
+  try{r.start();VOICE.rec=r;VOICE.listening=true}catch(e){VOICE.err='Couldn’t start the microphone.'}
+  voiceBits();
+}
+function voiceStopListening(){if(VOICE.rec){try{VOICE.rec.stop()}catch(e){}}}
+function stopSpeaking(){VOICE.tok=(VOICE.tok||0)+1;if(VOICE.audio){const a=VOICE.audio;a.onended=a.onerror=null;try{a.pause()}catch(e){}VOICE.audio=null}try{speechSynthesis.cancel()}catch(e){}VOICE.speaking=false}
+async function speakAgent(text,persona){
+  if(!state.voiceOn||!text)return;stopSpeaking();const tok=VOICE.tok;VOICE.speaking=true;voiceBits();
+  const done=()=>{if(tok!==VOICE.tok)return;VOICE.tok++;VOICE.speaking=false;VOICE.audio=null;voiceBits();if(state.voiceOn&&voiceSet().handsFree!==false&&state.practiceId&&!(state.practice[state.practiceId]||{}).feedback)setTimeout(voiceListen,250)};
+  const key=secrets().elevenKey;const V=voiceSet();
+  if(key){
+    const vid=(V.voices&&V.voices[persona])||V.voice||DEFAULT_VOICE;
+    const call=model=>fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(vid)}?output_format=mp3_44100_128`,{method:'POST',headers:{'xi-api-key':key,'content-type':'application/json',accept:'audio/mpeg'},body:JSON.stringify(Object.assign({text:String(text).slice(0,2500)},model?{model_id:model}:{}))});
+    try{
+      let r=await call(V.model||'eleven_flash_v2_5');if(!r.ok&&(r.status===400||r.status===422||r.status===404))r=await call(null);
+      if(!r.ok){let m='';try{const j=await r.json();m=(j.detail&&(j.detail.message||j.detail.status))||''}catch(e){}throw new Error(r.status===401?'ElevenLabs rejected the API key.':m||('ElevenLabs error '+r.status))}
+      const blob=await r.blob();if(tok!==VOICE.tok)return;const url=URL.createObjectURL(blob);const au=new Audio(url);VOICE.audio=au;
+      au.onended=()=>{URL.revokeObjectURL(url);done()};au.onerror=()=>{URL.revokeObjectURL(url);done()};
+      await au.play();return;
+    }catch(e){if(tok!==VOICE.tok)return;VOICE.err=String(e.message||e)+' Using the browser voice instead.'}
+  }
+  try{const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=1.03;const vs=speechSynthesis.getVoices().filter(v=>/en-US/i.test(v.lang));if(vs.length)u.voice=vs[(persona||'').length%vs.length];u.onend=done;u.onerror=done;speechSynthesis.speak(u)}catch(e){done()}
+}
+async function loadVoices(){
+  const key=secrets().elevenKey;if(!key){toast('Paste your ElevenLabs API key first.');return}
+  state.busy.voices={label:'Loading your ElevenLabs voices…'};render();
+  try{const r=await fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':key}});if(r.status===401)throw new Error('ElevenLabs rejected the API key.');if(!r.ok)throw new Error('ElevenLabs error '+r.status);
+    const j=await r.json();VOICE.voices=(j.voices||[]).map(v=>({id:v.voice_id,name:v.name,labels:v.labels||{}}));
+    const V=state.settings.voice=state.settings.voice||{};V.voices=V.voices||{};const pool=VOICE.voices;
+    Object.keys(PERSONAS).forEach((p,i)=>{if(!V.voices[p]&&pool.length)V.voices[p]=pool[i%pool.length].id});
+    saveSettings();toast(`${VOICE.voices.length} voices loaded. Pick one for each agent type.`)}
+  catch(e){toast(String(e.message||e),5200)}finally{delete state.busy.voices;render()}
+}
+function voicePanelHTML(){
+  const V=voiceSet();const sec=secrets();const vs=VOICE.voices;const n=esc(negName());
+  const sel=p=>{const cur=(V.voices&&V.voices[p])||'';return vs&&vs.length?`<select class="input" id="vv-${p}" data-fs="voice.voices.${p}" data-t="text">${vs.map(v=>`<option value="${esc(v.id)}" ${cur===v.id?'selected':''}>${esc(v.name)}${v.labels.gender?' · '+esc(v.labels.gender):''}${v.labels.accent?' · '+esc(v.labels.accent):''}</option>`).join('')}</select>`:`<input class="input" id="vv-${p}" data-fs="voice.voices.${p}" data-t="text" value="${esc(cur)}" placeholder="voice ID (or load your voices)">`};
+  return `<details class="card" id="voice-setup" ${sec.elevenKey?'':'open'}><summary style="font-weight:800">${ico('practice')} Voice: talk to the agent out loud${sec.elevenKey?' <span class="tag green">ElevenLabs connected</span>':''}</summary>
+  <div style="display:grid;gap:12px;margin-top:12px">
+  <p class="small muted">Your microphone turns your words into text in the browser. The agent answers out loud with an ElevenLabs voice (or the browser’s built-in voice if you skip the key). You still get the graded prep sheet when you end the call.</p>
+  <div class="grid-fields"><label class="field"><span>ElevenLabs API key</span><input class="input" type="password" id="sec-eleven" data-sec="elevenKey" value="${esc(sec.elevenKey||'')}" placeholder="sk_…" autocomplete="off" spellcheck="false"></label>
+  <label class="field"><span>Speed vs quality</span><select class="input" id="st-voice-model" data-fs="voice.model" data-t="text">${[['eleven_flash_v2_5','Flash (fastest replies)'],['eleven_multilingual_v2','Multilingual v2 (richer voice)'],['eleven_v3','Eleven v3 (most expressive)']].map(([v,l])=>`<option value="${v}" ${(V.model||'eleven_flash_v2_5')===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
+  <div class="row"><button class="btn sm" data-act="voices-load" ${sec.elevenKey?'':'disabled'}>${ico('refresh')}Load my voices</button>${busyHTML('voices',false)}<span class="xs muted">Get a key in ElevenLabs → Developers → API keys. It’s saved like your Anthropic key.</span></div>
+  <div class="grid-fields">${Object.entries(PERSONAS).map(([k,p])=>`<label class="field"><span>${esc(p.label)}</span>${sel(k)}</label>`).join('')}</div>
+  <label class="check"><input type="checkbox" id="st-voice-hf" data-fs="voice.handsFree" data-t="bool" ${V.handsFree!==false?'checked':''}><span>Hands-free: start listening again after each reply</span></label>
+  ${SR()?'':'<div class="note amber">This browser can’t turn speech into text. Use Chrome, Edge or Safari for voice.</div>'}
+  </div></details>`;
+}
+function voiceBarHTML(s){
+  if(!s||s.feedback)return '';
+  return `<div class="voicebar"><button class="mic ${VOICE.listening?'on':''} ${VOICE.speaking?'talking':''}" id="mic-btn" data-act="mic" aria-pressed="${VOICE.listening}" aria-label="${VOICE.listening?'Stop listening':'Talk'}">${ico('practice')}</button>
+  <div style="min-width:0;flex:1"><div class="row" style="gap:8px"><b>${state.voiceOn?'Voice call':'Typing'}</b><button class="linkbtn" data-act="voice-mode">${state.voiceOn?'Switch to typing':'Switch to voice'}</button></div><div class="small" id="voice-status">${voiceStatusHTML()}</div></div></div>`;
+}
+
+/* ================= Maya's morning brief ================= */
+/* The app works out what matters; the Google script emails it every morning (even with no device open). */
+function buildBrief(){
+  const ds=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage));const now=Date.now();
+  const a=d=>streetOf(d.address)||'Untitled deal';const k=counts();
+  const needs=ds.filter(d=>d.needsYou&&d.draft).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
+  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&d.draft)).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
+  const follow=ds.filter(d=>{const f=followDue(d);return f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled)}).map(d=>({id:d.id,addr:a(d),step:followDue(d).step+1}));
+  const scored=ds.map(d=>{const S=dealScore(d,null,true);return S?{d,S}:null}).filter(Boolean).sort((x,y)=>y.S.score-x.S.score);
+  const top=scored.filter(x=>x.S.score>=65||(x.S.at80&&x.S.at80>=x.S.basis*.85)).slice(0,5).map(({d,S})=>({id:d.id,addr:a(d),score:S.score,grade:S.grade[0],best:STRAT_LABEL[S.best],basis:S.basis,at80:S.at80,source:d.source}));
+  const newDeals=ds.filter(d=>now-new Date(d.created).getTime()<=36*3600e3).map(d=>{const S=dealScore(d);return {id:d.id,addr:a(d),src:d.source==='wholesaler'?(d.wholesalerName||'wholesaler'):'listing',asking:curList(d),score:S?S.score:null}});
+  const drops=ds.filter(d=>{const h=d.priceHistory||[];return h.length>1&&h[h.length-1].price<h[h.length-2].price&&now-new Date(h[h.length-1].date).getTime()<=8*DAY}).map(d=>{const h=d.priceHistory;return {id:d.id,addr:a(d),from:h[h.length-2].price,to:h[h.length-1].price}});
+  const contract=ds.filter(d=>d.stage==='contract').map(d=>({id:d.id,addr:a(d)}));
+  const agents=[...new Set(ds.filter(d=>ourCount(d)&&d.agent&&d.agent.email).map(d=>d.agent.email.trim().toLowerCase()))].slice(0,60);
+  const statsLine=`${k.live} live offers · ${k.auto} on autopilot · ${contract.length} under contract`;
+  return {at:nowISO(),neg:negName(),url:ONLINE_URL,needs,replies,follow,top,newDeals,drops,contract,agents,statsLine};
+}
+async function pushBrief(force){
+  if(!cloudOn())return false;const b=buildBrief();const h=hashOf(Object.assign({},b,{at:0}));const c=cm();
+  if(!force&&c.h.brief===h&&Date.now()-(c.briefAt||0)<6*3600e3)return true;
+  for(let i=0;i<2;i++){
+    const r=await bridge('cloud_put',{parts:{brief:{base:c.revs.brief||0,data:{t:Date.now(),v:b}}}},c.acct);
+    if(r.revs&&r.revs.brief){c.revs.brief=r.revs.brief;c.h.brief=h;c.briefAt=Date.now();saveCM();return true}
+    if(r.conflicts&&r.conflicts.brief!=null)c.revs.brief=r.conflicts.brief;else break;
+  }
+  return false;
+}
+function briefTo(){return ((state.settings.notify||{}).email||state.settings.profile.email||'').trim()}
+async function briefSync(){
+  const B=state.settings.brief||{};if(!cloudOn())return;
+  const want=JSON.stringify({on:!!B.on,hour:B.hour??8,tz:B.tz||Intl.DateTimeFormat().resolvedOptions().timeZone,email:briefTo()});
+  if(cm().briefSetup===want)return;
+  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
+}
+function briefCardHTML(){
+  const b=buildBrief();const n=esc(negName());const B=state.settings.brief||{};
+  const li=(x,t)=>`<li><a href="#deal/${x.id}">${esc(x.addr)}</a>${t?` <span class="muted">· ${t}</span>`:''}</li>`;
+  const parts=[];
+  if(b.top.length)parts.push(`<div><b>Worth a look</b><ul>${b.top.map(x=>li(x,`score ${x.score} (${esc(x.best)})${x.at80&&x.at80<x.basis?` · 80+ at ${moneyK(x.at80)}`:''}`)).join('')}</ul></div>`);
+  if(b.newDeals.length)parts.push(`<div><b>New since yesterday</b><ul>${b.newDeals.slice(0,5).map(x=>li(x,`${esc(x.src)}${x.score!=null?` · score ${x.score}`:''}`)).join('')}</ul></div>`);
+  if(b.drops.length)parts.push(`<div><b>Price drops this week</b><ul>${b.drops.slice(0,5).map(x=>li(x,`${moneyK(x.from)} → ${moneyK(x.to)}`)).join('')}</ul></div>`);
+  const sched=!cloudOn()?`Turn on <a href="#settings/connections/conn-cloud">cloud save</a> and ${n} emails this to you every morning, even when no device is open.`:B.on?`${n} emails this to ${esc(briefTo()||'you')} every day at ${B.hour??8}:00.`:`The morning email is off (Settings → ${n} & you).`;
+  return `<section class="card" id="brief"><div class="card-head"><span class="ci amber">${ico('spark')}</span><div><h2>${n}’s morning brief</h2><p>${esc(b.statsLine)}</p></div>${cloudOn()&&briefTo()?`<div class="ch-r"><button class="btn sm" data-act="brief-test" ${state.busy.brief?'disabled':''}>${ico('mail')}Email it to me now</button></div>`:''}</div>
+  ${busyHTML('brief',false)}
+  ${parts.length?`<div class="brief-cols">${parts.join('')}</div>`:`<p class="small muted">Nothing stands out yet. As deals come in, the best-scoring ones, new deals and price drops show up here.</p>`}
+  <p class="xs muted">${sched}</p></section>`;
+}
+function briefSettingsHTML(){
+  const B=state.settings.brief||{};const n=esc(negName());const tz=B.tz||Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return `<section class="card" id="brief-settings"><div class="card-head"><span class="ci amber">${ico('clock')}</span><div><h2>Morning brief</h2><p>${n} emails you what needs attention and the deals worth a look</p></div><div class="ch-r">${switchHTML(!!B.on,'brief-toggle',null,'Morning brief')}</div></div>
+  <div class="grid-fields"><label class="field"><span>Send at</span><select class="input" id="st-brief-hour" data-fs="brief.hour" data-t="num">${Array.from({length:24},(_,h)=>`<option value="${h}" ${(B.hour??8)===h?'selected':''}>${(h%12||12)+':00 '+(h<12?'AM':'PM')}</option>`).join('')}</select></label><label class="field"><span>Time zone</span><input class="input" id="st-brief-tz" data-fs="brief.tz" data-t="text" value="${esc(B.tz||'')}" placeholder="${esc(tz)}"></label></div>
+  <p class="small muted">${!cloudOn()?`Needs cloud save (Connect → Cloud save): your Google script reads your desk from Drive and sends the email even when no device is open.`:briefTo()?`Goes to ${esc(briefTo())} (the email in “${n} pings you”). It also checks your Gmail for agent replies that came in overnight.`:`Add your email in “${n} pings you” above.`}</p></section>`;
+}
+
 /* ================= Practice ================= */
 function viewPractice(){
   const n=esc(negName());const sessions=Object.values(state.practice).sort((a,b)=>String(b.created).localeCompare(String(a.created)));
@@ -3012,10 +3572,10 @@ function viewPractice(){
   if(cur){const turns=cur.turns||[];
     main=`<section class="card"><div class="card-head"><span class="ci ${PERSONAS[cur.persona]?.color||'pink'}">${ico('user')}</span><div><h2>${esc(PERSONAS[cur.persona]?.label||'Agent')}</h2><p>${esc(cur.title)}</p></div><div class="ch-r">${!cur.feedback?`<button class="btn" data-act="pr-end">End call and get feedback</button>`:''}<button class="btn ghost sm" data-act="pr-close">Close</button></div></div>
       <div class="chat" id="prchat" data-stick="1">${turns.slice(1).map(t=>`<div class="bubble ${t.role==='user'?'me':''}">${esc(t.content)}</div>`).join('')}${state.busy['pr-chat']?'<div class="bubble"><span class="muted">typing…</span></div>':''}</div>
-      ${!cur.feedback?`<div class="chat-in" style="padding:0;border:0"><textarea class="input" id="pr-msg" data-draft rows="2" placeholder="Say your line… (Enter to send)">${esc(state.drafts['pr-msg']||'')}</textarea><button class="send-btn" data-act="pr-send" aria-label="Send">${ico('send')}</button></div>`:''}
+      ${voiceBarHTML(cur)}${!cur.feedback?`<div class="chat-in" style="padding:0;border:0"><textarea class="input" id="pr-msg" data-draft rows="2" placeholder="Say your line… (Enter to send)">${esc(state.drafts['pr-msg']||'')}</textarea><button class="send-btn" data-act="pr-send" aria-label="Send">${ico('send')}</button></div>`:''}
       ${busyHTML('pr-end',false)}${cur.feedback?prepHTML(cur):''}</section>`}
   const past=sessions.length?`<section class="card"><div class="card-head"><span class="ci slate">${ico('clock')}</span><div><h2>Past calls</h2></div></div><div class="tbl-wrap" style="border:0"><table class="tbl" style="min-width:0"><tbody>${sessions.slice(0,20).map(s=>`<tr data-act="pr-open" data-id="${s.id}"><td><b>${esc(s.title)}</b><div class="xs muted">${esc(PERSONAS[s.persona]?.label||'')} · ${fmtDate(s.created)}</div></td><td class="r tnum"><b>${s.feedback?esc(s.feedback.score)+'/10':'—'}</b></td><td class="r"><button class="btn ghost sm" data-act="pr-del" data-id="${s.id}" aria-label="Delete">${ico('trash')}</button></td></tr>`).join('')}</tbody></table></div></section>`:`<section class="card"><div class="card-head"><span class="ci slate">${ico('spark')}</span><div><h2>How it works</h2></div></div><p class="small muted">Pick a deal and an agent type and talk it through like a phone call. When you end it, ${n} grades the call: what worked, where you gave ground, and the exact lines to use next time. Typing in English is practice too.</p></section>`;
-  return `<div class="wrap page">${head}${main}<div class="split">${setup}${past}</div></div>`;
+  return `<div class="wrap page">${head}${main}<div class="split">${setup}${past}</div>${voicePanelHTML()}</div>`;
 }
 function prepHTML(s){const f=s.feedback;const L=a=>(a||[]).length?`<ul>${a.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<p class="small muted">—</p>';
   return `<div class="prep" style="border-top:1px solid var(--line);padding-top:14px;display:grid;gap:12px"><div class="row" style="gap:16px"><span class="score">${esc(f.score)}<span class="muted" style="font-size:16px">/10</span></span><div style="min-width:0;flex:1"><b>Prep sheet</b><p class="small">${esc(f.outcome)}</p></div></div>
@@ -3049,11 +3609,11 @@ function viewStats(){
 /* ================= Settings / Connect ================= */
 function viewSettings(){
   const t=state.settingsTab;const n=esc(negName());
-  const tabs=[['connections','Connections'],['autopilot','Autopilot'],['buybox','Buy box'],['maya',n+' & you'],['wholesalers','Wholesalers'],['data','Data']];
+  const tabs=[['connections','Connections'],['autopilot','Autopilot'],['buybox','Buy box'],['rehab','Repair prices'],['maya',n+' & you'],['wholesalers','Wholesalers'],['data','Data']];
   const ok=[aiOn(),gmailOn(),smsOn()||gvOn()].filter(Boolean).length;
   const head=hero('g-settings','Connect & settings',`Give ${n} a brain, your Gmail and a phone number, then set your rules`,`<span><span class="dot ${aiOn()?'on':'warn'}"></span>Brain</span><span><span class="dot ${gmailOn()?'on':'warn'}"></span>Gmail</span><span><span class="dot ${smsOn()||gvOn()?'on':''}"></span>Texting</span><span><span class="dot ${state.settings.auto.enabled?'live':''}"></span>Autopilot ${state.settings.auto.enabled?'on':'off'}</span>`,`<div class="h-stat"><b>${ok}/3</b><span>connected</span></div>`);
   const nav=`<div class="stabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-act="stab" data-v="${k}" aria-selected="${t===k}">${l}</button>`).join('')}</div>`;
-  const body=t==='autopilot'?setAuto():t==='buybox'?setBuy():t==='maya'?setMaya():t==='wholesalers'?setWs():t==='data'?setData():setConn();
+  const body=t==='autopilot'?setAuto():t==='buybox'?setBuy():t==='rehab'?setRehab():t==='maya'?setMaya():t==='wholesalers'?setWs():t==='data'?setData():setConn();
   return `<div class="wrap page">${head}${nav}${body}</div>`;
 }
 function fset(path,label,type='num',extra=''){const v=getPath(state.settings,path);return `<label class="field"><span>${label}</span><input class="input ${type==='num'?'tnum':''}" id="st-${path.replace(/\./g,'-')}" data-fs="${path}" data-t="${type}" value="${esc(v??'')}" ${extra}></label>`}
@@ -3079,7 +3639,7 @@ function setConn(){
     <label class="check"><input type="checkbox" id="st-autoimport" data-fs="conn.autoImport" data-t="bool" ${S.conn.autoImport?'checked':''}><span>${n} pulls deals out of new wholesaler emails automatically</span></label>
     <label class="field"><span>Which emails count as wholesaler deals (Gmail search, optional)</span><input class="input" id="st-gq" data-fs="conn.gmailQuery" data-t="text" value="${esc(S.conn.gmailQuery)}" placeholder="${esc(buildQuery(true))}" spellcheck="false"></label>
     <p class="small muted">Blank means: your saved wholesalers, anything labeled <b>Wholesalers</b> in Gmail, and emails mentioning ARV with assignment or off-market. Tip: make a Gmail filter that labels deal emails “Wholesalers”.</p>`:''}
-    <details ${gm?'':'open'}><summary>How to connect a Gmail account (5 steps, once per account)</summary><ol class="steps" style="margin-top:8px">
+    <details id="gm-help" ${gm?'':'open'}><summary>How to connect a Gmail account (5 steps, once per account)</summary><ol class="steps" style="margin-top:8px">
       <li>Sign in to the Gmail you’re connecting (for ${n}’s sending inbox, your <b>company Gmail</b>), then open <a href="https://script.new" target="_blank" rel="noopener">script.new</a>. Name the project <b>OfferDesk Bridge</b>. If you’re signed in to several Google accounts, check the account picker at the top right of Apps Script.</li>
       <li>Delete the sample code and paste this. Your private secret is already filled in; the same code works for every account.<div class="row" style="margin-top:6px"><button class="btn sm" data-act="copy" data-src="bridge-code">${ico('copy')}Copy bridge code</button></div><textarea class="input code" id="bridge-code" readonly rows="4" spellcheck="false" style="margin-top:6px">${esc(code)}</textarea></li>
       <li>Click <b>Deploy → New deployment</b>, choose <b>Web app</b>, set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>, then Deploy.</li>
@@ -3129,8 +3689,9 @@ function setBuy(){
 function setMaya(){
   const S=state.settings;const n=esc(negName());
   return `<div class="split"><section class="card"><div class="card-head"><span class="ci slate">${ico('user')}</span><div><h2>You</h2><p>${n} signs with these</p></div></div><div class="grid-fields">${fset('profile.name','Your name','text')}${fset('profile.company','Company (optional)','text')}${fset('profile.phone','US phone','text','inputmode="tel" placeholder="+1 214 555 0100"')}${fset('profile.email','Email for offers','text','inputmode="email"')}</div></section>
-  <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}</h2><p>Your negotiator’s name and manners</p></div></div><div class="grid-fields">${fset('neg.name','Name','text')}<label class="field"><span>Tone</span><select class="input" id="st-neg-tone" data-fs="neg.tone" data-t="text">${Object.keys(TONES).map(k=>`<option value="${k}" ${S.neg.tone===k?'selected':''}>${k[0].toUpperCase()+k.slice(1)}</option>`).join('')}</select></label>${fset('neg.senderName','Email sender name','text','placeholder="'+esc(senderName())+'"')}</div>
-    <label class="check"><input type="checkbox" id="st-neg-disclose" data-fs="neg.disclose" data-t="bool" ${S.neg.disclose?'checked':''}><span>If someone asks, ${n} says she’s an AI assistant working for you</span></label>
+  <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}</h2><p>Your negotiator’s name and manners</p></div></div><div class="grid-fields">${fset('neg.name','Name','text')}${fset('neg.title','Title in her signature','text','list="neg-titles" placeholder="Acquisitions Manager"')}<datalist id="neg-titles">${['Acquisitions Manager','Acquisitions Director','Head of Acquisitions','Acquisitions Lead','Investment Manager'].map(t=>`<option value="${t}">`).join('')}</datalist><label class="field"><span>Tone</span><select class="input" id="st-neg-tone" data-fs="neg.tone" data-t="text">${Object.keys(TONES).map(k=>`<option value="${k}" ${S.neg.tone===k?'selected':''}>${k[0].toUpperCase()+k.slice(1)}</option>`).join('')}</select></label>${fset('neg.senderName','Email sender name','text','placeholder="'+esc(senderName())+'"')}</div>
+    <p class="small muted">She signs as <b>${esc(S.neg.name)}</b>, ${esc(S.neg.title||'Acquisitions Manager')}${S.profile.company?', '+esc(S.profile.company):''}${S.profile.company?'':' (add your company in the “You” card to show it)'}.</p>
+    <label class="check"><input type="checkbox" id="st-neg-disclose" data-fs="neg.disclose" data-t="bool" ${S.neg.disclose?'checked':''}><span>If someone asks, ${n} says honestly she’s an AI acquisitions agent working for you</span></label>
     <label class="check"><input type="checkbox" id="st-neg-opt" data-fs="neg.optOutLine" data-t="bool" ${S.neg.optOutLine?'checked':''}><span>End emails with a one-line “reply remove” opt-out</span></label></section></div>
   <section class="card" id="pings"><div class="card-head"><span class="ci orange">${ico('bell')}</span><div><h2>${n} pings you</h2><p>So you hear about replies and decisions without keeping the tab in view</p></div></div>
     <div class="grid-fields">${fset('notify.email','Email me at','text','inputmode="email" placeholder="your personal email"')}</div>
@@ -3138,12 +3699,25 @@ function setMaya(){
     <label class="check"><input type="checkbox" id="st-n-reply" data-fs="notify.onReply" data-t="bool" ${S.notify.onReply?'checked':''}><span>When an agent replies on a deal ${n} isn’t handling on autopilot</span></label>
     <label class="check"><input type="checkbox" id="st-n-sms" data-fs="notify.sms" data-t="bool" ${S.notify.sms?'checked':''} ${smsOn()?'':'disabled'}><span>Also text me at ${esc(S.profile.phone||'your US phone')} ${smsOn()?'':'(needs Twilio)'}</span></label>
     <label class="check"><input type="checkbox" id="st-n-cc" data-fs="notify.ccMe" data-t="bool" ${S.notify.ccMe?'checked':''}><span>CC me on every email ${n} sends, so agents can reply to you too</span></label>
-    <p class="small muted">Pings go out from ${gmailOn()?esc(sendEmail()):'your connected Gmail'} while OfferDesk is open on one of your devices. Each one links straight to the deal.</p></section>`;
+    <p class="small muted">Pings go out from ${gmailOn()?esc(sendEmail()):'your connected Gmail'} while OfferDesk is open on one of your devices. Each one links straight to the deal.</p></section>${briefSettingsHTML()}`;
 }
 function setWs(){
   const ws=state.settings.wholesalers||[];
-  return `<section class="card"><div class="card-head"><span class="ci orange">${ico('leads')}</span><div><h2>Wholesalers</h2><p>Emails from these addresses are pulled into Inbox Leads</p></div><div class="ch-r"><button class="btn sm" data-act="ws-add">${ico('plus')}Add wholesaler</button></div></div>
+  const n=esc(negName());const R=state.settings.research||{};
+  return `<section class="card"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n} researches new deals</h2><p>Every new wholesaler deal, on her own</p></div><div class="ch-r">${switchHTML(R.auto!==false,'research-auto',null,'Auto research')}</div></div>
+    <p class="small">She opens the links that came with the deal (Google Drive photo folders, deal pages), pulls the photos, finds the property’s history and recent sales nearby, checks the wholesaler’s numbers, then runs the photo inspection. Usually 10–30¢ per deal on your Anthropic account. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>
+  <section class="card"><div class="card-head"><span class="ci orange">${ico('leads')}</span><div><h2>Wholesalers</h2><p>Emails from these addresses are pulled into Inbox Leads</p></div><div class="ch-r"><button class="btn sm" data-act="ws-add">${ico('plus')}Add wholesaler</button></div></div>
   ${ws.length?`<div class="tbl-wrap"><table class="tbl" style="min-width:640px"><thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Phone</th><th>Deals</th><th></th></tr></thead><tbody>${ws.map((w,i)=>`<tr style="cursor:default">${['name','company','email','phone'].map(k=>`<td><input class="input" id="ws-${k}${i}" data-fs="wholesalers.${i}.${k}" data-t="text" value="${esc(w[k])}"></td>`).join('')}<td class="tnum">${Object.values(state.deals).filter(d=>d.agent&&w.email&&(d.agent.email||'').toLowerCase()===w.email.toLowerCase()).length}</td><td><button class="btn ghost sm" data-act="ws-del" data-i="${i}" aria-label="Remove">${ico('trash')}</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="small muted">None yet. Each wholesaler you get a deal from is added here.</p>'}</section>`;
+}
+function setRehab(){
+  const book=rehabBook();const R=state.settings.rehab||{};const n=esc(negName());const bm=(state.settings.ai||{}).bigModel||'claude-opus-5-5';
+  return `<section class="card"><div class="card-head"><span class="ci orange">${ico('hammer')}</span><div><h2>Your repair prices</h2><p>${n} counts quantities from the photos and prices them with these numbers</p></div><div class="ch-r"><button class="btn ghost sm" data-act="rehab-reset">Reset to defaults</button></div></div>
+  <div class="tbl-wrap"><table class="tbl" style="min-width:540px"><thead><tr><th>Item</th><th>Unit</th><th class="r">Your price</th></tr></thead><tbody>${book.map(b=>`<tr style="cursor:default"><td>${esc(b.label)}</td><td class="small muted">${esc(b.unit)}</td><td class="r"><input class="input tnum" id="rb-${b.key}" data-fs="rehab.costs.${b.key}" data-t="num" value="${b.cost}" style="width:110px;text-align:right" inputmode="decimal">${b.cost!==b.def?`<div class="xs muted">default ${money(b.def)}</div>`:''}</td></tr>`).join('')}</tbody></table></div>
+  <label class="field"><span>Notes for ${n} on pricing (optional)</span><textarea class="input" id="rb-notes" data-fs="rehab.notes" data-t="text" rows="3" placeholder="e.g. My GC charges $28/sqft for a full cosmetic. Always budget a new water heater on houses built before 2010.">${esc(R.notes||'')}</textarea></label>
+  <p class="small muted">The defaults are typical US mid-range contractor prices. Putting in your own contractor’s numbers is the single biggest accuracy boost for ${n}’s rehab estimates.</p></section>
+  <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>Model for the big calls</h2><p>Photo inspections, deal research, and the re-check when an agent answers</p></div></div>
+  <div class="seg" role="group" aria-label="Model for big calls">${[['claude-opus-5-5','Opus 5.5 (sharpest)'],['same','Same as everything else']].map(([v,l])=>`<button data-act="big-model" data-v="${v}" aria-pressed="${bm===v}">${l}</button>`).join('')}</div>
+  <p class="small muted">Opus costs more per call than Sonnet, but these are the calls where accuracy moves your numbers most. Emails and routine replies stay on your main model.</p></section>`;
 }
 function setData(){
   const exN=Object.values(state.deals).filter(d=>d.example).length;
@@ -3221,7 +3795,7 @@ A['modal-parse']=async()=>{const t=(state.drafts['mf-paste']||'').trim();if(!t){
   const res=await runAI('add','Reading the listing…',(ai,signal)=>ai.json(P_LISTING(t),{signal,modelTier:'quick'}));
   if(!res||!state.modal)return;const F=state.modal.form;const ag=res.agent||{};
   Object.assign(F,{address:res.address||F.address,city:res.city||F.city,state:res.state||F.state||'TX',zip:res.zip||F.zip,listPrice:parseNum(res.listPrice)??F.listPrice,beds:parseNum(res.beds)??F.beds,baths:parseNum(res.baths)??F.baths,sqft:parseNum(res.sqft)??F.sqft,lotSqft:parseNum(res.lotSqft)??F.lotSqft,year:parseNum(res.year)??F.year,dom:parseNum(res.daysOnMarket)??F.dom,description:res.description||F.description,agentName:ag.name||F.agentName,agentEmail:ag.email||F.agentEmail,agentPhone:ag.phone||F.agentPhone,brokerage:ag.brokerage||'',listedDate:res.listedDate||'',rent:parseNum(res.rent),propertyType:PROP_TYPES[res.propertyType]?res.propertyType:'single_family',mlsStatus:MLS_STATUS[res.mlsStatus]?res.mlsStatus:'for_sale',mlsId:res.mlsId||'',
-    history:(res.priceHistory||[]).map(p=>({date:p.date,price:parseNum(p.price)})).filter(p=>p.date&&p.price),photoUrls:(res.photoUrls||[]).filter(u=>/^https:\/\//.test(u)).slice(0,24)});
+    history:(res.priceHistory||[]).map(p=>({date:p.date,price:parseNum(p.price)})).filter(p=>p.date&&p.price),histEvents:(res.history||[]).filter(e=>e&&e.date&&HEV[e.event]).map(e=>({date:isoDay(e.date),event:e.event,price:parseNum(e.price),src:'listing page'})),photoUrls:(res.photoUrls||[]).filter(u=>/^https:\/\//.test(u)).slice(0,24)});
   state.modal.mode='type';render();toast('Check the details, then add it.')};
 A['modal-save']=()=>{const F=state.modal.form;if(!(F.address||'').trim()){toast('Add the street address.');return}
   const lp=parseNum(F.listPrice);let hist=(F.history||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -3229,6 +3803,7 @@ A['modal-save']=()=>{const F=state.modal.form;if(!(F.address||'').trim()){toast(
   hist=hist.map(h=>({date:new Date(h.date).toISOString(),price:h.price})).filter(h=>!isNaN(new Date(h.date)));
   const d=newDeal({source:F.source||'mls',mlsStatus:F.source==='wholesaler'?'off_market':(F.mlsStatus||'for_sale'),mlsId:F.mlsId||'',propertyType:F.propertyType||'single_family',address:F.address.trim(),city:F.city||'',state:F.state||'TX',zip:F.zip||'',listPrice:lp,priceHistory:hist,arv:parseNum(F.arv),arvSource:parseNum(F.arv)?'you':null,rehab:parseNum(F.rehab),beds:parseNum(F.beds),baths:parseNum(F.baths),sqft:parseNum(F.sqft),lotSqft:parseNum(F.lotSqft),year:parseNum(F.year),rent:F.rent||null,description:F.description||'',listingUrl:F.listingUrl||'',listedDate:F.listedDate?new Date(F.listedDate).toISOString():null,domAtAdd:F.listedDate?null:parseNum(F.dom),agent:{name:F.agentName||'',email:F.agentEmail||'',phone:F.agentPhone||'',brokerage:F.brokerage||''},wholesalerName:F.source==='wholesaler'?F.agentName||'':'',autopilot:!!F.autopilot,reviewed:true});
   if((F.photoUrls||[]).length){d.photoUrls=F.photoUrls;d.thumbUrl=F.photoUrls[0]}
+  if((F.histEvents||[]).length)d.history=F.histEvents;
   state.modal=null;saveDeal(d,true);logActivity(d.id,'deal',`Added ${streetOf(d.address)}.`);go('deal',d.id);
   toast(d.arv?'Added. Your ceiling is set.':`Added. Add photos and run ${negName()}’s inspection, or enter the ARV, to get a ceiling.`,4200)};
 A['confirm-yes']=()=>{const m=state.modal;state.modal=null;if(m&&m.run)m.run();render()};
@@ -3259,6 +3834,17 @@ A['comps-parse']=async()=>{const d=D();const t=(state.drafts['comps-text']||'').
   const dd=state.deals[d.id];dd.comps=(dd.comps||[]).concat(rows.map(x=>({addr:String(x.addr||''),price:parseNum(x.price),sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),soldDate:x.soldDate||'',status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true})));
   state.drafts['comps-text']='';state.compsPaste=false;saveDeal(dd);toast(`Added ${rows.length} comp${rows.length>1?'s':''}`)};
 A.deep=el=>aiDeep(el.dataset.id||state.dealId);
+A.research=()=>{const d=D();if(d)researchDeal(d.id)};
+A['ask-photos']=()=>{const d=D();if(d)askPhotosDraft(d.id)};
+A['hist-add-toggle']=()=>{state.histAdd=!state.histAdd;state.histPaste=false;render()};
+A['hist-paste-toggle']=()=>{state.histPaste=!state.histPaste;state.histAdd=false;render()};
+A['hist-save']=()=>{const d=D();const dt=state.drafts['he-date'];if(!dt){toast('Pick the date.');return}const ev=state.drafts['he-ev']||'listed';d.history=d.history||[];d.history.push({date:dt,event:HEV[ev]?ev:'other',price:parseNum(state.drafts['he-price']),src:'you'});state.drafts['he-price']='';state.histAdd=false;saveDeal(d)};
+A['hist-del']=el=>{const d=D();(d.history||[]).splice(+el.dataset.i,1);saveDeal(d)};
+A['hist-parse']=async()=>{const d=D();const t=(state.drafts['hist-text']||'').trim();if(!t){toast('Paste the history first.');return}
+  const res=await runAI('hist:'+d.id,'Reading the history…',(ai,signal)=>ai.json(P_HISTORY(t,d),{signal,modelTier:'quick'}));if(!res)return;
+  const ev=(res.history||[]).filter(e=>e&&e.date&&!isNaN(new Date(e.date))).map(e=>({date:isoDay(e.date),event:HEV[e.event]?e.event:'other',price:parseNum(e.price),note:String(e.note||'').slice(0,80),src:'pasted'}));
+  const dd=state.deals[d.id];dd.history=dd.history||[];let n=0;for(const e of ev)if(!dd.history.some(x=>isoDay(x.date)===e.date&&x.event===e.event)){dd.history.push(e);n++}
+  state.drafts['hist-text']='';state.histPaste=false;saveDeal(dd);toast(n?`Added ${n} event${n>1?'s':''}`:'No new events found.')};
 A['arv-mode']=el=>{const d=D();d.arvMode=el.dataset.v;saveDeal(d)};
 A['comp-filter']=el=>{state.compFilter=el.dataset.v;render()};
 A['geo-subject']=async()=>{const d=D();if(await geocodeDeal(d)){for(const x of d.comps||[])if(x.lat&&x.lng)x.dist=Math.round(haversine(d.lat,d.lng,x.lat,x.lng)*100)/100;saveDeal(d);toast('Found it. Distances updated.')}else toast('Couldn’t find that address on the map. Check the street, city and ZIP in Details.',5200)};
@@ -3346,22 +3932,33 @@ A['pr-start']=async()=>{
   const rules=`You are role-playing for negotiation practice. You are a ${role}: ${P.brief}.\n${facts}\nThe user is a real estate investor trying to buy it. Stay in character the whole time and talk like a real ${role} on a phone call: one to four sentences, natural, and push back with questions.\nHidden: the seller would accept as low as ${money(floor)} if the buyer earns it with solid reasoning, flexible terms and certainty to close. Never reveal that number or that a floor exists. Move toward it slowly and only for good reasons. If the buyer is pushy or sloppy, get firmer.\nNever break character and never mention being an AI or a practice exercise.\n\nThe call starts now. Answer the phone as the ${role}.`;
   const s={id:uid('p'),dealId:dealId||null,persona,floor,facts,title:sc.address,turns:[{role:'user',content:rules}],created:nowISO()};
   const res=await runAI('pr-start','Dialing…',(ai,signal)=>ai.text(s.turns,{signal,modelTier:'quick'}));
-  if(!res)return;s.turns.push({role:'assistant',content:res.text.trim()});state.practiceId=s.id;savePractice(s)};
+  if(!res)return;s.turns.push({role:'assistant',content:res.text.trim()});state.practiceId=s.id;savePractice(s);if(state.voiceOn)speakAgent(res.text.trim(),persona)};
 A['pr-send']=async()=>{
   const s=state.practice[state.practiceId];const msg=(state.drafts['pr-msg']||'').trim();if(!s||!msg||state.busy['pr-chat'])return;
   s.turns.push({role:'user',content:msg});state.drafts['pr-msg']='';savePractice(s);
   const turns=[s.turns[0],...s.turns.slice(1).slice(-24)];
   const res=await runAI('pr-chat','',(ai,signal)=>ai.text(turns,{signal,modelTier:'quick'}));
-  const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:res.text.trim()});savePractice(ss)}};
+  const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:res.text.trim()});savePractice(ss);if(state.voiceOn)speakAgent(res.text.trim(),ss.persona)}else voiceBits()};
 A['pr-end']=async()=>{
-  const s=state.practice[state.practiceId];if(!s)return;
+  const s=state.practice[state.practiceId];if(!s)return;stopSpeaking();voiceStopListening();
   const transcript=s.turns.slice(1).map(t=>(t.role==='user'?'INVESTOR: ':'AGENT: ')+t.content).join('\n');
   const d=state.deals[s.dealId];const c=d?calc(d):null;
   const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nJudge: did the investor anchor well, walk the math, ask about the seller's needs, trade concessions instead of giving them away, stay calm, and get a number or next step? Be specific and quote their words where useful.\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences on where it ended and how close they got to the floor","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
   const res=await runAI('pr-end','Grading the call…',(ai,signal)=>ai.json(prompt,{signal}));
   if(!res)return;const ss=state.practice[s.id];ss.feedback={score:parseNum(res.score)??'—',outcome:String(res.outcome||''),wins:(res.wins||[]).map(String),gaps:(res.gaps||[]).map(String),nextMoves:(res.nextMoves||[]).map(String),lines:(res.lines||[]).map(String)};savePractice(ss)};
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
-A['pr-close']=()=>{state.practiceId=null;render()};
+A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
+A.mic=()=>{state.voiceOn=true;if(VOICE.listening)voiceStopListening();else voiceListen();voiceBits()};
+A['voice-mode']=()=>{state.voiceOn=!state.voiceOn;if(!state.voiceOn){stopSpeaking();voiceStopListening()}render()};
+A['voice-stop']=()=>{stopSpeaking();voiceListen()};
+A['voices-load']=()=>loadVoices();
+A['brief-toggle']=()=>{const B=state.settings.brief=state.settings.brief||{};B.on=!B.on;saveSettings();briefSync();toast(B.on?(cloudOn()?`Morning brief on: every day at ${B.hour??8}:00.`:'Morning brief on. Turn on cloud save so it can be emailed.'):'Morning brief off.')};
+A['brief-test']=async()=>{if(!cloudOn()){toast('Turn on cloud save first.');return}state.busy.brief={label:negName()+' is writing your brief…'};render();
+  try{await pushBrief(true);const r=await bridge('brief_test',{},cm().acct);toast(r.sent?'Brief sent. Check your inbox.':r.error==='no_email'?'Add your email in Settings → '+negName()+' & you, then try again.':'Couldn’t send it: '+(r.error||'unknown'),5200);if(r.sent)briefSync()}
+  catch(e){toast(bridgeErr(e),5600)}finally{delete state.busy.brief;render()}};
+A['research-auto']=()=>{const R=state.settings.research=state.settings.research||{};R.auto=R.auto===false;saveSettings()};
+A['big-model']=el=>{state.settings.ai=state.settings.ai||{};state.settings.ai.bigModel=el.dataset.v;saveSettings()};
+A['rehab-reset']=()=>{state.settings.rehab=Object.assign({},state.settings.rehab,{costs:{}});saveSettings();toast('Repair prices reset to the defaults.')};
 A['pr-del']=el=>{delete state.practice[el.dataset.id];if(state.practiceId===el.dataset.id)state.practiceId=null;persist('practice');render()};
 
 /* settings */
@@ -3455,7 +4052,7 @@ document.addEventListener('change',e=>{
     if(p==='arv')d.arvSource='you';if(p==='rehab')d.rehabSource='you';
     saveDeal(d);return;
   }
-  if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();return}
+  if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();if(/^(brief\.|notify\.email)/.test(t.dataset.fs))briefSync();return}
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey&&e.target.id==='pr-msg'){e.preventDefault();A['pr-send']()}
@@ -3505,6 +4102,7 @@ async function boot(){
   setInterval(()=>tick(false),3*60*1000);
   setInterval(()=>{if(document.visibilityState==='visible'&&cloudOn())cloudSync()},60*1000);
   checkUpdate();setInterval(checkUpdate,5*60*1000);
+  {let lastW=innerWidth,rt=0;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(Math.abs(innerWidth-lastW)<80)return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;lastW=innerWidth;if(document.getElementById('history'))render()},300)})}
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkUpdate();if(cloudOn())cloudSync()}});
 }
 /* ================= self-update (hosted version) ================= */

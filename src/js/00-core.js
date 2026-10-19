@@ -14,11 +14,16 @@ const DEFAULTS={
   profile:{name:'',company:'',email:'',phone:''},
   buy:{strategy:'flip',targetRoi:20,minProfit:30000,holdMonths:5,holdCostMonthly:1200,buyCostPct:2,sellCostPct:8,wsBuyerPct:70,wsFee:10000,anchorGap:10,targetPct:40,maxRounds:4,escalatePct:95,closeDays:14,optionDays:7,emd:1000},
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
-  neg:{name:'Maya',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
+  neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
   auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
+  research:{auto:true},
+  ai:{bigModel:'claude-opus-5-5'},
+  brief:{on:true,hour:8,tz:''},
+  rehab:{costs:{},notes:''},
+  voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}
@@ -116,7 +121,8 @@ const pct=(n,d=1)=>n==null||!isFinite(n)?'—':(n*100).toFixed(d)+'%';
 const numFmt=n=>n==null||!isFinite(n)?'—':Math.round(n).toLocaleString('en-US');
 const floor500=n=>Math.floor(n/500)*500;
 const round500=n=>Math.round(n/500)*500;
-const fmtDate=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:d.getFullYear()!==new Date().getFullYear()?'numeric':undefined})};
+const dateOf=iso=>new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(iso))?iso+'T12:00:00':iso);
+const fmtDate=iso=>{if(!iso)return '';const d=dateOf(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:d.getFullYear()!==new Date().getFullYear()?'numeric':undefined})};
 const fmtWhen=iso=>{if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})};
 const daysSince=iso=>{if(!iso)return null;const t=new Date(iso).getTime();return isNaN(t)?null:Math.max(0,Math.floor((Date.now()-t)/DAY))};
 function ago(iso){const d=daysSince(iso);if(d==null)return '';if(d===0){const m=Math.floor((Date.now()-new Date(iso).getTime())/6e4);return m<1?'just now':m<60?m+' min ago':Math.floor(m/60)+' h ago'}return d===1?'1 day ago':d+' days ago'}
@@ -183,7 +189,7 @@ function route(){
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
   state.bellOpen=false;window.scrollTo(0,0);render();
-  if(state.view==='deal'&&state.dealId)ensurePhotoUrls(state.dealId);
+  if(state.view==='deal'&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   const anchor=state.view==='deal'||state.view==='settings'?sub:id;
   if(anchor){setTimeout(()=>{const el=document.getElementById(anchor);if(el)el.scrollIntoView({block:'start'})},80)}
 }

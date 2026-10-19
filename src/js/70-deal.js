@@ -10,9 +10,9 @@ function viewDeal(){
     <button class="btn" data-act="star" data-id="${d.id}" style="color:${d.starred?'var(--s-amber)':'inherit'}">${d.starred?icoFill('star'):ico('star')}${d.starred?'Starred':'Star'}</button>
     ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
   const dm=dom(d);
-  const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${d.zipAvgDom?`<span class="bchip">ZIP avg ${d.zipAvgDom} days</span>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
+  const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${zipDom(d)?`<span class="bchip">ZIP median ${zipDom(d)} days</span>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
-  const main=[overviewCard(d,c),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
+  const main=[historyCard(d),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
   return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${mayaPanel(d,c)}</aside></div></div>`;
 }
 function overviewCard(d,c){
@@ -86,8 +86,10 @@ function eyesCard(d,c){
   if(a){
     const C=a.condition||{};const areas=[['structure','Structure'],['roof','Roof'],['exterior','Exterior'],['kitchen','Kitchen'],['bathrooms','Bathrooms'],['living_bedrooms','Living & bedrooms'],['flooring','Flooring'],['mechanicals','Mechanicals']];
     const lvl=String(a.level||'').toLowerCase();const lc=lvl.includes('light')?'green':lvl.includes('gut')?'red':'amber';
-    report=`<div class="row"><span class="pill ${lc==='green'?'green':lc==='red'?'red':'orange'}">${esc(a.level||'Report')}</span><span class="small muted">${a.photos?`From ${a.photos} photo${a.photos>1?'s':''}`:'From the listing text only'} · ${fmtWhen(a.at)}</span></div>
+    report=`<div class="row"><span class="pill ${lc==='green'?'green':lc==='red'?'red':'orange'}">${esc(a.level||'Report')}</span><span class="small muted">${a.photos?`From ${a.photos} photo${a.photos>1?'s':''}`:'From the listing text only'} · ${fmtWhen(a.at)}${a.model?` · ${/opus/.test(a.model)?'Opus 5.5':/haiku/.test(a.model)?'Haiku 5.5':'Sonnet 5.5'}`:''}</span></div>
     ${a.summary?`<p>${esc(a.summary)}</p>`:''}
+    ${(a.notSeen||[]).length?`<div class="note amber row" style="justify-content:space-between"><span><b>Not in the photos:</b> ${a.notSeen.map(esc).join(', ')}. Those repair lines are allowances.</span><button class="btn sm" data-act="ask-photos">${ico('mail')}Ask for these photos</button></div>`:''}
+    ${(a.photoLog||[]).length?`<details id="plog"><summary>What ${n} saw in each photo (${a.photoLog.length})</summary><div class="plog">${a.photoLog.map(p=>{const tid=(d.photoIds||[])[(p.photo||1)-1];const src=tid?photoObjURL[tid]:(d.photoUrls||[])[(p.photo||1)-1-(d.photoIds||[]).length];return `<div class="plog-row">${src?`<img src="${esc(src)}" alt="" loading="lazy">`:`<span class="plog-n">${esc(p.photo)}</span>`}<div><b>${esc(String(p.area||'').replace(/^./,m=>m.toUpperCase()))}</b>${p.condition?` <span class="rate ${['good','fair','poor'].includes(p.condition)?p.condition:'unknown'}"><i></i>${esc(p.condition)}</span>`:''}<p class="small">${esc(p.sees||'')}</p>${(p.flags||[]).length?`<span class="xs muted">${p.flags.map(esc).join(' · ')}</span>`:''}</div></div>`}).join('')}</div></details>`:''}
     <div class="insp">${areas.map(([k,l])=>{const v=C[k]||{};const r=['good','fair','poor'].includes(v.rating)?v.rating:'unknown';return `<div class="insp-item"><div class="row" style="justify-content:space-between"><b>${l}</b><span class="rate ${r}"><i></i>${r==='unknown'?'Not visible':r}</span></div><span class="small muted">${esc(v.notes||'—')}</span></div>`}).join('')}</div>
     ${(a.suggestions||[]).length?`<div><b>Renovation suggestions</b><ul class="small" style="margin:6px 0 0;padding-left:18px">${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`:''}
     <div class="kpis">${a.arv&&a.arv.value?`<div class="kpi purple"><span class="lab">${n}’s ARV estimate</span><span class="val">${money(a.arv.value)}</span><span class="sub">${a.arv.low?moneyK(a.arv.low)+'–'+moneyK(a.arv.high)+' · ':''}${esc(a.arv.confidence||'low')} confidence${a.arv.why?' · '+esc(a.arv.why):''}</span><button class="btn sm" data-act="use-arv" data-v="${floor500(a.arv.value)}" data-src="maya" style="justify-self:start;margin-top:4px">Use as ARV</button></div>`:''}
@@ -127,12 +129,12 @@ function timelineCard(d,c){
   const ev=[];
   (d.priceHistory||[]).forEach((p,i)=>ev.push({lane:0,x:day(p.date),label:(i?'':'Listed ')+moneyK(p.price),kind:'price'}));
   (d.thread||[]).forEach(t=>{if(t.dir!=='note')ev.push({lane:t.dir==='out'?1:2,x:day(t.at),label:t.price?moneyK(t.price):t.channel,kind:t.dir})});
-  const todayX=day(nowISO());const maxX=Math.max(todayX,d.zipAvgDom||0,...ev.map(e=>e.x))+4;
+  const todayX=day(nowISO());const maxX=Math.max(todayX,zipDom(d)||0,...ev.map(e=>e.x))+4;
   const W=700,H=176,l=58,r=16,X=v=>l+v/maxX*(W-l-r);const ys=[40,86,130];const step=maxX>180?30:maxX>90?14:maxX>40?7:5;
   let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Deal timeline in days on market">`;
   ['Price','You','Them'].forEach((nm,i)=>svg+=`<line class="lane" x1="${l}" x2="${W-r}" y1="${ys[i]}" y2="${ys[i]}"/><text x="4" y="${ys[i]+4}">${nm}</text>`);
   for(let v=0;v<=maxX;v+=step)svg+=`<text x="${X(v)}" y="${H-6}" text-anchor="middle">${Math.round(v)}d</text>`;
-  if(d.zipAvgDom)svg+=`<line x1="${X(d.zipAvgDom)}" x2="${X(d.zipAvgDom)}" y1="18" y2="${H-22}" stroke="var(--s-amber)" stroke-dasharray="4 4" stroke-width="1.5"/><text x="${X(d.zipAvgDom)+4}" y="13" style="fill:var(--t-amber)">ZIP avg ${d.zipAvgDom}d</text>`;
+  if(zipDom(d))svg+=`<line x1="${X(zipDom(d))}" x2="${X(zipDom(d))}" y1="18" y2="${H-22}" stroke="var(--s-amber)" stroke-dasharray="4 4" stroke-width="1.5"/><text x="${X(zipDom(d))+4}" y="13" style="fill:var(--t-amber)">ZIP avg ${zipDom(d)}d</text>`;
   svg+=`<line x1="${X(todayX)}" x2="${X(todayX)}" y1="18" y2="${H-22}" stroke="var(--ink)" stroke-width="1"/><text x="${X(todayX)-4}" y="13" text-anchor="end">Today · ${Math.round(todayX)}d</text>`;
   ev.forEach(e=>{const x=X(e.x),y=ys[e.lane];
     if(e.kind==='price')svg+=`<rect x="${x-5}" y="${y-5}" width="10" height="10" transform="rotate(45 ${x} ${y})" fill="var(--s-green)"/>`;
@@ -140,10 +142,10 @@ function timelineCard(d,c){
     else svg+=`<circle cx="${x}" cy="${y}" r="5.5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/>`;
     svg+=`<text x="${x}" y="${y-10}" text-anchor="middle">${esc(e.label)}</text>`});
   svg+='</svg>';
-  const crossed=d.zipAvgDom&&todayX>d.zipAvgDom;
+  const crossed=zipDom(d)&&todayX>zipDom(d);
   return `<section class="card tl" id="timeline"><div class="card-head"><span class="ci slate">${ico('clock')}</span><div><h2>Deal timeline</h2><p>Offers, replies and price changes in days on market</p></div><div class="ch-r"><button class="btn sm" data-act="price-drop">Log a price change</button></div></div><div class="tbl-wrap" style="border:0">${svg}</div>
-  ${crossed?`<div class="note amber">Past the ZIP average by ${Math.round(todayX-d.zipAvgDom)} days. Sellers often get flexible here; a good moment to follow up.</div>`:''}
-  ${!d.zipAvgDom?'<p class="small muted">Add the ZIP’s average days on market in Details to see when this seller crosses it.</p>':''}</section>`;
+  ${crossed?`<div class="note amber">Past the ZIP average by ${Math.round(todayX-zipDom(d))} days. Sellers often get flexible here; a good moment to follow up.</div>`:''}
+  ${!zipDom(d)?'<p class="small muted">Add the ZIP’s average days on market in Details (or it fills in from Redfin market data) to see when this seller crosses it.</p>':''}</section>`;
 }
 function detailsCard(d,c){
   const a=d.agent||{};const isWs=d.source==='wholesaler';const ck=d.checklist||{};
@@ -155,7 +157,7 @@ function detailsCard(d,c){
   ${f('pd-list','_list',isWs?'Asking price':'List price',curList(d),'num')}${f('pd-beds','beds','Beds',d.beds,'num')}${f('pd-baths','baths','Baths',d.baths,'num')}${f('pd-sqft','sqft','Sq ft',d.sqft,'num')}${f('pd-lot','lotSqft','Lot sq ft',d.lotSqft,'num')}${f('pd-year','year','Year built',d.year,'num')}
   <label class="field"><span>Property type</span><select class="input" id="pd-type" data-fd="propertyType">${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${(d.propertyType||'single_family')===k?'selected':''}>${v}</option>`).join('')}</select></label>
   <label class="field"><span>MLS status</span><select class="input" id="pd-mls" data-fd="mlsStatus">${Object.entries(MLS_STATUS).map(([k,v])=>`<option value="${k}" ${(d.mlsStatus||'')===k?'selected':''}>${v[0]}</option>`).join('')}</select></label>
-  ${f('pd-mlsid','mlsId','MLS ID',d.mlsId)}${f('pd-zipdom','zipAvgDom','ZIP avg days on market',d.zipAvgDom,'num')}
+  ${f('pd-mlsid','mlsId','MLS ID',d.mlsId)}${f('pd-zipdom','zipAvgDom','ZIP avg days on market',d.zipAvgDom,'num',d.zipDomAuto?'placeholder="'+d.zipDomAuto+' (Redfin)"':'')}
   <label class="field"><span>Listed on</span><input class="input" type="date" id="pd-listed" data-fd="listedDate" data-t="date" value="${esc(d.listedDate?isoDay(d.listedDate):'')}"></label>${f('pd-url','listingUrl','Listing link',d.listingUrl)}</div>
   <label class="field"><span>Listing description</span><textarea class="input" id="pd-desc" data-fd="description" rows="3">${esc(d.description)}</textarea></label>
   <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>

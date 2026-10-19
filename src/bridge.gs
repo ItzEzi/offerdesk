@@ -3,6 +3,8 @@
  * Connects OfferDesk to your Gmail, optionally to a Twilio number for texts,
  * and saves your OfferDesk data (deals, photos, settings) to a Google Drive
  * folder called "OfferDesk Cloud" so every device you use sees the same desk.
+ * It can also open links that come with a deal (Google Drive photo folders, deal pages)
+ * and email you Maya's morning brief every day.
  * It runs inside your own Google account. Nothing is stored anywhere else.
  * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
  */
@@ -33,6 +35,10 @@ function doPost(e) {
       case 'photo_put': return json_(photoPut_(req));
       case 'photo_get': return json_(photoGet_(String(req.id || '')));
       case 'photo_del': return json_(photoDel_(req.ids || []));
+      case 'fetch_url': return json_(fetchUrl_(String(req.url || '')));
+      case 'drive_image': return json_(driveImage_(String(req.id || '')));
+      case 'brief_setup': return json_(briefSetup_(req));
+      case 'brief_test': return json_(morningBrief());
       case 'attachments': return json_({ ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) });
       case 'search': return json_({ ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) });
       case 'send': return json_(send_(req));
@@ -301,6 +307,96 @@ function photoDel_(ids) {
     if (f) { f.setTrashed(true); n++; }
   });
   return { ok: true, deleted: n };
+}
+
+/* ---------- open a link that came with a deal ---------- */
+function fetchUrl_(url) {
+  if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'bad_url' };
+  var folder = url.match(/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([\w-]{10,})/);
+  if (folder) {
+    try {
+      var f = DriveApp.getFolderById(folder[1]); var it = f.getFiles(); var imgs = [];
+      while (it.hasNext() && imgs.length < 40) { var x = it.next(); var mt = x.getMimeType() || ''; if (mt.indexOf('image/') === 0) imgs.push({ id: x.getId(), name: x.getName(), type: mt, size: x.getSize() }); }
+      return { ok: true, kind: 'drive_folder', title: f.getName(), images: imgs };
+    } catch (e) { return { ok: true, kind: 'blocked', status: 'drive_no_access' }; }
+  }
+  var file = url.match(/drive\.google\.com\/file\/d\/([\w-]{10,})/) || url.match(/drive\.google\.com\/(?:open|uc)\?(?:.*&)?id=([\w-]{10,})/);
+  if (file) {
+    try { var fl = DriveApp.getFileById(file[1]); var t = fl.getMimeType() || ''; return { ok: true, kind: 'drive_file', title: fl.getName(), images: t.indexOf('image/') === 0 ? [{ id: fl.getId(), name: fl.getName(), type: t, size: fl.getSize() }] : [] }; }
+    catch (e) { return { ok: true, kind: 'blocked', status: 'drive_no_access' }; }
+  }
+  var res;
+  try {
+    res = UrlFetchApp.fetch(url, { followRedirects: true, muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
+  } catch (e) { return { ok: true, kind: 'blocked', status: 'fetch_failed' }; }
+  var code = res.getResponseCode(); var h = res.getHeaders(); var ct = String(h['Content-Type'] || h['content-type'] || '');
+  if (code >= 400) return { ok: true, kind: 'blocked', status: code };
+  if (ct.indexOf('image/') === 0) return { ok: true, kind: 'image', images: [{ url: url, type: ct }] };
+  var html = res.getContentText(); if (html.length > 2500000) html = html.slice(0, 2500000);
+  var title = ((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').replace(/\s+/g, ' ').trim();
+  if (/captcha|access denied|are you a robot|px-captcha|request unsuccessful/i.test(title + html.slice(0, 3000))) return { ok: true, kind: 'blocked', status: 'robot_check' };
+  var imgs = [], re = /(?:src|content|data-src|href)=["']([^"']+?\.(?:jpe?g|png|webp)(?:\?[^"']*)?)["']/gi, m;
+  while ((m = re.exec(html)) && imgs.length < 60) { var u = absUrl_(m[1], url); if (imgs.indexOf(u) < 0) imgs.push(u); }
+  var text = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr|h\d)>/gi, '\n').replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim().slice(0, 40000);
+  return { ok: true, kind: 'page', status: code, title: title.slice(0, 200), images: imgs, text: text };
+}
+function absUrl_(u, base) { u = u.replace(/&amp;/g, '&'); if (/^https?:/i.test(u)) return u; if (u.indexOf('//') === 0) return 'https:' + u; var m = base.match(/^(https?:\/\/[^\/]+)/); return m ? (u.charAt(0) === '/' ? m[1] + u : m[1] + '/' + u) : u; }
+function driveImage_(id) {
+  try { var f = DriveApp.getFileById(id); if (f.getSize() > 7 * 1024 * 1024) return { ok: false, error: 'too_big' }; var b = f.getBlob(); return { ok: true, type: b.getContentType(), data: Utilities.base64Encode(b.getBytes()) }; }
+  catch (e) { return { ok: false, error: 'drive_no_access' }; }
+}
+
+/* ---------- Maya's morning brief ---------- */
+function briefSetup_(req) {
+  var props = PropertiesService.getScriptProperties();
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'morningBrief') ScriptApp.deleteTrigger(t); });
+  if (!req.on) { props.setProperty('BRIEF_ON', 'no'); return { ok: true, on: false }; }
+  if (!req.email) return { ok: false, error: 'no_email' };
+  var hour = Math.max(0, Math.min(23, Number(req.hour) || 8)); var tz = String(req.tz || Session.getScriptTimeZone());
+  props.setProperties({ BRIEF_ON: 'yes', BRIEF_TO: String(req.email), BRIEF_HOUR: String(hour), BRIEF_TZ: tz });
+  ScriptApp.newTrigger('morningBrief').timeBased().everyDays(1).atHour(hour).nearMinute(0).inTimezone(tz).create();
+  return { ok: true, on: true, hour: hour, tz: tz };
+}
+function readPart_(name) { var f = partFile_(name); if (!f) return null; try { return JSON.parse(f.getBlob().getDataAsString('UTF-8')); } catch (e) { return null; } }
+function morningBrief() {
+  var to = prop_('BRIEF_TO'); if (!to) return { ok: false, error: 'no_email' };
+  var part = readPart_('brief'); var b = part && part.v; if (!b) return { ok: false, error: 'no_brief' };
+  var overnight = [];
+  try {
+    var agents = (b.agents || []).filter(function (x) { return /@/.test(x); }).slice(0, 40);
+    if (agents.length) GmailApp.search('newer_than:1d -from:me from:(' + agents.join(' OR ') + ')', 0, 15).forEach(function (t) { var m = t.getMessages(); m = m[m.length - 1]; overnight.push({ from: m.getFrom(), subject: m.getSubject(), text: (m.getPlainBody() || '').slice(0, 300), at: m.getDate().toISOString() }); });
+  } catch (e) {}
+  var sec = readPart_('secrets'); var key = sec && sec.v && sec.v.apiKey; var html = null;
+  if (key) { try { html = briefAI_(key, b, overnight); } catch (e) { html = null; } }
+  if (!html) html = briefHtml_(b, overnight);
+  var name = (b.neg || 'Maya') + ' · OfferDesk';
+  var day = Utilities.formatDate(new Date(), prop_('BRIEF_TZ') || Session.getScriptTimeZone(), 'EEE, MMM d');
+  var subject = 'Morning brief · ' + day + ' · ' + (b.needs || []).length + ' need you' + (overnight.length ? ' · ' + overnight.length + ' new repl' + (overnight.length === 1 ? 'y' : 'ies') : '');
+  GmailApp.sendEmail(to, subject, html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 5000), { htmlBody: html, name: name });
+  return { ok: true, sent: true, subject: subject };
+}
+function briefAI_(key, b, overnight) {
+  var prompt = 'You are ' + (b.neg || 'Maya') + ', an acquisitions manager for a real estate investor. Write this morning\'s brief email in simple HTML (only h3, p, ul, li, b, a). Be short and scannable: 1) what needs his decision today, 2) replies that came in overnight, 3) deals worth a look with their deal scores and why, 4) follow-ups and price drops, 5) a one-line pipeline snapshot. Link every deal to its OfferDesk page. Use only the data below; do not invent anything. If a section is empty, skip it. No greeting fluff, no sign-off beyond your name.\n\nData from OfferDesk (as of ' + b.at + '):\n' + JSON.stringify(b).slice(0, 30000) + '\n\nEmails from agents in the last 24 hours (Gmail):\n' + JSON.stringify(overnight).slice(0, 6000);
+  var res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', { method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, payload: JSON.stringify({ model: 'claude-sonnet-5-5', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] }) });
+  if (res.getResponseCode() >= 300) return null;
+  var j = JSON.parse(res.getContentText()); var t = (j.content || []).filter(function (x) { return x.type === 'text'; }).map(function (x) { return x.text; }).join('').trim();
+  t = t.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '');
+  return t ? '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#141A2E">' + t + '</div>' : null;
+}
+function briefHtml_(b, overnight) {
+  var e = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var link = function (x) { return '<a href="' + e(b.url + '#deal/' + x.id) + '">' + e(x.addr) + '</a>'; };
+  var sec = function (title, list, fn) { return list && list.length ? '<h3>' + title + '</h3><ul>' + list.map(function (x) { return '<li>' + fn(x) + '</li>'; }).join('') + '</ul>' : ''; };
+  return '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#141A2E">' +
+    sec('Needs your call', b.needs, function (x) { return link(x) + ': ' + e(x.why); }) +
+    sec('Replies overnight', overnight, function (x) { return e(x.from) + ': ' + e(x.subject) + ' — ' + e(x.text.slice(0, 140)); }) +
+    sec('Replies waiting', b.replies, function (x) { return link(x) + (x.their ? ' · their number $' + Number(x.their).toLocaleString('en-US') : ''); }) +
+    sec('Worth a look', b.top, function (x) { return link(x) + ' · score ' + x.score + ' (' + e(x.best) + ')' + (x.at80 ? ' · 80+ at $' + Number(x.at80).toLocaleString('en-US') : ''); }) +
+    sec('New deals', b.newDeals, function (x) { return link(x) + ' · ' + e(x.src); }) +
+    sec('Follow-ups due', b.follow, function (x) { return link(x) + ' · follow-up #' + x.step; }) +
+    sec('Price drops', b.drops, function (x) { return link(x) + ' · now $' + Number(x.to).toLocaleString('en-US'); }) +
+    '<p>' + e(b.statsLine || '') + '</p><p>— ' + e(b.neg || 'Maya') + '</p></div>';
 }
 
 function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k); }

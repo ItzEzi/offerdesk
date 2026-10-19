@@ -32,7 +32,7 @@ function offerModalHTML(m){
     <div class="qchips" style="padding:0">${REWRITES.filter(r=>r.id!=='creative'||state.settings.creative.enabled).map(r=>`<button class="qchip ${r.id==='creative'?'purple':'blue'}" data-act="offer-rewrite" data-q="${r.id}" ${busy?'disabled':''}>${esc(r.label)}</button>`).join('')}</div>
     <div class="chat-in" style="padding:0;border:0"><input class="input" id="of-ins" data-draft value="${esc(state.drafts['of-ins']||'')}" placeholder="Ask ${n} to change the letter…"><button class="btn sm" data-act="offer-rewrite" data-q="custom" ${busy?'disabled':''}>${ico('spark')}Ask ${n}</button></div>
     ${busyHTML('rw:'+d.id,false)}${busyHTML('deal:'+d.id,false)}
-    <details><summary>Text message version (${(dr.sms||'').length} chars)</summary><textarea class="input" id="of-sms" data-fd="draft.sms" rows="3" style="margin-top:6px">${esc(dr.sms)}</textarea></details></div>`;
+    <details id="of-smsd"><summary>Text message version (${(dr.sms||'').length} chars)</summary><textarea class="input" id="of-sms" data-fd="draft.sms" rows="3" style="margin-top:6px">${esc(dr.sms)}</textarea></details></div>`;
   const notify=state.settings.notify||{};const ccTo=notify.email||state.settings.profile.email;
   const foot=`<div class="ofoot"><div class="row" style="gap:10px">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot for this deal')}<span class="small"><b>${n} autopilot</b><span class="muted"> · replies, negotiates up to your max, follows up</span></span></div>
     ${ccTo&&ce?`<label class="check small"><input type="checkbox" id="of-cc" data-fs="notify.ccMe" data-t="bool" ${notify.ccMe?'checked':''}><span>CC me (${esc(ccTo)})</span></label>`:''}
