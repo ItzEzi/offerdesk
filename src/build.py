@@ -4,7 +4,8 @@ css=open(d+'/styles.css').read()
 APP_V=time.strftime('%Y%m%d-%H%M')
 js='\n'.join(open(f).read() for f in sorted(glob.glob(d+'/js/*.js'))).replace('__APP_V__',APP_V)
 gs=open(d+'/bridge.gs').read()
-assert '</script' not in js and '</script' not in gs
+vendor='\n'.join(open(f).read() for f in sorted(glob.glob(d+'/vendor/*.js')))
+assert '</script' not in js and '</script' not in gs and '</script' not in vendor
 html=f'''<!doctype html>
 <html lang="en">
 <head>
@@ -30,6 +31,9 @@ html=f'''<!doctype html>
 <div id="toast" class="toast" role="status" hidden></div>
 <script type="text/plain" id="bridge-src">
 {gs}</script>
+<script>
+{vendor}
+</script>
 <script>
 {js}
 </script>

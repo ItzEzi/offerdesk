@@ -96,6 +96,7 @@ const ICONS={
   lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   more:'<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  cloud:'<path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8a4.75 4.75 0 0 1-.3 10.5z"/>',
   logo:'<path d="M3 11l9-7 9 7"/><path d="M6 10v10h12V10"/><path d="M10 15l2 2 4-4"/>'
 };
 const ico=(n,cls)=>`<svg class="i ${cls||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]||''}</svg>`;
@@ -129,7 +130,7 @@ function streetOf(a){return String(a||'').replace(/\s*\(example\)\s*/i,'').trim(
 /* ================= state ================= */
 const state={
   settings:clone(DEFAULTS),deals:{},practice:{},mail:{emails:{},texts:[],lastSync:null,lastSms:''},activity:[],conn:{},
-  loaded:false,view:'dashboard',dealId:null,busy:{},drafts:{},modal:null,syncing:false,autoRunning:false,
+  loaded:false,view:'dashboard',dealId:null,busy:{},drafts:{},modal:null,syncing:false,autoRunning:false,cloudSyncing:false,
   lf:{q:'',source:'all',stage:'all',status:'all',sentiment:'all',type:'all',beds:'any',price:'any',state:'all',special:'all',autopilot:'all'},
   leads:{q:'',tag:null,fav:false,type:'all'},
   page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
@@ -153,8 +154,8 @@ function writeKey(key){
   if(IDB.db)return IDB.put('kv',clone(val),key).catch(()=>{lsSet('od2.'+key,JSON.stringify(val))});
   lsSet('od2.'+key,JSON.stringify(val));return Promise.resolve();
 }
-function persist(key){clearTimeout(saveTimers[key]);saveTimers[key]=setTimeout(()=>{delete saveTimers[key];writeKey(key)},200)}
-function flushAll(){for(const k of Object.keys(saveTimers)){clearTimeout(saveTimers[k]);delete saveTimers[k];writeKey(k)}}
+function persist(key){clearTimeout(saveTimers[key]);saveTimers[key]=setTimeout(()=>{delete saveTimers[key];writeKey(key);cloudTrack(key)},200)}
+function flushAll(){for(const k of Object.keys(saveTimers)){clearTimeout(saveTimers[k]);delete saveTimers[k];writeKey(k);cloudTrack(k)}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushAll()});
 window.addEventListener('pagehide',flushAll);
 async function readKey(key){

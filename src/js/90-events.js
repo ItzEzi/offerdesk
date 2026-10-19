@@ -18,7 +18,7 @@ A.autopilot=el=>{const d=state.deals[el.dataset.id];if(!d)return;d.autopilot=!d.
   if(d.autopilot&&!state.settings.auto.enabled)toast(`Autopilot is set for this deal. Turn on the master switch in Connect → Autopilot so ${negName()} starts.`,5200);
   else if(d.autopilot&&!(canEmail(d)||canText(d)))toast(`${negName()} has no way to reach them yet: add their email, and connect Gmail or texting.`,5200);
   else if(d.autopilot)toast(`Autopilot on. ${negName()} picks this up on her next run.`)};
-A['auto-master']=()=>{state.settings.auto.enabled=!state.settings.auto.enabled;saveSettings();toast(state.settings.auto.enabled?`Autopilot on. ${negName()} runs every 3 minutes while this tab is open.`:'Autopilot off.');if(state.settings.auto.enabled)setTimeout(()=>tick(false),400)};
+A['auto-master']=()=>{state.settings.auto.enabled=!state.settings.auto.enabled;saveSettings();toast(state.settings.auto.enabled?`Autopilot on. ${negName()} runs every 3 minutes while OfferDesk is open${cloudOn()?' on any of your devices':' in this tab'}.`:'Autopilot off.');if(state.settings.auto.enabled)setTimeout(()=>tick(false),400)};
 A['run-auto']=()=>autopilotRun(true);
 A['list-mode']=el=>{state.settings.ui.listMode=el.dataset.v;saveSettings()};
 A.page=el=>{state.page=+el.dataset.v;render()};
@@ -168,6 +168,7 @@ A['bridge-test']=async el=>{
   let accts=acctList();let id=el.dataset.id;if(!id){id=accts[0]?accts[0].id:uid('g');if(!accts.length){accts.push({id,url:''})}}
   const url=((document.getElementById('acct-url-'+id)||{}).value||'').trim();
   if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)){toast('Paste the Web app URL from your Apps Script deployment (it ends in /exec).',5200);return}
+  if(!accts.some(a=>a.id===id))accts.push({id,url:''});
   accts=accts.map(a=>a.id===id?Object.assign({},a,{url}):a);saveAccts(accts);
   state.busy['bridge:'+id]={label:'Connecting…'};render();
   try{const r=await bridge('ping',null,id);
@@ -189,6 +190,25 @@ A['twilio-clear']=async()=>{try{await bridge('twilio_save',{clear:true});const a
 A['set-strat']=el=>{state.settings.buy.strategy=el.dataset.v;saveSettings()};
 A['ws-add']=()=>{state.settings.wholesalers=state.settings.wholesalers||[];state.settings.wholesalers.push({name:'',company:'',email:'',phone:''});saveSettings()};
 A['ws-del']=el=>{state.settings.wholesalers.splice(+el.dataset.i,1);saveSettings()};
+A['cloud-on']=async()=>{
+  const conn=connectedAccts();const want=state.drafts['cloud-acct'];const a=conn.find(x=>x.id===want)||sendAcct();
+  if(!a){toast('Connect Gmail first.');return}
+  state.busy.cloud={label:'Checking your bridge…'};render();
+  try{
+    const r=await bridge('ping',null,a.id);state.conn.accounts=state.conn.accounts||{};
+    state.conn.accounts[a.id]=Object.assign({},state.conn.accounts[a.id]||{},{email:r.email,twilio:!!r.twilio,twilioFrom:r.twilioFrom||'',version:r.version||1,at:nowISO()});saveConn();
+    if(!r.cloud){toast('Update the bridge code first (see the note above the button).',5600);return}
+    state.busy.cloud={label:'Saving your desk to Google Drive…'};render();
+    const c=cm();c.on=true;c.acct=a.id;cloudBaseline();
+    const ok=await cloudSync(true);
+    if(ok)toast('Cloud save is on. Your desk is saved in '+r.email+'’s Google Drive.',5200);
+  }catch(e){toast(bridgeErr(e),6000)}
+  finally{delete state.busy.cloud;render()}
+};
+A['cloud-off']=()=>{state.modal={type:'confirm',title:'Turn off cloud save on this device?',text:'This device stops syncing. Your data stays here and in the cloud, and your other devices keep syncing.',yes:'Turn off',run:()=>{const c=cm();c.on=false;saveCMNow();toast('Cloud save is off on this device.');render()}};render()};
+A['cloud-sync']=async()=>{if(await cloudSync(true))toast('Synced with the cloud.')};
+A['cloud-link']=()=>{state.modal={type:'link'};render()};
+A['lease-take']=async()=>{if(await cloudLease(true)){toast(`${negName()} now works from this device.`);render();tick(false)}else toast('Couldn’t switch. Check your connection.')};
 A.export=()=>{
   const cols=['address','city','state','zip','source','stage','offer_status','asking','arv','rehab','ceiling','opening','your_last','their_last','agent','agent_email','agent_phone','days_on_market','autopilot','tags','updated'];
   const rows=Object.values(state.deals).map(d=>{const c=calc(d);return [streetOf(d.address),d.city,d.state,d.zip,d.source,STAGE_LABEL[d.stage],offerStatus(d)[0],curList(d),d.arv,d.rehab,c.ready?c.mao:'',c.ready?c.opening:'',lastOurPrice(d),lastTheirPrice(d),d.agent&&d.agent.name,d.agent&&d.agent.email,d.agent&&d.agent.phone,dom(d),d.autopilot?'on':'off',dealTags(d).map(t=>TAG_BY_ID[t].label).join('; '),d.updated]});
@@ -271,11 +291,14 @@ async function boot(){
   state.deals=v.deals||null;
   if(!state.deals){state.deals=exampleDeals();if(!state.settings.profile.name)state.settings.profile.name='Ezra Rothschild';persist('deals');persist('settings')}
   for(const d of Object.values(state.deals)){d.mayaChat=d.mayaChat||[];if(d.arv&&!d.arvSource)d.arvSource='you'}
+  const linked=cloudTakeLink();
   state.loaded=true;route();
+  if(cloudOn()){if(linked)toast('Linked. Pulling your desk from the cloud…',4000);cloudSync().then(ok=>{if(linked)toast(ok?'Your desk is here. This device now stays in sync.':'Couldn’t reach the cloud yet. It will keep trying.',4600)})}
   setTimeout(()=>tick(false),2500);
   setInterval(()=>tick(false),3*60*1000);
+  setInterval(()=>{if(document.visibilityState==='visible'&&cloudOn())cloudSync()},60*1000);
   checkUpdate();setInterval(checkUpdate,5*60*1000);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkUpdate();if(cloudOn())cloudSync()}});
 }
 /* ================= self-update (hosted version) ================= */
 function checkUpdate(){

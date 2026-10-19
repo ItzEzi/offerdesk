@@ -63,7 +63,7 @@ const unseenCount=()=>state.activity.filter(a=>!state.conn.seenAt||a.at>state.co
 /* ================= Gmail + texting bridge ================= */
 /* Several Gmail accounts can be connected (e.g. company + personal). Maya reads from all of them and sends from one. */
 function acctList(){const s=secrets();let a=Array.isArray(s.accounts)?s.accounts:null;if(!a){a=[];if(s.bridgeUrl)a.push({id:'g1',url:s.bridgeUrl})}return a}
-function saveAccts(a){const s=secrets();s.accounts=a;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}
+function saveAccts(a){const s=secrets();s.accounts=a;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s));cloudTrack('secrets')}
 const acctInfo=id=>(state.conn.accounts||{})[id]||null;
 const connectedAccts=()=>acctList().filter(a=>a.url&&acctInfo(a.id)&&acctInfo(a.id).email);
 function sendAcct(){const c=connectedAccts();return c.find(a=>a.id===state.settings.conn.sendAccount)||c[0]||null}
@@ -88,7 +88,8 @@ function bridgeErr(e){
   if(m==='wrong_secret')return 'The bridge rejected the secret. Copy the bridge code from Connect again and redeploy it.';
   if(m==='twilio_not_set')return 'Twilio isn’t saved in your bridge yet.';
   if(m==='no_recipient')return 'Add their email in Details first.';
-  if(m==='unknown_action')return 'Your bridge is an older version. Copy the new bridge code from Connect and redeploy.';
+  if(m==='unknown_action')return 'Your bridge is an older version. Copy the new bridge code from Connect and redeploy it as a new version.';
+  if(m&&/permission/i.test(m)&&/drive/i.test(m))return 'Your bridge needs Google Drive access for cloud save. In Apps Script, redeploy it as a new version and click Allow when Google asks.';
   return 'Bridge error: '+(m||'unknown');
 }
 function parseFrom(s){const m=String(s||'').match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);return m?{name:m[1].trim(),email:m[2].trim().toLowerCase()}:{name:'',email:String(s||'').trim().toLowerCase()}}
@@ -262,6 +263,7 @@ async function autopilotRun(manual){
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
+  if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease()))return}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);
   if(state.settings.auto.enabled)await autopilotRun(false);
 }

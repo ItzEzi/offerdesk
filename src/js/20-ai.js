@@ -1,7 +1,7 @@
 /* ================= secrets (kept in this browser only) ================= */
 const SECRET_KEY='od.secrets';
 function secrets(){try{return JSON.parse(lsGet(SECRET_KEY)||'{}')||{}}catch(e){return {}}}
-function setSecret(k,v){const s=secrets();if(v==null||v==='')delete s[k];else s[k]=v;lsSet(SECRET_KEY,JSON.stringify(s))}
+function setSecret(k,v){const s=secrets();if(v==null||v==='')delete s[k];else s[k]=v;lsSet(SECRET_KEY,JSON.stringify(s));if(k!=='bridgeKey')cloudTrack('secrets')}
 function bridgeKey(){let k=secrets().bridgeKey;if(!k){const a=new Uint8Array(18);try{crypto.getRandomValues(a)}catch(e){for(let i=0;i<a.length;i++)a[i]=Math.random()*256|0}k=[...a].map(b=>b.toString(16).padStart(2,'0')).join('');setSecret('bridgeKey',k)}return k}
 const aiOn=()=>!!secrets().apiKey;
 

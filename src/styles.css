@@ -440,3 +440,14 @@ details summary{cursor:pointer;padding:4px 0;font-weight:700}
 .prop{min-width:270px}
 .prop b{white-space:nowrap}
 details.card:not([open]){padding-block:13px}
+
+/* cloud save */
+.cloud-btn{text-decoration:none}
+.cloud-btn .dot{position:absolute;right:5px;bottom:5px;width:9px;height:9px;border:2px solid var(--surface);box-sizing:content-box}
+.dot.sync{background:var(--s-blue);animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.35}to{opacity:1}}
+.linkbtn{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--t-blue);text-decoration:underline;cursor:pointer}
+.qr-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center}
+.qr{width:200px;max-width:100%;background:#fff;border-radius:14px;padding:6px;border:1px solid var(--line)}
+.qr svg{display:block;width:100%;height:auto}
+@media (max-width:560px){.qr-wrap{grid-template-columns:minmax(0,1fr)}.qr{justify-self:center;width:180px}}
