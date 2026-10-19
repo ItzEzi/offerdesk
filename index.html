@@ -603,7 +603,7 @@ function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).se
 </script>
 <script>
 'use strict';
-const APP_V='20261019-1454';
+const APP_V='20261019-1505';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -2620,6 +2620,7 @@ window.addEventListener('drop',e=>{if(!(e.target.closest&&e.target.closest('[dat
 /* ================= boot ================= */
 async function boot(){
   try{await IDB.open()}catch(e){}
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
   const v={};for(const k of KEYS)v[k]=await readKey(k);
   if(!v.settings&&!v.deals){
     try{const o=JSON.parse(lsGet('od.local')||'null');if(o){v.settings=o.settings;v.deals=o.deals;v.practice=o.practice}}catch(e){}

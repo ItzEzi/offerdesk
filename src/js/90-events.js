@@ -258,6 +258,7 @@ window.addEventListener('drop',e=>{if(!(e.target.closest&&e.target.closest('[dat
 /* ================= boot ================= */
 async function boot(){
   try{await IDB.open()}catch(e){}
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
   const v={};for(const k of KEYS)v[k]=await readKey(k);
   if(!v.settings&&!v.deals){
     try{const o=JSON.parse(lsGet('od.local')||'null');if(o){v.settings=o.settings;v.deals=o.deals;v.practice=o.practice}}catch(e){}
