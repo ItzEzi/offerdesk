@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261019-1752: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261019-2103: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261019-1752';
+const APP_V='20261019-2103';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -2063,11 +2063,13 @@ function viewCampaigns(){
   if(!c)return `<div class="wrap page">${head}${cpEmptyHTML()}</div>`;
   return `<div class="wrap page">${head}${tabs}${cpEditorHTML(c)}</div>`;
 }
-function cpRedfinLinks(){
-  const T=(state.settings.markets||{}).targets||[];const zips=[...new Set(T.flatMap(t=>t.type==='zip'?[t.key]:(t.zips||[]).slice(0,0)))];
-  const metros=T.filter(t=>t.type==='metro');
-  if(!zips.length&&!metros.length)return `<p class="small muted">Tip: star target markets on the <a href="#markets">Markets</a> page and their Redfin links show up here.</p>`;
-  return `<div class="row" style="gap:6px;flex-wrap:wrap">${zips.slice(0,12).map(z=>`<a class="qchip blue" href="https://www.redfin.com/zipcode/${z}" target="_blank" rel="noopener">${z} on Redfin</a>`).join('')}${metros.slice(0,6).map(m=>`<a class="qchip purple" href="https://www.redfin.com/zipcode/${(m.zips||[])[0]||''}" target="_blank" rel="noopener">${esc(m.label)}</a>`).join('')}</div>`;
+function cpRedfinLinks(c){
+  const chip=(z,cls,label)=>`<a class="qchip ${cls}" href="https://www.redfin.com/zipcode/${z}" target="_blank" rel="noopener">${esc(label||z)}</a>`;
+  const own=c&&c.market&&(c.market.zips||[]).length?`<p class="small" style="margin:0 0 6px"><b>${esc(c.market.label)}</b>: best ZIPs for you, open each on Redfin, filter, then Download All</p><div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">${c.market.zips.slice(0,10).map(z=>chip(z.z||z,'purple',(z.z||z)+(z.city?' · '+z.city:''))).join('')}</div>`:'';
+  const T=(state.settings.markets||{}).targets||[];const zips=[...new Set(T.filter(t=>t.type==='zip').map(t=>t.key))];
+  const mz=T.filter(t=>t.type==='metro').map(t=>{const R=DISC.data?mkCompute():null;const m=R&&R.byKey[t.key];return {label:t.label,zips:m?m.zips.slice(0,3).map(o=>o.z):(t.zips||[]).slice(0,1)}});
+  if(!own&&!zips.length&&!mz.length)return `<p class="small muted">Tip: on the <a href="#markets">Markets</a> page, open a metro and press <b>Start a campaign here</b>, or star target markets; their Redfin links show up here.</p>`;
+  return own+(zips.length||mz.length?`<div class="row" style="gap:6px;flex-wrap:wrap">${zips.slice(0,12).map(z=>chip(z,'blue',z+' on Redfin')).join('')}${mz.slice(0,6).flatMap(m=>m.zips.map(z=>chip(z,'blue',`${m.label.split(',')[0]} ${z}`))).join('')}</div>`:'');
 }
 function cpEmptyHTML(){
   return `<section class="card"><div class="card-head"><span class="ci blue">${ico('send')}</span><div><h2>How a campaign works</h2><p>About 10 minutes to set up, then ${esc(negName())} sends on her own</p></div></div>
@@ -2098,7 +2100,7 @@ function cpEditorHTML(c){
     ${s.needs?`<div class="note amber">${s.needs} opening${s.needs>1?'s':''} need you (price above your limits or flagged). Open the deal to review.</div>`:''}</section>
 
   <section class="card" id="cp-in"><div class="card-head"><span class="ci teal">${ico('upload')}</span><div><h2>1. Listings</h2><p>Redfin: search an area → <b>Download All</b> → drop the file here. Or paste addresses or links, one per line.</p></div></div>
-    ${cpRedfinLinks()}
+    ${cpRedfinLinks(c)}
     <div class="cp-drop" data-drop="cp"><input type="file" accept=".csv,text/csv" id="cp-file" data-cp-csv="${c.id}" aria-label="Upload a Redfin CSV"><label for="cp-file" class="btn sm">${ico('upload')}Upload CSV</label><span class="small muted">or</span>
     <textarea class="input" id="cp-paste" data-draft rows="2" placeholder="123 Main St, Dayton, OH 45410&#10;https://www.redfin.com/…">${esc(state.drafts['cp-paste']||'')}</textarea><button class="btn sm" data-act="cp-paste">Add</button></div></section>
 

@@ -185,6 +185,8 @@ A['mk-us']=()=>{state.mk.metro=null;state.mk.zip=null;render()};
 A['mk-more']=()=>{state.mk.show=(state.mk.show||25)+25;render()};
 A['mk-star']=el=>mkStar(el.dataset.type,el.dataset.k);
 A['mk-memo']=()=>mkMemo();
+A['mk-campaign']=el=>{const R=mkCompute();const m=R&&R.byKey[el.dataset.k];if(!m)return;const c=newCampaign(m.label);c.market={key:m.key,label:m.label,strat:R.strat,zips:m.zips.slice(0,10).map(o=>({z:o.z,city:o.city,score:o.score}))};
+  const M=state.settings.markets;c.rules.maxList=M.maxPrice||null;saveCampaign(c,true);go('campaigns');toast(`Campaign started for ${m.label}. Open its best ZIPs on Redfin, filter, then Download All and drop the file here.`,6200)};
 A['mk-reload']=()=>{DISC.err='';MKT.idx=null;MKT.idxFail=0;render();loadDiscover()};
 A['cp-new']=()=>{const c=newCampaign();go('campaigns');setTimeout(()=>{const el=document.getElementById('cp-in');if(el)el.scrollIntoView({block:'start'})},120)};
 A['cp-open']=el=>{state.cp.id=el.dataset.id;state.cp.filter='all';if(state.view!=='campaigns')go('campaigns');else render()};
