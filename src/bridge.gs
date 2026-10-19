@@ -1,17 +1,19 @@
 /**
- * OfferDesk Bridge v3
+ * OfferDesk Bridge v4
  * Connects OfferDesk to your Gmail, optionally to a Twilio number for texts,
  * and saves your OfferDesk data (deals, photos, settings) to a Google Drive
  * folder called "OfferDesk Cloud" so every device you use sees the same desk.
- * It can also open links that come with a deal (Google Drive photo folders, deal pages)
- * and email you Maya's morning brief every day.
+ * It can also open links that come with a deal (Google Drive photo folders, deal pages),
+ * email you Maya's morning brief every day, and run Maya 24/7: every 5 minutes it checks
+ * for work and, when no device has OfferDesk open, runs OfferDesk's own code (loaded from
+ * your OfferDesk site) to answer agents, follow up and send campaign emails.
  * It runs inside your own Google account. Nothing is stored anywhere else.
  * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
  */
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 3 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 4 });
 }
 
 function doPost(e) {
@@ -25,30 +27,41 @@ function doPost(e) {
     }
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     if (req.key !== SECRET) return json_({ ok: false, error: 'wrong_secret' });
-    switch (req.action) {
-      case 'ping': return json_({ ok: true, version: 3, cloud: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '' });
-      case 'cloud_meta': return json_(cloudMeta_());
-      case 'cloud_get': return json_(cloudGet_(req.names || []));
-      case 'cloud_put': return json_(cloudPut_(req.parts || {}));
-      case 'lease': return json_(lease_(req));
-      case 'photo_list': return json_(photoList_());
-      case 'photo_put': return json_(photoPut_(req));
-      case 'photo_get': return json_(photoGet_(String(req.id || '')));
-      case 'photo_del': return json_(photoDel_(req.ids || []));
-      case 'fetch_url': return json_(fetchUrl_(String(req.url || '')));
-      case 'drive_image': return json_(driveImage_(String(req.id || '')));
-      case 'brief_setup': return json_(briefSetup_(req));
-      case 'brief_test': return json_(morningBrief());
-      case 'attachments': return json_({ ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) });
-      case 'search': return json_({ ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) });
-      case 'send': return json_(send_(req));
-      case 'twilio_save': return json_(twilioSave_(req));
-      case 'sms_send': return json_(smsSend_(String(req.to || ''), String(req.body || '')));
-      case 'sms_inbox': return json_({ ok: true, messages: smsInbox_(String(req.since || '')) });
-      default: return json_({ ok: false, error: 'unknown_action' });
-    }
+    return json_(handle_(req));
   } catch (err) {
     return json_({ ok: false, error: String((err && err.message) || err) });
+  }
+}
+
+/* every action, as plain objects (Maya 24/7 calls this directly, without a web request) */
+function handle_(req) {
+  try {
+    switch (req.action) {
+      case 'ping': return { ok: true, version: 4, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'cloud_meta': return cloudMeta_();
+      case 'cloud_get': return cloudGet_(req.names || []);
+      case 'cloud_put': return cloudPut_(req.parts || {});
+      case 'lease': return lease_(req);
+      case 'photo_list': return photoList_();
+      case 'photo_put': return photoPut_(req);
+      case 'photo_get': return photoGet_(String(req.id || ''));
+      case 'photo_del': return photoDel_(req.ids || []);
+      case 'fetch_url': return fetchUrl_(String(req.url || ''));
+      case 'drive_image': return driveImage_(String(req.id || ''));
+      case 'brief_setup': return briefSetup_(req);
+      case 'brief_test': return morningBrief();
+      case 'worker_setup': return workerSetup_(req);
+      case 'worker_status': return workerStatus_();
+      case 'attachments': return { ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) };
+      case 'search': return { ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) };
+      case 'send': return send_(req);
+      case 'twilio_save': return twilioSave_(req);
+      case 'sms_send': return smsSend_(String(req.to || ''), String(req.body || ''));
+      case 'sms_inbox': return { ok: true, messages: smsInbox_(String(req.since || '')) };
+      default: return { ok: false, error: 'unknown_action' };
+    }
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
   }
 }
 
@@ -72,11 +85,18 @@ function search_(query, max) {
   return out;
 }
 
+function quotaLeft_() { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } }
 function send_(req) {
   var opts = { name: req.name || '' };
   if (req.cc) opts.cc = String(req.cc);
   var body = String(req.body || '');
   if (!body) return { ok: false, error: 'empty_message' };
+  var pdf = null;
+  if (req.html) {
+    opts.htmlBody = String(req.html);
+    if (req.inline) { opts.inlineImages = {}; Object.keys(req.inline).forEach(function (k) { var x = req.inline[k]; opts.inlineImages[k] = Utilities.newBlob(Utilities.base64Decode(x.data), x.type || 'image/jpeg', k); }); }
+    if (req.pdfHtml) { try { pdf = Utilities.newBlob(String(req.pdfHtml), 'text/html', 'report.html').getAs('application/pdf').setName(String(req.pdfName || 'report.pdf')); opts.attachments = [pdf]; } catch (e) { pdf = false; } }
+  }
   if (req.threadId) {
     var t = GmailApp.getThreadById(req.threadId);
     if (t) {
@@ -85,14 +105,14 @@ function send_(req) {
       for (var i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].getFrom().toLowerCase().indexOf(me) === -1) {
           var r = msgs[i].createDraftReply(body, opts).send();
-          return { ok: true, threadId: t.getId(), messageId: r.getId() };
+          return { ok: true, threadId: t.getId(), messageId: r.getId(), left: quotaLeft_() };
         }
       }
     }
   }
   if (!req.to) return { ok: false, error: 'no_recipient' };
   var m = GmailApp.createDraft(req.to, req.subject || '', body, opts).send();
-  return { ok: true, threadId: m.getThread().getId(), messageId: m.getId() };
+  return { ok: true, threadId: m.getThread().getId(), messageId: m.getId(), left: quotaLeft_(), pdf: pdf === null ? undefined : !!pdf };
 }
 
 function twilioSave_(req) {
@@ -397,6 +417,99 @@ function briefHtml_(b, overnight) {
     sec('Follow-ups due', b.follow, function (x) { return link(x) + ' · follow-up #' + x.step; }) +
     sec('Price drops', b.drops, function (x) { return link(x) + ' · now $' + Number(x.to).toLocaleString('en-US'); }) +
     '<p>' + e(b.statsLine || '') + '</p><p>— ' + e(b.neg || 'Maya') + '</p></div>';
+}
+
+/* ---------- Maya 24/7 ----------
+   A 5-minute timer. Most ticks only look (is a device open? any new mail? is anything due?) and stop in a second.
+   When there's work and no device is holding the lease, it loads OfferDesk's own code from your site and runs it. */
+var WORKER_SITE = 'https://itzezi.github.io/offerdesk/';
+function workerSetup_(req) {
+  var props = PropertiesService.getScriptProperties();
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'workerTick') ScriptApp.deleteTrigger(t); });
+  if (!req.on) { props.setProperty('WORKER_ON', 'no'); return { ok: true, on: false }; }
+  if (!req.acct || !req.url) return { ok: false, error: 'missing_account' };
+  props.setProperties({ WORKER_ON: 'yes', WORKER_ACCT: String(req.acct), WORKER_URL: String(req.url), WORKER_NEXT: '0', WORKER_LASTFULL: '0' });
+  var every = [1, 5, 10, 15, 30].indexOf(Number(req.every)) >= 0 ? Number(req.every) : 5;
+  ScriptApp.newTrigger('workerTick').timeBased().everyMinutes(every).create();
+  return { ok: true, on: true, every: every };
+}
+function workerStatus_() {
+  var p = PropertiesService.getScriptProperties().getProperties();
+  var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'workerTick'; });
+  return { ok: true, on: p.WORKER_ON === 'yes' && has, lastTick: Number(p.WORKER_LASTTICK) || 0, lastFull: Number(p.WORKER_LASTFULL) || 0, next: Number(p.WORKER_NEXT) || 0,
+    last: JSON.parse(p.WORKER_LAST || 'null'), running: Number(p.WORKER_RUNNING) || 0, left: quotaLeft_() };
+}
+function workerDue_(p, now) {
+  var lastFull = Number(p.WORKER_LASTFULL) || 0;
+  if (now - lastFull > 60 * 60e3) return 'hourly check';
+  if ((Number(p.WORKER_NEXT) || 0) && now >= Number(p.WORKER_NEXT)) return 'something is due';
+  var since = Math.floor(Math.max(lastFull - 60e3, now - 24 * 3600e3) / 1000);
+  try { if (GmailApp.search('-from:me -in:spam -in:trash -category:promotions after:' + since, 0, 1).length) return 'new mail'; } catch (e) {}
+  var lastSms = Object.keys(p).filter(function (k) { return k.indexOf('sms_') === 0; }).sort().pop();
+  if (lastSms && Number(lastSms.split('_')[1]) > lastFull) return 'new text';
+  return '';
+}
+async function workerTick() {
+  var props = PropertiesService.getScriptProperties();
+  var p = props.getProperties(); var now = Date.now();
+  props.setProperty('WORKER_LASTTICK', String(now));
+  if (p.WORKER_ON !== 'yes' || !p.WORKER_ACCT || !p.WORKER_URL) return;
+  if ((Number(p.WORKER_RUNNING) || 0) > now - 7 * 60e3) return;
+  var lease = JSON.parse(p.lease || 'null');
+  if (lease && lease.until > now && lease.device !== 'maya-247') return;
+  var why = workerDue_(p, now); if (!why) return;
+  props.setProperty('WORKER_RUNNING', String(now));
+  var out;
+  try {
+    var site = p.WORKER_SITE || WORKER_SITE;
+    var ver = '';
+    try { ver = JSON.parse(UrlFetchApp.fetch(site + 'version.json?t=' + now, { muteHttpExceptions: true }).getContentText()).v || ''; } catch (e) {}
+    var res = UrlFetchApp.fetch(site + 'worker.js?v=' + encodeURIComponent(ver || now), { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('could not load worker.js (' + res.getResponseCode() + ')');
+    var factory = (0, eval)(res.getContentText() + '\n;OD_WORKER');
+    var W = factory(workerHost_(p.WORKER_URL));
+    out = await W.run({ acct: p.WORKER_ACCT, url: p.WORKER_URL, key: SECRET, deadline: now + 270e3 });
+    out.why = why; out.version = W.version;
+  } catch (e) {
+    out = { ok: false, why: why, warn: [String((e && e.message) || e)] };
+  } finally {
+    var next = out && out.nextDue ? Math.min(out.nextDue, now + 60 * 60e3) : now + 60 * 60e3;
+    props.setProperties({ WORKER_RUNNING: '0', WORKER_LASTFULL: String(now), WORKER_NEXT: String(next), WORKER_LAST: JSON.stringify(out || {}).slice(0, 8000) });
+  }
+}
+function workerHost_(myUrl) {
+  var mine = function (u) { u = String(u).split('?')[0]; return u === myUrl || u === ScriptApp.getService().getUrl(); };
+  var resp = function (code, text, headers) {
+    headers = headers || {};
+    return { ok: code >= 200 && code < 300, status: code, headers: { get: function (n) { n = String(n).toLowerCase(); for (var k in headers) if (k.toLowerCase() === n) return headers[k]; return null; } },
+      text: function () { return Promise.resolve(text); }, json: function () { try { return Promise.resolve(JSON.parse(text)); } catch (e) { return Promise.reject(e); } } };
+  };
+  return {
+    device: 'maya-247',
+    btoa: function (s) { return Utilities.base64Encode(Utilities.newBlob(String(s)).getBytes()); },
+    atob: function (s) { return Utilities.newBlob(Utilities.base64Decode(String(s))).getDataAsString(); },
+    fetch: function (url, opts) {
+      try {
+        opts = opts || {};
+        if (mine(url)) {
+          var req = JSON.parse(opts.body || '{}');
+          var o = req.key === SECRET ? handle_(req) : { ok: false, error: 'wrong_secret' };
+          return Promise.resolve(resp(200, JSON.stringify(o)));
+        }
+        var headers = {}, ct = null; var h = opts.headers || {};
+        Object.keys(h).forEach(function (k) { if (k.toLowerCase() === 'content-type') ct = h[k]; else headers[k] = h[k]; });
+        var params = { method: String(opts.method || 'GET').toLowerCase(), headers: headers, muteHttpExceptions: true, followRedirects: true };
+        var body = opts.body;
+        if (body != null && /api\.anthropic\.com/.test(url)) {
+          /* one request must finish within Google's 60-second limit: Sonnet, shorter answers */
+          var b = JSON.parse(body); if (/opus/.test(String(b.model || ''))) b.model = 'claude-sonnet-5-5'; if ((b.max_tokens || 0) > 4000) b.max_tokens = 4000; body = JSON.stringify(b);
+        }
+        if (body != null) { params.payload = String(body); params.contentType = ct || 'application/json'; }
+        var r = UrlFetchApp.fetch(String(url), params);
+        return Promise.resolve(resp(r.getResponseCode(), r.getContentText(), r.getHeaders()));
+      } catch (e) { return Promise.reject(e); }
+    }
+  };
 }
 
 function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k); }

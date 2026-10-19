@@ -99,7 +99,7 @@ function setConn(){
     :mode==='gvoice'?`${gm?'':'<div class="note amber">Connect Gmail first, using the same Google account as your Voice number.</div>'}
       <ol class="steps"><li>Get a Google Voice number at voice.google.com on the same Google account ${esc(negName())} sends from${gm?' ('+esc(sendEmail())+')':''}.</li><li>In Voice settings → Messages, turn on <b>Forward messages to email</b>.</li><li>Done. When an agent texts your Voice number, ${n} logs it to the deal (matched by their phone number) and can answer by text. Start new conversations from the Voice app.</li></ol>`
     :`<p class="small muted">“Open in texts” hands ${n}’s draft to your phone’s messaging app${S.profile.phone?', from '+esc(S.profile.phone):''}.</p>`}</section>`;
-  return `${brain}<div class="split">${gmail}${phone}</div>${cloudCardHTML()}`;
+  return `${brain}<div class="split">${gmail}${phone}</div>${cloudCardHTML()}${workerCardHTML()}`;
 }
 function setAuto(){
   const A=state.settings.auto;const n=esc(negName());const ready=aiOn()&&gmailOn();

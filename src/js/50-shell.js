@@ -21,20 +21,7 @@ function doRender(){
   const n=counts();const tot=n.reply+n.draft;document.title=(tot?`(${tot}) `:'')+'OfferDesk';
 }
 function viewHTML(){
-  switch(state.view){case 'listings':return viewListings();case 'leads':return viewLeads();case 'deal':return viewDeal();case 'practice':return viewPractice();case 'stats':return viewStats();case 'markets':return viewMarkets();case 'campaigns':return viewCampaigns();case 'settings':return viewSettings();default:return viewDashboard()}
-}
-function counts(){
-  const ds=Object.values(state.deals);
-  return {
-    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
-    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
-    follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
-    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed).length,
-    newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
-    live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
-    contract:ds.filter(d=>d.stage==='contract').length,
-    auto:ds.filter(d=>d.autopilot&&!['dead','closed'].includes(d.stage)).length
-  };
+  switch(state.view){case 'listings':return viewListings();case 'leads':return viewLeads();case 'deal':return viewDeal();case 'practice':return viewPractice();case 'stats':return viewStats();case 'markets':return viewMarkets();case 'report':return viewReport();case 'campaigns':return viewCampaigns();case 'settings':return viewSettings();default:return viewDashboard()}
 }
 
 /* ================= top bar, alert, bell ================= */
@@ -43,7 +30,7 @@ function topbarHTML(){
   const items=[['dashboard','Dashboard','dashboard',k.reply+k.draft],['listings','Listings','listings',0],['markets','Markets','map',0],['campaigns','Campaigns','send',cpList().filter(c=>c.items.some(i=>i.status==='needs')).length],['leads','Inbox Leads','leads',k.ws+k.newMail],['practice','Practice','practice',0],['stats','Stats','stats',0],['settings','Connect','settings',(aiOn()&&gmailOn())?0:1]];
   const live=state.settings.auto.enabled&&aiOn();
   const st=!aiOn()?['warn','needs a key']:live?['live','autopilot on']:['on','ready'];
-  const cur=state.view==='deal'?'listings':state.view;
+  const cur=state.view==='deal'||state.view==='report'?'listings':state.view;
   const unseen=unseenCount();
   return `<div class="wrap">
     <a class="logo" href="#dashboard" aria-label="OfferDesk home"><span class="logo-mark">${ico('logo')}</span><span>Offer<b>Desk</b></span></a>

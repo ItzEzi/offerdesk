@@ -168,7 +168,7 @@ function researchCard(d){
 }
 /* new wholesaler deals get researched one at a time in the background */
 const RQ={list:[],running:false};
-function queueResearch(id){if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
+function queueResearch(id){if(WORKER.on)return;/* web research is slow; the next device that opens does it */if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
 async function drainResearch(){if(RQ.running)return;RQ.running=true;try{while(RQ.list.length){const id=RQ.list.shift();if(state.deals[id])await researchDeal(id,true)}}finally{RQ.running=false}}
 function askPhotosDraft(id){
   const d=state.deals[id];const a=d&&d.analysis;if(!a)return;const miss=(a.notSeen||[]).slice(0,6);if(!miss.length)return;

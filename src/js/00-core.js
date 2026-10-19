@@ -187,15 +187,15 @@ function cur(){return state.deals[state.dealId]}
 let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
 
 /* ================= routing ================= */
-const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','practice','stats','settings'];
+const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','report','practice','stats','settings'];
 function go(view,id){const h='#'+view+(id?'/'+id:'');if(location.hash===h)route();else location.hash=h}
 function route(){
   const h=(location.hash||'#dashboard').slice(1);const [v,id,sub]=h.split('/');
-  state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'?id:null;
+  state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
   state.bellOpen=false;window.scrollTo(0,0);render();
-  if(state.view==='deal'&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
+  if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
   const anchor=state.view==='deal'||state.view==='settings'?sub:id;
   if(anchor){setTimeout(()=>{const el=document.getElementById(anchor);if(el)el.scrollIntoView({block:'start'})},80)}

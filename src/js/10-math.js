@@ -237,3 +237,18 @@ const TAGDEFS=[
   {id:'psf',label:'<$50/sqft',icon:'tag',c:'amber'},{id:'under',label:'Underbuilt',icon:'building',c:'orange'},{id:'disc',label:'Discounted MLS',icon:'down',c:'teal'},
   {id:'brrrr',label:'BRRRR',icon:'flame',c:'orange'},{id:'flip',label:'Fix & Flip',icon:'hammer',c:'red'},{id:'one',label:'1% Rule',icon:'dollar',c:'blue'},{id:'cf',label:'Cash Flow+',icon:'wallet',c:'teal'}];
 const TAG_BY_ID=Object.fromEntries(TAGDEFS.map(t=>[t.id,t]));
+
+/* counts used by the shell, the brief and Maya 24/7 */
+function counts(){
+  const ds=Object.values(state.deals);
+  return {
+    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
+    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
+    follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
+    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed).length,
+    newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
+    live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
+    contract:ds.filter(d=>d.stage==='contract').length,
+    auto:ds.filter(d=>d.autopilot&&!['dead','closed'].includes(d.stage)).length
+  };
+}

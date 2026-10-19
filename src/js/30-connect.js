@@ -268,7 +268,7 @@ async function autopilotRun(manual){
       if(d.draft)continue;
       if(!ourCount(d)){if(d.campaign||openings<=0)continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
-        if(!d.deepOnReply){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
+        if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
         await aiReply(id,null,true)}
       else{const f=followDue(d);if(f&&f.overdue&&state.settings.auto.followUps)await aiFollow(id,false,true);else continue}
       const dd=state.deals[id];if(!dd||!dd.draft)continue;

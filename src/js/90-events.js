@@ -200,6 +200,12 @@ A['cp-delete']=el=>{const c=cpCur();if(!c)return;if(el.dataset.sure!=='1'){el.da
   delete state.campaigns[c.id];state.cp.id=null;persist('campaigns');render();toast('Campaign deleted. Its deals stay in Listings.')};
 A['cp-del']=el=>{const c=cpCur();if(!c)return;c.items=c.items.filter(i=>i.k!==el.dataset.k);saveCampaign(c)};
 A['cp-mode']=el=>{const c=cpCur();if(!c)return;c.rules.mode=el.dataset.v;if(c.rules.mode==='template'&&!c.rules.template)c.rules.template=CP_TEMPLATE;saveCampaign(c)};
+A['rep-ai']=()=>aiLenderMemo(state.dealId);
+A['rep-print']=()=>{document.body.classList.add('printing');setTimeout(()=>{window.print();setTimeout(()=>document.body.classList.remove('printing'),500)},50)};
+A['rep-mail']=()=>emailReport(state.dealId);
+A['worker-on']=()=>workerToggle(true);
+A['worker-off']=()=>workerToggle(false);
+A['worker-refresh']=()=>{WK.at=0;workerRefresh()};
 A.mic=()=>{state.voiceOn=true;if(VOICE.listening||VOICE.want)voiceStopListening();else voiceListen();voiceBits()};
 A['voice-send']=()=>voiceSendNow();
 A['voice-mode']=()=>{state.voiceOn=!state.voiceOn;if(!state.voiceOn){stopSpeaking();voiceStopListening()}render()};

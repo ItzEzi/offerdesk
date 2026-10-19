@@ -593,3 +593,17 @@ details.card>summary{cursor:pointer}
 .case-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}.case-facts>div{display:grid;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .case-tl{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
 .wrapseg{flex-wrap:wrap;width:max-content;max-width:100%}
+
+/* ===== Lender report ===== */
+.rep-card{background:#fff!important;color:#141A2E;border-color:#E4E7F0;padding:28px}
+.rep-card .rep{--t-red:#B42318}
+.rep-panel .cp-grid .field input{width:120px}
+@media (max-width:700px){.rep-tiles{grid-template-columns:repeat(2,minmax(0,1fr))!important}.rep-2{grid-template-columns:minmax(0,1fr)!important}.rep-photos{grid-template-columns:repeat(2,minmax(0,1fr))!important}.rep-card{padding:16px}.rep .rt-wide{display:block;overflow-x:auto}}
+@media print{
+  @page{margin:14mm}
+  body{background:#fff!important}
+  #topbar,#alertbar,#toast,#modal-root,.no-print{display:none!important}
+  .rep-page{padding:0!important;max-width:none!important}
+  .rep-card{border:0!important;box-shadow:none!important;padding:0!important;margin:0!important}
+  .rep h2{break-after:avoid}.rep section,.rep tr,.rep-tile{break-inside:avoid}
+}

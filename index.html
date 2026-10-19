@@ -608,6 +608,20 @@ details.card>summary{cursor:pointer}
 .case-tl{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
 .wrapseg{flex-wrap:wrap;width:max-content;max-width:100%}
 
+/* ===== Lender report ===== */
+.rep-card{background:#fff!important;color:#141A2E;border-color:#E4E7F0;padding:28px}
+.rep-card .rep{--t-red:#B42318}
+.rep-panel .cp-grid .field input{width:120px}
+@media (max-width:700px){.rep-tiles{grid-template-columns:repeat(2,minmax(0,1fr))!important}.rep-2{grid-template-columns:minmax(0,1fr)!important}.rep-photos{grid-template-columns:repeat(2,minmax(0,1fr))!important}.rep-card{padding:16px}.rep .rt-wide{display:block;overflow-x:auto}}
+@media print{
+  @page{margin:14mm}
+  body{background:#fff!important}
+  #topbar,#alertbar,#toast,#modal-root,.no-print{display:none!important}
+  .rep-page{padding:0!important;max-width:none!important}
+  .rep-card{border:0!important;box-shadow:none!important;padding:0!important;margin:0!important}
+  .rep h2{break-after:avoid}.rep section,.rep tr,.rep-tile{break-inside:avoid}
+}
+
 </style>
 </head>
 <body>
@@ -618,19 +632,21 @@ details.card>summary{cursor:pointer}
 <div id="toast" class="toast" role="status" hidden></div>
 <script type="text/plain" id="bridge-src">
 /**
- * OfferDesk Bridge v3
+ * OfferDesk Bridge v4
  * Connects OfferDesk to your Gmail, optionally to a Twilio number for texts,
  * and saves your OfferDesk data (deals, photos, settings) to a Google Drive
  * folder called "OfferDesk Cloud" so every device you use sees the same desk.
- * It can also open links that come with a deal (Google Drive photo folders, deal pages)
- * and email you Maya's morning brief every day.
+ * It can also open links that come with a deal (Google Drive photo folders, deal pages),
+ * email you Maya's morning brief every day, and run Maya 24/7: every 5 minutes it checks
+ * for work and, when no device has OfferDesk open, runs OfferDesk's own code (loaded from
+ * your OfferDesk site) to answer agents, follow up and send campaign emails.
  * It runs inside your own Google account. Nothing is stored anywhere else.
  * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
  */
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 3 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 4 });
 }
 
 function doPost(e) {
@@ -644,30 +660,41 @@ function doPost(e) {
     }
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     if (req.key !== SECRET) return json_({ ok: false, error: 'wrong_secret' });
-    switch (req.action) {
-      case 'ping': return json_({ ok: true, version: 3, cloud: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '' });
-      case 'cloud_meta': return json_(cloudMeta_());
-      case 'cloud_get': return json_(cloudGet_(req.names || []));
-      case 'cloud_put': return json_(cloudPut_(req.parts || {}));
-      case 'lease': return json_(lease_(req));
-      case 'photo_list': return json_(photoList_());
-      case 'photo_put': return json_(photoPut_(req));
-      case 'photo_get': return json_(photoGet_(String(req.id || '')));
-      case 'photo_del': return json_(photoDel_(req.ids || []));
-      case 'fetch_url': return json_(fetchUrl_(String(req.url || '')));
-      case 'drive_image': return json_(driveImage_(String(req.id || '')));
-      case 'brief_setup': return json_(briefSetup_(req));
-      case 'brief_test': return json_(morningBrief());
-      case 'attachments': return json_({ ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) });
-      case 'search': return json_({ ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) });
-      case 'send': return json_(send_(req));
-      case 'twilio_save': return json_(twilioSave_(req));
-      case 'sms_send': return json_(smsSend_(String(req.to || ''), String(req.body || '')));
-      case 'sms_inbox': return json_({ ok: true, messages: smsInbox_(String(req.since || '')) });
-      default: return json_({ ok: false, error: 'unknown_action' });
-    }
+    return json_(handle_(req));
   } catch (err) {
     return json_({ ok: false, error: String((err && err.message) || err) });
+  }
+}
+
+/* every action, as plain objects (Maya 24/7 calls this directly, without a web request) */
+function handle_(req) {
+  try {
+    switch (req.action) {
+      case 'ping': return { ok: true, version: 4, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'cloud_meta': return cloudMeta_();
+      case 'cloud_get': return cloudGet_(req.names || []);
+      case 'cloud_put': return cloudPut_(req.parts || {});
+      case 'lease': return lease_(req);
+      case 'photo_list': return photoList_();
+      case 'photo_put': return photoPut_(req);
+      case 'photo_get': return photoGet_(String(req.id || ''));
+      case 'photo_del': return photoDel_(req.ids || []);
+      case 'fetch_url': return fetchUrl_(String(req.url || ''));
+      case 'drive_image': return driveImage_(String(req.id || ''));
+      case 'brief_setup': return briefSetup_(req);
+      case 'brief_test': return morningBrief();
+      case 'worker_setup': return workerSetup_(req);
+      case 'worker_status': return workerStatus_();
+      case 'attachments': return { ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) };
+      case 'search': return { ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) };
+      case 'send': return send_(req);
+      case 'twilio_save': return twilioSave_(req);
+      case 'sms_send': return smsSend_(String(req.to || ''), String(req.body || ''));
+      case 'sms_inbox': return { ok: true, messages: smsInbox_(String(req.since || '')) };
+      default: return { ok: false, error: 'unknown_action' };
+    }
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
   }
 }
 
@@ -691,11 +718,18 @@ function search_(query, max) {
   return out;
 }
 
+function quotaLeft_() { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } }
 function send_(req) {
   var opts = { name: req.name || '' };
   if (req.cc) opts.cc = String(req.cc);
   var body = String(req.body || '');
   if (!body) return { ok: false, error: 'empty_message' };
+  var pdf = null;
+  if (req.html) {
+    opts.htmlBody = String(req.html);
+    if (req.inline) { opts.inlineImages = {}; Object.keys(req.inline).forEach(function (k) { var x = req.inline[k]; opts.inlineImages[k] = Utilities.newBlob(Utilities.base64Decode(x.data), x.type || 'image/jpeg', k); }); }
+    if (req.pdfHtml) { try { pdf = Utilities.newBlob(String(req.pdfHtml), 'text/html', 'report.html').getAs('application/pdf').setName(String(req.pdfName || 'report.pdf')); opts.attachments = [pdf]; } catch (e) { pdf = false; } }
+  }
   if (req.threadId) {
     var t = GmailApp.getThreadById(req.threadId);
     if (t) {
@@ -704,14 +738,14 @@ function send_(req) {
       for (var i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].getFrom().toLowerCase().indexOf(me) === -1) {
           var r = msgs[i].createDraftReply(body, opts).send();
-          return { ok: true, threadId: t.getId(), messageId: r.getId() };
+          return { ok: true, threadId: t.getId(), messageId: r.getId(), left: quotaLeft_() };
         }
       }
     }
   }
   if (!req.to) return { ok: false, error: 'no_recipient' };
   var m = GmailApp.createDraft(req.to, req.subject || '', body, opts).send();
-  return { ok: true, threadId: m.getThread().getId(), messageId: m.getId() };
+  return { ok: true, threadId: m.getThread().getId(), messageId: m.getId(), left: quotaLeft_(), pdf: pdf === null ? undefined : !!pdf };
 }
 
 function twilioSave_(req) {
@@ -1018,6 +1052,99 @@ function briefHtml_(b, overnight) {
     '<p>' + e(b.statsLine || '') + '</p><p>— ' + e(b.neg || 'Maya') + '</p></div>';
 }
 
+/* ---------- Maya 24/7 ----------
+   A 5-minute timer. Most ticks only look (is a device open? any new mail? is anything due?) and stop in a second.
+   When there's work and no device is holding the lease, it loads OfferDesk's own code from your site and runs it. */
+var WORKER_SITE = 'https://itzezi.github.io/offerdesk/';
+function workerSetup_(req) {
+  var props = PropertiesService.getScriptProperties();
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'workerTick') ScriptApp.deleteTrigger(t); });
+  if (!req.on) { props.setProperty('WORKER_ON', 'no'); return { ok: true, on: false }; }
+  if (!req.acct || !req.url) return { ok: false, error: 'missing_account' };
+  props.setProperties({ WORKER_ON: 'yes', WORKER_ACCT: String(req.acct), WORKER_URL: String(req.url), WORKER_NEXT: '0', WORKER_LASTFULL: '0' });
+  var every = [1, 5, 10, 15, 30].indexOf(Number(req.every)) >= 0 ? Number(req.every) : 5;
+  ScriptApp.newTrigger('workerTick').timeBased().everyMinutes(every).create();
+  return { ok: true, on: true, every: every };
+}
+function workerStatus_() {
+  var p = PropertiesService.getScriptProperties().getProperties();
+  var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'workerTick'; });
+  return { ok: true, on: p.WORKER_ON === 'yes' && has, lastTick: Number(p.WORKER_LASTTICK) || 0, lastFull: Number(p.WORKER_LASTFULL) || 0, next: Number(p.WORKER_NEXT) || 0,
+    last: JSON.parse(p.WORKER_LAST || 'null'), running: Number(p.WORKER_RUNNING) || 0, left: quotaLeft_() };
+}
+function workerDue_(p, now) {
+  var lastFull = Number(p.WORKER_LASTFULL) || 0;
+  if (now - lastFull > 60 * 60e3) return 'hourly check';
+  if ((Number(p.WORKER_NEXT) || 0) && now >= Number(p.WORKER_NEXT)) return 'something is due';
+  var since = Math.floor(Math.max(lastFull - 60e3, now - 24 * 3600e3) / 1000);
+  try { if (GmailApp.search('-from:me -in:spam -in:trash -category:promotions after:' + since, 0, 1).length) return 'new mail'; } catch (e) {}
+  var lastSms = Object.keys(p).filter(function (k) { return k.indexOf('sms_') === 0; }).sort().pop();
+  if (lastSms && Number(lastSms.split('_')[1]) > lastFull) return 'new text';
+  return '';
+}
+async function workerTick() {
+  var props = PropertiesService.getScriptProperties();
+  var p = props.getProperties(); var now = Date.now();
+  props.setProperty('WORKER_LASTTICK', String(now));
+  if (p.WORKER_ON !== 'yes' || !p.WORKER_ACCT || !p.WORKER_URL) return;
+  if ((Number(p.WORKER_RUNNING) || 0) > now - 7 * 60e3) return;
+  var lease = JSON.parse(p.lease || 'null');
+  if (lease && lease.until > now && lease.device !== 'maya-247') return;
+  var why = workerDue_(p, now); if (!why) return;
+  props.setProperty('WORKER_RUNNING', String(now));
+  var out;
+  try {
+    var site = p.WORKER_SITE || WORKER_SITE;
+    var ver = '';
+    try { ver = JSON.parse(UrlFetchApp.fetch(site + 'version.json?t=' + now, { muteHttpExceptions: true }).getContentText()).v || ''; } catch (e) {}
+    var res = UrlFetchApp.fetch(site + 'worker.js?v=' + encodeURIComponent(ver || now), { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('could not load worker.js (' + res.getResponseCode() + ')');
+    var factory = (0, eval)(res.getContentText() + '\n;OD_WORKER');
+    var W = factory(workerHost_(p.WORKER_URL));
+    out = await W.run({ acct: p.WORKER_ACCT, url: p.WORKER_URL, key: SECRET, deadline: now + 270e3 });
+    out.why = why; out.version = W.version;
+  } catch (e) {
+    out = { ok: false, why: why, warn: [String((e && e.message) || e)] };
+  } finally {
+    var next = out && out.nextDue ? Math.min(out.nextDue, now + 60 * 60e3) : now + 60 * 60e3;
+    props.setProperties({ WORKER_RUNNING: '0', WORKER_LASTFULL: String(now), WORKER_NEXT: String(next), WORKER_LAST: JSON.stringify(out || {}).slice(0, 8000) });
+  }
+}
+function workerHost_(myUrl) {
+  var mine = function (u) { u = String(u).split('?')[0]; return u === myUrl || u === ScriptApp.getService().getUrl(); };
+  var resp = function (code, text, headers) {
+    headers = headers || {};
+    return { ok: code >= 200 && code < 300, status: code, headers: { get: function (n) { n = String(n).toLowerCase(); for (var k in headers) if (k.toLowerCase() === n) return headers[k]; return null; } },
+      text: function () { return Promise.resolve(text); }, json: function () { try { return Promise.resolve(JSON.parse(text)); } catch (e) { return Promise.reject(e); } } };
+  };
+  return {
+    device: 'maya-247',
+    btoa: function (s) { return Utilities.base64Encode(Utilities.newBlob(String(s)).getBytes()); },
+    atob: function (s) { return Utilities.newBlob(Utilities.base64Decode(String(s))).getDataAsString(); },
+    fetch: function (url, opts) {
+      try {
+        opts = opts || {};
+        if (mine(url)) {
+          var req = JSON.parse(opts.body || '{}');
+          var o = req.key === SECRET ? handle_(req) : { ok: false, error: 'wrong_secret' };
+          return Promise.resolve(resp(200, JSON.stringify(o)));
+        }
+        var headers = {}, ct = null; var h = opts.headers || {};
+        Object.keys(h).forEach(function (k) { if (k.toLowerCase() === 'content-type') ct = h[k]; else headers[k] = h[k]; });
+        var params = { method: String(opts.method || 'GET').toLowerCase(), headers: headers, muteHttpExceptions: true, followRedirects: true };
+        var body = opts.body;
+        if (body != null && /api\.anthropic\.com/.test(url)) {
+          /* one request must finish within Google's 60-second limit: Sonnet, shorter answers */
+          var b = JSON.parse(body); if (/opus/.test(String(b.model || ''))) b.model = 'claude-sonnet-5-5'; if ((b.max_tokens || 0) > 4000) b.max_tokens = 4000; body = JSON.stringify(b);
+        }
+        if (body != null) { params.payload = String(body); params.contentType = ct || 'application/json'; }
+        var r = UrlFetchApp.fetch(String(url), params);
+        return Promise.resolve(resp(r.getResponseCode(), r.getContentText(), r.getHeaders()));
+      } catch (e) { return Promise.reject(e); }
+    }
+  };
+}
+
 function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k); }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 </script>
@@ -1029,7 +1156,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261019-1739';
+const APP_V='20261019-1752';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1217,15 +1344,15 @@ function cur(){return state.deals[state.dealId]}
 let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
 
 /* ================= routing ================= */
-const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','practice','stats','settings'];
+const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','report','practice','stats','settings'];
 function go(view,id){const h='#'+view+(id?'/'+id:'');if(location.hash===h)route();else location.hash=h}
 function route(){
   const h=(location.hash||'#dashboard').slice(1);const [v,id,sub]=h.split('/');
-  state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'?id:null;
+  state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
   state.bellOpen=false;window.scrollTo(0,0);render();
-  if(state.view==='deal'&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
+  if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
   const anchor=state.view==='deal'||state.view==='settings'?sub:id;
   if(anchor){setTimeout(()=>{const el=document.getElementById(anchor);if(el)el.scrollIntoView({block:'start'})},80)}
@@ -1471,6 +1598,21 @@ const TAGDEFS=[
   {id:'psf',label:'<$50/sqft',icon:'tag',c:'amber'},{id:'under',label:'Underbuilt',icon:'building',c:'orange'},{id:'disc',label:'Discounted MLS',icon:'down',c:'teal'},
   {id:'brrrr',label:'BRRRR',icon:'flame',c:'orange'},{id:'flip',label:'Fix & Flip',icon:'hammer',c:'red'},{id:'one',label:'1% Rule',icon:'dollar',c:'blue'},{id:'cf',label:'Cash Flow+',icon:'wallet',c:'teal'}];
 const TAG_BY_ID=Object.fromEntries(TAGDEFS.map(t=>[t.id,t]));
+
+/* counts used by the shell, the brief and Maya 24/7 */
+function counts(){
+  const ds=Object.values(state.deals);
+  return {
+    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
+    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
+    follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
+    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed).length,
+    newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
+    live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
+    contract:ds.filter(d=>d.stage==='contract').length,
+    auto:ds.filter(d=>d.autopilot&&!['dead','closed'].includes(d.stage)).length
+  };
+}
 
 /* ================= secrets (kept in this browser only) ================= */
 const SECRET_KEY='od.secrets';
@@ -2042,7 +2184,7 @@ async function autopilotRun(manual){
       if(d.draft)continue;
       if(!ourCount(d)){if(d.campaign||openings<=0)continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
-        if(!d.deepOnReply){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
+        if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
         await aiReply(id,null,true)}
       else{const f=followDue(d);if(f&&f.overdue&&state.settings.auto.followUps)await aiFollow(id,false,true);else continue}
       const dd=state.deals[id];if(!dd||!dd.draft)continue;
@@ -2577,20 +2719,7 @@ function doRender(){
   const n=counts();const tot=n.reply+n.draft;document.title=(tot?`(${tot}) `:'')+'OfferDesk';
 }
 function viewHTML(){
-  switch(state.view){case 'listings':return viewListings();case 'leads':return viewLeads();case 'deal':return viewDeal();case 'practice':return viewPractice();case 'stats':return viewStats();case 'markets':return viewMarkets();case 'campaigns':return viewCampaigns();case 'settings':return viewSettings();default:return viewDashboard()}
-}
-function counts(){
-  const ds=Object.values(state.deals);
-  return {
-    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
-    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
-    follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
-    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed).length,
-    newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
-    live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
-    contract:ds.filter(d=>d.stage==='contract').length,
-    auto:ds.filter(d=>d.autopilot&&!['dead','closed'].includes(d.stage)).length
-  };
+  switch(state.view){case 'listings':return viewListings();case 'leads':return viewLeads();case 'deal':return viewDeal();case 'practice':return viewPractice();case 'stats':return viewStats();case 'markets':return viewMarkets();case 'report':return viewReport();case 'campaigns':return viewCampaigns();case 'settings':return viewSettings();default:return viewDashboard()}
 }
 
 /* ================= top bar, alert, bell ================= */
@@ -2599,7 +2728,7 @@ function topbarHTML(){
   const items=[['dashboard','Dashboard','dashboard',k.reply+k.draft],['listings','Listings','listings',0],['markets','Markets','map',0],['campaigns','Campaigns','send',cpList().filter(c=>c.items.some(i=>i.status==='needs')).length],['leads','Inbox Leads','leads',k.ws+k.newMail],['practice','Practice','practice',0],['stats','Stats','stats',0],['settings','Connect','settings',(aiOn()&&gmailOn())?0:1]];
   const live=state.settings.auto.enabled&&aiOn();
   const st=!aiOn()?['warn','needs a key']:live?['live','autopilot on']:['on','ready'];
-  const cur=state.view==='deal'?'listings':state.view;
+  const cur=state.view==='deal'||state.view==='report'?'listings':state.view;
   const unseen=unseenCount();
   return `<div class="wrap">
     <a class="logo" href="#dashboard" aria-label="OfferDesk home"><span class="logo-mark">${ico('logo')}</span><span>Offer<b>Desk</b></span></a>
@@ -2837,7 +2966,7 @@ function viewDeal(){
     <p class="muted" style="margin-top:4px">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.autopilot?` · ${autoLive?n+' replies automatically within your limits':'Turn on autopilot in Connect for '+n+' to act'}`:''}</p></div>
     <div class="row"><label class="small muted" for="deal-stage" style="font-weight:700">Stage</label><select class="fsel" id="deal-stage" aria-label="Stage">${STAGES.map(s=>`<option value="${s.id}" ${d.stage===s.id?'selected':''}>${s.label}</option>`).join('')}</select>
     <button class="btn" data-act="star" data-id="${d.id}" style="color:${d.starred?'var(--s-amber)':'inherit'}">${d.starred?icoFill('star'):ico('star')}${d.starred?'Starred':'Star'}</button>
-    ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
+    ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><a class="btn" href="#report/${d.id}">${ico('doc')}Lender report</a><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
   const dm=dom(d);
   const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${zipDom(d)?`<span class="bchip">ZIP median ${zipDom(d)} days</span>`:''}${dealTarget(d)?`<span class="bchip good">${ico('target')}Target market</span>`:''}${d.campaign&&state.campaigns[d.campaign.id]?`<a class="bchip" href="#campaigns" data-act="cp-open" data-id="${d.campaign.id}">${ico('send')}${esc(state.campaigns[d.campaign.id].name)}</a>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
@@ -3446,7 +3575,7 @@ function researchCard(d){
 }
 /* new wholesaler deals get researched one at a time in the background */
 const RQ={list:[],running:false};
-function queueResearch(id){if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
+function queueResearch(id){if(WORKER.on)return;/* web research is slow; the next device that opens does it */if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
 async function drainResearch(){if(RQ.running)return;RQ.running=true;try{while(RQ.list.length){const id=RQ.list.shift();if(state.deals[id])await researchDeal(id,true)}}finally{RQ.running=false}}
 function askPhotosDraft(id){
   const d=state.deals[id];const a=d&&d.analysis;if(!a)return;const miss=(a.notSeen||[]).slice(0,6);if(!miss.length)return;
@@ -3778,7 +3907,7 @@ function setConn(){
     :mode==='gvoice'?`${gm?'':'<div class="note amber">Connect Gmail first, using the same Google account as your Voice number.</div>'}
       <ol class="steps"><li>Get a Google Voice number at voice.google.com on the same Google account ${esc(negName())} sends from${gm?' ('+esc(sendEmail())+')':''}.</li><li>In Voice settings → Messages, turn on <b>Forward messages to email</b>.</li><li>Done. When an agent texts your Voice number, ${n} logs it to the deal (matched by their phone number) and can answer by text. Start new conversations from the Voice app.</li></ol>`
     :`<p class="small muted">“Open in texts” hands ${n}’s draft to your phone’s messaging app${S.profile.phone?', from '+esc(S.profile.phone):''}.</p>`}</section>`;
-  return `${brain}<div class="split">${gmail}${phone}</div>${cloudCardHTML()}`;
+  return `${brain}<div class="split">${gmail}${phone}</div>${cloudCardHTML()}${workerCardHTML()}`;
 }
 function setAuto(){
   const A=state.settings.auto;const n=esc(negName());const ready=aiOn()&&gmailOn();
@@ -4519,6 +4648,160 @@ Where things stand: ${PR_STAGES[stage][1]}.${offers?' Offers so far: '+offers+'.
   if(!res)return;s.turns.push({role:'assistant',content:cleanSpoken(res.text)});state.practiceId=s.id;savePractice(s);if(state.voiceOn)speakAgent(res.text,persona);
 }
 
+/* ================= Lender-style deal report (print / PDF / email) ================= */
+const lenderSet=()=>Object.assign({purchasePct:90,rehabPct:100,points:2,rate:11,termMonths:12,maxLtv:70,dscrRate:7.5,experience:''},state.settings.lender||{});
+function reportPrice(d,c){const r=d.report||{};return r.price??d.contractPrice??lastOurPrice(d)??(c.ready?c.opening:null)??curList(d)}
+function lenderNums(d){
+  const c=calc(d);const s=state.settings.buy;const L=Object.assign(lenderSet(),(d.report||{}).loan||{});
+  const P=reportPrice(d,c)||0,R=d.rehab||0,A=c.A||0,months=(d.report&&d.report.months)||s.holdMonths||5;
+  const buy=Math.round(P*(s.buyCostPct||0)/100),hold=Math.round((s.holdCostMonthly||0)*months);
+  const want=P*L.purchasePct/100+R*L.rehabPct/100,cap=A?A*L.maxLtv/100:Infinity;const loan=Math.max(0,round500(Math.min(want,cap)));const capped=want>cap;
+  const points=Math.round(loan*L.points/100),interest=Math.round(loan*L.rate/100*months/12);
+  const total=P+buy+R+hold+points+interest,cash=total-loan;const sell=Math.round(A*(s.sellCostPct||0)/100);const profit=A-sell-total;
+  const roi=cash>0?profit/cash:null;const ann=roi!=null&&months?roi*12/months:null;
+  const at=(dA,dR,dM)=>{const a=A*(1+dA),r=R*(1+dR),m=months+dM;const i=Math.round(loan*L.rate/100*m/12),h=Math.round((s.holdCostMonthly||0)*m);const t=P+buy+r+h+points+i;return Math.round(a-a*(s.sellCostPct||0)/100-t)};
+  const stress=[['ARV 10% lower',at(-.1,0,0)],['Rehab 20% over budget',at(0,.2,0)],['3 extra months',at(0,0,3)],['All three',at(-.1,.2,3)]];
+  const rc=rentalCalc(d,c,P);const dscr=rc&&rc.piti?rc.rent/rc.piti:null;
+  const breakeven=A?Math.round(total+sell):null;/* ARV the deal needs to break even */
+  return {c,L,P,R,A,months,buy,hold,loan,capped,points,interest,total,cash,sell,profit,roi,ann,ltc:P+R?loan/(P+R):null,ltv:A?loan/A:null,stress,rc,dscr,breakeven,beDrop:A&&breakeven?1-breakeven/A:null};
+}
+function reportRisks(d,n){
+  const out=[];const g=compGrid(d);const sig=marketSignal(d);const m=marketFor(d);const l=m&&m.Z&&m.Z.l;
+  if(!g.used.length)out.push(['ARV has no sold comps behind it','Add 3+ renovated sold comps within a mile before closing.']);
+  else if(g.conf==='low')out.push([`ARV confidence is low (${g.used.length} comp${g.used.length>1?'s':''})`,'Get a broker opinion of value or an appraisal before the rehab draw schedule.']);
+  if(n.beDrop!=null&&n.beDrop<.08)out.push([`Thin cushion: the deal breaks even if the ARV is ${pct(n.beDrop,0)} lower`,'Negotiate the price down or trim the scope.']);
+  if(n.R&&n.A&&n.R/n.A>.35)out.push(['Heavy rehab relative to value','Line-item bids from two contractors and a 10–15% contingency.']);
+  if(d.analysis&&(d.analysis.notSeen||[]).length)out.push([`Not inspected from photos: ${d.analysis.notSeen.slice(0,4).join(', ')}`,'Covered by allowances in the budget; confirm at the walkthrough or inspection.']);
+  if(sig)out.push([sig.level==='rejection'?'The market has rejected this listing (cuts and long days on market)':'Stale listing','Supports the discount; price the resale conservatively.']);
+  if(l&&l.mos!=null&&l.mos>=6)out.push([`Slow ZIP: ${l.mos} months of supply`,'Plan for a longer sale; budget extra holding months.']);
+  if(l&&l.priceYoy!=null&&l.priceYoy<=-4)out.push([`ZIP prices down ${Math.abs(l.priceYoy)}% over a year`,'Use the low end of the comps for the ARV.']);
+  if(n.dscr!=null&&n.dscr<1.1)out.push([`Rental exit is tight (DSCR ${n.dscr.toFixed(2)})`,'Flip is the primary exit; the rental is a fallback only.']);
+  return out;
+}
+function promptLender(d,n){
+  const c=n.c;const g=compGrid(d);
+  return `Write the summary section of a lender package for a short-term (hard money) loan. The reader is a private or hard money lender deciding whether to fund it. Be factual and specific, no hype, plain US English.
+${dealFacts(d,c)}
+Loan: purchase ${money(n.P)}, rehab ${money(n.R)}, loan ${money(n.loan)} (${pct(n.ltc,0)} of cost, ${pct(n.ltv,0)} of ARV), ${n.L.rate}% + ${n.L.points} points, ${n.months} months. Borrower cash in: ${money(n.cash)}.
+Exit: resale at ${money(n.A)}, profit ${money(n.profit)} (${pct(n.roi,0)} on cash). Breakeven ARV ${money(n.breakeven)}. ${n.rc?`Rent ${money(n.rc.rent)}/mo, refi ${money(n.rc.refi)}, DSCR ${n.dscr?n.dscr.toFixed(2):'?'}.`:''}
+Comps used: ${g.used.length}, confidence ${g.conf||'none'}.${(()=>{const m=marketFacts(d);return m?' '+m:''})()}
+Borrower: ${state.settings.profile.name||''}${state.settings.profile.company?', '+state.settings.profile.company:''}. Experience: ${lenderSet().experience||'not stated'}.
+Reply with only JSON: {"summary":"3-4 sentences: the property, the plan, why the numbers work","exitPlan":"2 sentences: primary exit and backup exit","risks":[{"risk":"","mitigant":""}],"timeline":[{"step":"","weeks":"e.g. 0-2"}]}`;
+}
+async function aiLenderMemo(id){
+  const d=state.deals[id];if(!d)return;const n=lenderNums(d);
+  const res=await runAI('rep:'+id,`${negName()} is writing the lender summary…`,(ai,signal)=>ai.json(promptLender(d,n),{signal,model:bigModel(),maxTokens:3000}));
+  if(!res||!state.deals[id])return;const dd=state.deals[id];
+  dd.lenderMemo={at:nowISO(),summary:String(res.summary||''),exitPlan:String(res.exitPlan||''),risks:(Array.isArray(res.risks)?res.risks:[]).slice(0,8).map(r=>({risk:String(r.risk||''),mitigant:String(r.mitigant||'')})),timeline:(Array.isArray(res.timeline)?res.timeline:[]).slice(0,8).map(t=>({step:String(t.step||''),weeks:String(t.weeks||'')}))};
+  saveDeal(dd);
+}
+async function reportPhotos(d,max){const out=[];for(const pid of (d.photoIds||[]).slice(0,max)){try{const r=await IDB.get('photos',pid);if(r&&r.blob)out.push({src:photoObjURL[pid]||URL.createObjectURL(r.blob),blob:r.blob,id:pid})}catch(e){}}for(const u of (d.photoUrls||[]).slice(0,Math.max(0,max-out.length)))out.push({src:u,url:u});return out}
+/* the report body (used on screen, for print, and for the lender email) */
+function reportBodyHTML(d,photos,forEmail){
+  const n=lenderNums(d);const c=n.c;const p=state.settings.profile;const g=compGrid(d);const M=d.lenderMemo;const m=marketFor(d);const l=m&&m.Z&&m.Z.l;
+  const img=(ph,i)=>forEmail?(ph.url?`<img src="${esc(ph.url)}" alt="" style="width:100%;border-radius:8px">`:`<img src="cid:ph${i}" alt="" style="width:100%;border-radius:8px">`):`<img src="${esc(ph.src)}" alt="">`;
+  const kv=rows=>`<table class="rt">${rows.filter(Boolean).map(([a,b,strong])=>`<tr><td>${a}</td><td class="r">${strong?'<b>'+b+'</b>':b}</td></tr>`).join('')}</table>`;
+  const ins=historyInsights(d);const ev=histEvents(d);const lines=d.rehabLines||[];const sub=lines.reduce((s,x)=>s+(x.cost||0),0);
+  const risks=[...(M&&M.risks?M.risks.map(r=>[r.risk,r.mitigant]):[]),...reportRisks(d,n)];
+  return `<div class="rep">
+  <header class="rep-head"><div><div class="rep-kicker">Loan request · deal summary</div><h1>${esc(streetOf(d.address))}</h1><div class="rep-sub">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))} · ${PROP_TYPES[d.propertyType]||'Single family'} · ${d.beds??'?'} bd / ${d.baths??'?'} ba · ${d.sqft?numFmt(d.sqft)+' sqft':''}${d.year?' · built '+d.year:''}</div></div>
+    <div class="rep-by"><b>${esc(p.name||'')}</b>${p.company?'<br>'+esc(p.company):''}${p.phone?'<br>'+esc(p.phone):''}${p.email?'<br>'+esc(p.email):''}<br><span class="muted">${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</span></div></header>
+  ${photos.length?`<div class="rep-cover">${img(photos[0],0)}</div>`:''}
+  <section class="rep-ask"><div class="rep-tiles">${[['Loan request',money(n.loan),n.capped?`capped at ${n.L.maxLtv}% of ARV`:`${n.L.purchasePct}% of purchase + ${n.L.rehabPct}% of rehab`],['Purchase',money(n.P),''],['Rehab budget',money(n.R),lines.length?`${lines.length} line items`:''],['ARV',money(n.A),g.used.length?`${g.used.length} sold comps · ${g.conf||''} confidence`:''],['Loan to cost',pct(n.ltc,0),''],['Loan to ARV',pct(n.ltv,0),''],['Borrower cash in',money(n.cash),''],['Projected profit',money(n.profit),n.roi!=null?`${pct(n.roi,0)} on cash · ${n.months} months`:'']].map(([a,b,s])=>`<div class="rep-tile"><span>${a}</span><b>${b}</b>${s?`<em>${s}</em>`:''}</div>`).join('')}</div></section>
+  ${M&&M.summary?`<section><h2>Summary</h2><p>${esc(M.summary)}</p>${M.exitPlan?`<p><b>Exit:</b> ${esc(M.exitPlan)}</p>`:''}</section>`:''}
+  <section class="rep-2"><div><h2>Sources and uses</h2>${kv([['Purchase price',money(n.P)],['Closing costs (buy)',money(n.buy)],['Rehab',money(n.R)],[`Holding (${n.months} mo)`,money(n.hold)],[`Points (${n.L.points}%)`,money(n.points)],[`Interest (${n.L.rate}%, ${n.months} mo)`,money(n.interest)],['Total project cost',money(n.total),1],['Loan',money(n.loan)],['Borrower cash',money(n.cash),1]])}</div>
+    <div><h2>Exit</h2>${kv([['Resale (ARV)',money(n.A)],[`Selling costs (${state.settings.buy.sellCostPct}%)`,'−'+money(n.sell)],['Total project cost','−'+money(n.total)],['Profit',money(n.profit),1],['Return on cash',pct(n.roi,0)],['Annualized',pct(n.ann,0)],['Breakeven resale price',money(n.breakeven)],['Cushion before a loss',pct(n.beDrop,0)]])}
+    ${n.rc?`<h3>Backup exit: rent and refinance</h3>${kv([['Market rent',money(n.rc.rent)+'/mo'],[`Refi at ${state.settings.rental.refiLtv}% of ARV`,money(n.rc.refi)],['Pays off the loan',n.rc.refiNet!=null&&n.rc.refiNet>=n.loan?'Yes':'No ('+money(n.loan-(n.rc.refiNet||0))+' short)'],['Monthly payment + taxes/insurance',money(n.rc.piti)],['DSCR (rent ÷ PITI)',n.dscr?n.dscr.toFixed(2):'—',1],['Cash flow after refi',money(n.rc.cfRefi)+'/mo']])}`:''}</div></section>
+  <section><h2>Stress test</h2><table class="rt rt-wide"><thead><tr><th>Scenario</th><th class="r">Profit</th></tr></thead><tbody><tr><td>Base case</td><td class="r"><b>${money(n.profit)}</b></td></tr>${n.stress.map(([a,v])=>`<tr><td>${a}</td><td class="r" style="color:${v<0?'var(--t-red,#B42318)':'inherit'}">${money(v)}</td></tr>`).join('')}</tbody></table></section>
+  ${g.rows.length?`<section><h2>Comparable sales</h2><p class="muted small">ARV ${money(n.A)}${d.arvSource==='comps'?' from the weighted comps':''}. Adjustments: size at 40% of $/sqft, ±3% per bedroom, ±4% per bathroom.</p>
+    <table class="rt rt-wide"><thead><tr><th>Address</th><th>Sold</th><th class="r">Price</th><th class="r">Sqft</th><th class="r">$/sqft</th><th class="r">Distance</th><th class="r">Adjusted</th><th class="r">Match</th></tr></thead><tbody>${g.rows.filter(r=>r.st==='sold').slice(0,8).map(r=>`<tr${r.use?'':' class="muted"'}><td>${esc(r.x.addr)}${r.reno?'':' <em>(as-is)</em>'}</td><td>${esc(fmtDate(r.x.soldDate))}</td><td class="r">${money(r.price)}</td><td class="r">${numFmt(r.x.sqft)}</td><td class="r">${r.psf?'$'+Math.round(r.psf):'—'}</td><td class="r">${r.x.dist!=null?r.x.dist+' mi':'—'}</td><td class="r">${money(r.adjPrice)}</td><td class="r">${r.match}%</td></tr>`).join('')}</tbody></table>
+    ${!forEmail&&d.lat&&g.used.length?`<div class="rep-map">${compMapSVG(d,g)}</div>`:''}</section>`:''}
+  ${lines.length?`<section><h2>Scope of work</h2><table class="rt rt-wide"><thead><tr><th>Item</th><th>Detail</th><th class="r">Cost</th></tr></thead><tbody>${lines.map(x=>`<tr><td>${esc(x.item)}</td><td class="muted">${esc(x.detail||'')}</td><td class="r">${money(x.cost)}</td></tr>`).join('')}<tr><td colspan="2">Contingency (${d.rehabCont??10}%)</td><td class="r">${money(Math.round(sub*(d.rehabCont??10)/100))}</td></tr><tr><td colspan="2"><b>Total</b></td><td class="r"><b>${money(Math.round(sub*(1+(d.rehabCont??10)/100)))}</b></td></tr></tbody></table>${d.analysis&&d.analysis.summary?`<p class="small"><b>Condition:</b> ${esc(d.analysis.summary)}</p>`:''}</section>`:''}
+  ${M&&M.timeline&&M.timeline.length?`<section><h2>Timeline</h2><table class="rt rt-wide"><tbody>${M.timeline.map(t=>`<tr><td>${esc(t.step)}</td><td class="r">${esc(t.weeks)} wk</td></tr>`).join('')}</tbody></table></section>`:''}
+  <section class="rep-2"><div><h2>Market</h2>${l?kv([[`ZIP ${m.zip} median sale`,money(l.price)+(l.priceYoy!=null?` (${l.priceYoy>=0?'+':''}${l.priceYoy}% yr)`:'')],['Median $/sqft',l.ppsf?'$'+l.ppsf:'—'],['Median days on market',l.dom??'—'],['Months of supply',l.mos??'—'],['Homes sold (3 mo)',l.sold??'—']]).replace('</table>',`</table><p class="muted small">Redfin, single-family, 3 months to ${esc(m.S.zips.periodEnd||'')}.</p>`):'<p class="muted small">No ZIP market data loaded.</p>'}</div>
+    <div><h2>Property history</h2>${ev.length?`<table class="rt">${ev.slice(-6).reverse().map(e=>`<tr><td>${esc(fmtDate(e.date))}</td><td>${esc((HEV[e.event]||HEV.other)[0])}</td><td class="r">${money(e.price)}</td></tr>`).join('')}</table>`:'<p class="muted small">No history on file.</p>'}${ins.length?`<ul class="small">${ins.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul>`:''}</div></section>
+  <section><h2>Risks and how they’re handled</h2><table class="rt rt-wide"><tbody>${risks.map(([a,b])=>`<tr><td>${esc(a)}</td><td class="muted">${esc(b)}</td></tr>`).join('')||'<tr><td>No major risks flagged by the numbers.</td></tr>'}</tbody></table></section>
+  ${photos.length>1?`<section><h2>Photos</h2><div class="rep-photos">${photos.slice(1,9).map((ph,i)=>img(ph,i+1)).join('')}</div></section>`:''}
+  <section><h2>Borrower</h2><p>${esc(p.name||'')}${p.company?', '+esc(p.company):''}. ${esc(lenderSet().experience||'')}</p></section>
+  <p class="rep-foot">Prepared by the borrower from public records, listing data and their own estimates. Not an appraisal. Figures are projections and should be verified.</p></div>`;
+}
+function viewReport(){
+  const d=state.deals[state.dealId];if(!d)return '<div class="wrap page"><p>Deal not found.</p></div>';
+  const n=lenderNums(d);const L=n.L;const busy=state.busy['rep:'+d.id]||state.busy['repmail:'+d.id];
+  if(!state.repPhotos||state.repPhotos.id!==d.id){state.repPhotos={id:d.id,list:[]};reportPhotos(d,9).then(list=>{if(state.repPhotos&&state.repPhotos.id===d.id){state.repPhotos.list=list;render()}})}
+  if(!d.lat&&(d.comps||[]).length)geocodeDeal(d).then(ok=>{if(ok){saveDeal(d,true);render()}});
+  const field=(k,l,v)=>`<label class="field"><span>${l}</span><input class="input tnum" data-fd="report.loan.${k}" data-t="num" value="${v??''}" inputmode="decimal"></label>`;
+  const panel=`<section class="card no-print rep-panel"><div class="card-head"><span class="ci blue">${ico('doc')}</span><div><h2>Lender report</h2><p>Set the loan terms, add ${esc(negName())}’s summary, then save as PDF or email it</p></div>
+    <div class="ch-r"><a class="btn ghost sm" href="#deal/${d.id}">${ico('back')}Back to deal</a></div></div>
+    <div class="cp-grid"><label class="field"><span>Purchase price</span><input class="input tnum" data-fd="report.price" data-t="num" value="${(d.report||{}).price??''}" placeholder="${n.P||''}" inputmode="numeric"></label>
+    ${field('purchasePct','Loan % of purchase',L.purchasePct)}${field('rehabPct','Loan % of rehab',L.rehabPct)}${field('maxLtv','Max % of ARV',L.maxLtv)}${field('rate','Rate %',L.rate)}${field('points','Points',L.points)}
+    <label class="field"><span>Months</span><input class="input tnum" data-fd="report.months" data-t="num" value="${(d.report||{}).months??''}" placeholder="${state.settings.buy.holdMonths||5}" inputmode="numeric"></label></div>
+    <label class="field" style="margin-top:8px"><span>Your experience, for lenders (saved for every report)</span><input class="input" data-fs="lender.experience" data-t="text" value="${esc(lenderSet().experience)}" placeholder="e.g. Second flip; working with a licensed GC; 25% down ready"></label>
+    <div class="row" style="gap:8px;margin-top:10px">${aiOn()?`<button class="btn sm" data-act="rep-ai" ${busy?'disabled':''}>${ico('spark')}${d.lenderMemo?'Rewrite':'Write'} the summary</button>`:''}<button class="btn primary sm" data-act="rep-print">${ico('download')}Save as PDF / print</button>
+    ${gmailOn()?`<input class="input" id="rep-to" data-draft value="${esc(state.drafts['rep-to']||'')}" placeholder="lender@email.com" style="max-width:240px" inputmode="email" aria-label="Lender email"><button class="btn sm" data-act="rep-mail" ${busy?'disabled':''}>${ico('mail')}Email it</button>`:''}</div>
+    ${busyHTML('rep:'+d.id)}${busyHTML('repmail:'+d.id,false)}${!c_ready(d)?`<div class="note amber">Add an ARV on the deal first.</div>`:''}</section>`;
+  return `<div class="wrap page rep-page"><style>${REPORT_CSS}</style>${panel}<article class="card rep-card">${reportBodyHTML(d,(state.repPhotos&&state.repPhotos.list)||[],false)}</article></div>`;
+}
+const c_ready=d=>calc(d).ready;
+const REPORT_CSS=`.rep{font-family:Arial,Helvetica,sans-serif;color:#141A2E;font-size:13px;line-height:1.45}.rep h1{font-size:24px;margin:2px 0}.rep h2{font-size:15px;margin:18px 0 6px;border-bottom:2px solid #E4E7F0;padding-bottom:4px}.rep h3{font-size:13px;margin:12px 0 4px}
+.rep-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.rep-kicker{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3E5BF6}.rep-sub{color:#566080}.rep-by{text-align:right;font-size:12px}
+.rep-cover img{width:100%;max-height:340px;object-fit:cover;border-radius:10px;margin:12px 0}
+.rep-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.rep-tile{border:1px solid #E4E7F0;border-radius:10px;padding:9px 11px;display:grid;gap:2px}.rep-tile span{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#667090}.rep-tile b{font-size:18px}.rep-tile em{font-style:normal;font-size:11px;color:#667090}
+.rep-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.rt{width:100%;border-collapse:collapse}.rt td,.rt th{padding:5px 6px;border-bottom:1px solid #EEF0F6;text-align:left;vertical-align:top}.rt th{font-size:11px;color:#667090}.rt .r{text-align:right;white-space:nowrap}.rt tr.muted td{color:#98A0B8}
+.rep-photos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.rep-photos img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px}
+.rep-map svg{max-width:100%;height:auto}.rep .muted{color:#667090}.rep .small{font-size:12px}.rep-foot{font-size:11px;color:#98A0B8;margin-top:18px}`;
+async function emailReport(id){
+  const d=state.deals[id];const to=(state.drafts['rep-to']||'').trim();if(!d)return;
+  if(!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(to)){toast('Add the lender’s email first.');return}
+  const key='repmail:'+id;state.busy[key]={label:'Emailing the report…'};render();
+  try{
+    const photos=await reportPhotos(d,9);const inline={};let i=0;
+    for(const ph of photos){if(ph.blob){inline['ph'+i]={type:ph.blob.type||'image/jpeg',data:await blobToB64(ph.blob)}}i++}
+    const body=reportBodyHTML(d,photos,true);const p=state.settings.profile;
+    const html=`<div style="max-width:820px;margin:0 auto"><style>${REPORT_CSS}</style>${body}</div>`;
+    const pdfHtml=`<html><head><meta charset="utf-8"><style>${REPORT_CSS}</style></head><body>${reportBodyHTML(d,photos.filter(x=>x.url),true)}</body></html>`;
+    const r=await bridge('send',{to,subject:`Loan request: ${streetOf(d.address)}${d.city?', '+d.city:''}`,body:`Loan request for ${streetOf(d.address)}. The full report is below and attached as a PDF.\n\n${p.name||''}${p.phone?' · '+p.phone:''}`,html,inline,pdfHtml,pdfName:`${streetOf(d.address).replace(/[^\w]+/g,'-')}-loan-request.pdf`,name:p.name||senderName()});
+    if(r.left!=null){state.conn.mailQuota={left:r.left,day:isoDay()};saveConn()}
+    logActivity(id,'sent',`Lender report for ${streetOf(d.address)} emailed to ${to}${r.pdf===false?' (without the PDF: your Gmail script is an older version)':''}.`);toast('Report sent to '+to);
+  }catch(e){toast(bridgeErr(e),5200)}finally{delete state.busy[key];render()}
+}
+
+/* ================= Maya 24/7 (the Gmail script runs her when no device is open) ================= */
+const WK={status:null,at:0,err:'',busy:false};
+async function workerRefresh(){
+  if(!cloudOn()||WK.busy)return;WK.busy=true;
+  try{const r=await bridge('worker_status',{},cm().acct);WK.status=r;WK.err=''}catch(e){WK.status=null;WK.err=bridgeErr(e)}
+  finally{WK.busy=false;WK.at=Date.now();render()}
+}
+async function workerToggle(on){
+  const a=acctList().find(x=>x.id===cm().acct);if(!a){toast('Turn on cloud save first.');return}
+  state.busy.worker={label:on?`Turning on ${negName()} 24/7…`:'Turning it off…'};render();
+  try{const r=await bridge('worker_setup',{on,acct:a.id,url:a.url,every:5},a.id);if(!r.ok)throw {code:'bridge_err',message:r.error||'error'};
+    state.settings.worker={on:!!on,at:nowISO()};saveSettings();
+    toast(on?`${negName()} 24/7 is on. She checks every 5 minutes whenever no device has OfferDesk open.`:`${negName()} 24/7 is off.`,5200);WK.at=0;await workerRefresh()}
+  catch(e){toast(bridgeErr(e),6200)}finally{delete state.busy.worker;render()}
+}
+function workerCardHTML(){
+  const n=esc(negName());const head=(pill)=>`<div class="card-head"><span class="ci grad">${ico('bolt')}</span><div><h2>${n} 24/7</h2><p>Keeps answering agents, following up and sending campaigns with every device closed</p></div><div class="ch-r">${pill||''}</div></div>`;
+  if(!cloudOn())return `<section class="conn-card" id="conn-247">${head('<span class="pill slate">Off</span>')}<p class="small">Turn on cloud save above first. ${n} 24/7 runs inside the same Gmail script, using your cloud copy of the desk.</p></section>`;
+  if(!WK.busy&&Date.now()-WK.at>90e3)setTimeout(workerRefresh,0);
+  const info=acctInfo(cm().acct)||{};const old=(info.version||1)<4||/older version/.test(WK.err);
+  const s=WK.status||{};const on=!!s.on;const w=state.conn.worker;const last=s.last||null;
+  const pill=old?'<span class="pill orange">Update the script</span>':on?'<span class="pill green">On</span>':'<span class="pill slate">Off</span>';
+  const lastLine=w?`Last worked ${ago(w.at)}: ${[w.sent?`${w.sent} sent`:'',w.replies?`${w.replies} repl${w.replies===1?'y':'ies'} in`:'',w.campaign?`${w.campaign} campaign email${w.campaign===1?'':'s'}`:'',w.needs?`${w.needs} waiting for you`:'',w.imported?`${w.imported} new deal${w.imported===1?'':'s'}`:''].filter(Boolean).join(', ')||'nothing needed doing'}.`:'';
+  return `<section class="conn-card" id="conn-247">${head(pill)}
+    ${old?`<div class="note amber">Your Gmail script is an older version. Copy the bridge code again (Gmail card, step 2), paste it over the old code in Apps Script, then Deploy → Manage deployments → Edit → New version → Deploy, and click Allow when Google asks. Then press Test on the Gmail card.</div>`:''}
+    <ul class="small" style="margin:0 0 10px;padding-left:18px;display:grid;gap:4px">
+      <li>Every 5 minutes your Gmail script takes a quick look: is a device open? any new email? anything due? Most checks take a second.</li>
+      <li>When there’s work and no device has OfferDesk open, it runs ${n}: replies within your limits, follow-ups, campaign emails, new wholesaler deals, and the morning brief data.</li>
+      <li>Deep photo inspections and web research wait for the next time you open OfferDesk (they take longer than Google allows per step).</li></ul>
+    ${on?`<p class="small"><b>Last check:</b> ${s.lastTick?ago(new Date(s.lastTick).toISOString()):'not yet'}${s.next&&s.next>Date.now()?` · next planned work ${fmtWhen(new Date(s.next).toISOString())}`:''}${s.left!=null?` · ${s.left} emails left today`:''}</p>${lastLine?`<p class="small">${esc(lastLine)}</p>`:''}${last&&last.warn&&last.warn.length?`<div class="note amber small">${esc(last.warn.slice(0,2).join(' · '))}</div>`:''}`:''}
+    ${WK.err&&!old?`<div class="note amber small">${esc(WK.err)}</div>`:''}
+    <div class="row" style="gap:8px">${old?'':on?`<button class="btn sm" data-act="worker-off" ${state.busy.worker?'disabled':''}>Turn off</button><button class="btn ghost sm" data-act="worker-refresh">${ico('refresh')}Refresh</button>`:`<button class="btn primary sm" data-act="worker-on" ${state.busy.worker?'disabled':''}>${ico('bolt')}Turn on ${n} 24/7</button>`}${busyHTML('worker',false)}</div>
+    <p class="xs muted">Free on Google’s side: a regular Gmail account gets 90 minutes of script time a day, Google Workspace 6 hours. Claude usage is the same as when OfferDesk is open.</p></section>`;
+}
+
 /* ================= actions ================= */
 const A={};
 document.addEventListener('click',e=>{
@@ -4721,6 +5004,12 @@ A['cp-delete']=el=>{const c=cpCur();if(!c)return;if(el.dataset.sure!=='1'){el.da
   delete state.campaigns[c.id];state.cp.id=null;persist('campaigns');render();toast('Campaign deleted. Its deals stay in Listings.')};
 A['cp-del']=el=>{const c=cpCur();if(!c)return;c.items=c.items.filter(i=>i.k!==el.dataset.k);saveCampaign(c)};
 A['cp-mode']=el=>{const c=cpCur();if(!c)return;c.rules.mode=el.dataset.v;if(c.rules.mode==='template'&&!c.rules.template)c.rules.template=CP_TEMPLATE;saveCampaign(c)};
+A['rep-ai']=()=>aiLenderMemo(state.dealId);
+A['rep-print']=()=>{document.body.classList.add('printing');setTimeout(()=>{window.print();setTimeout(()=>document.body.classList.remove('printing'),500)},50)};
+A['rep-mail']=()=>emailReport(state.dealId);
+A['worker-on']=()=>workerToggle(true);
+A['worker-off']=()=>workerToggle(false);
+A['worker-refresh']=()=>{WK.at=0;workerRefresh()};
 A.mic=()=>{state.voiceOn=true;if(VOICE.listening||VOICE.want)voiceStopListening();else voiceListen();voiceBits()};
 A['voice-send']=()=>voiceSendNow();
 A['voice-mode']=()=>{state.voiceOn=!state.voiceOn;if(!state.voiceOn){stopSpeaking();voiceStopListening()}render()};
