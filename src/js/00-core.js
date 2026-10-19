@@ -17,7 +17,8 @@ const DEFAULTS={
   neg:{name:'Maya',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
   auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
-  rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5},
+  rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
+  notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}

@@ -68,6 +68,7 @@ function search_(query, max) {
 
 function send_(req) {
   var opts = { name: req.name || '' };
+  if (req.cc) opts.cc = String(req.cc);
   var body = String(req.body || '');
   if (!body) return { ok: false, error: 'empty_message' };
   if (req.threadId) {

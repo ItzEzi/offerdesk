@@ -1,0 +1,128 @@
+/* ================= deal score, comps, rental (deal page cards) ================= */
+function scoreTag(d){const S=dealScore(d);if(!S)return '';return `<span class="tag score ${S.grade[1]}" title="Deal score at ${money(S.basis)}">${S.score} · ${esc(STRAT_LABEL[S.best])}</span>`}
+function scoreRing(score,cls){const r=34,C=2*Math.PI*r,f=Math.max(0,Math.min(100,score))/100;return `<svg class="ring ${cls}" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="${r}" class="ring-bg"/><circle cx="42" cy="42" r="${r}" class="ring-fg" stroke-dasharray="${(C*f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 42 42)"/><text x="42" y="49" text-anchor="middle">${score}</text></svg>`}
+function scoreCard(d,c){
+  if(!c.ready)return '';const S=dealScore(d,null,true);if(!S)return '';const n=esc(negName());const L=curList(d);
+  const basisLab=lastTheirPrice(d)!=null?'their last number':d.source==='wholesaler'?'the asking price':'the list price';
+  const row=(k,v)=>{const st=S.strat[k];if(!st)return '';const key=k==='flip'?`${money(st.profit)} profit · ${pct(st.roi,1)} ROI`:k==='wholesale'?`${money(st.fee)} assignment fee`:k==='brrrr'?(st.left<=0?`Pulls out ${money(-st.left)} more than you put in · ${money(st.cf)}/mo after refi`:`${money(st.left)} left in the deal · ${money(st.cf)}/mo after refi`):`${pct(st.yield,1)} net yield · ${money(st.noi)}/mo NOI`;
+    return `<div class="srow ${k===S.best?'best':''}"><span class="sl">${esc(v)}${k===S.best?' <span class="tag green">Best exit</span>':''}</span><span class="sbar"><i style="width:${st.score}%"></i></span><b class="tnum">${st.score}</b><span class="small muted">${key}</span></div>`};
+  const at80=S.at80;let line='';
+  if(at80!=null&&L){line=at80>=S.basis?`Already 80+ at ${basisLab}. It stays 80+ up to <b>${money(at80)}</b>.`:`Becomes an 80+ deal at <b>${money(at80)}</b>, which is ${money(S.basis-at80)} under ${basisLab}.`}
+  else if(at80==null)line='Doesn’t reach 80 at any price with these numbers. Check the ARV and repairs.';
+  return `<section class="card" id="score"><div class="card-head"><span class="ci green">${ico('gauge')}</span><div><h2>Deal score</h2><p>Every exit checked at ${basisLab} (${money(S.basis)})</p></div></div>
+  <div class="score-top">${scoreRing(S.score,S.grade[1])}<div style="min-width:0"><div class="row" style="gap:8px"><span class="pill ${S.grade[1]==='blue'?'blue':S.grade[1]==='amber'?'orange':S.grade[1]}">${esc(S.grade[0])}</span><b>Best exit: ${esc(STRAT_LABEL[S.best])}</b></div><p class="small" style="margin-top:6px">${line}</p><p class="xs muted">80+ is the bar a lender or partner would fund. 85+ is a bonanza.</p></div></div>
+  <div class="srows">${row('flip','Fix & flip')}${row('brrrr','BRRRR')}${row('wholesale','Wholesale')}${row('rental','Rental (all cash)')}</div>
+  ${!S.strat.brrrr?`<p class="small muted">Add the market rent (Rental analysis) to score BRRRR and rental too.</p>`:''}
+  ${S.mods.length?`<div class="mods">${S.mods.map(m=>`<span class="tag ${m[1]<=-8?'red':'orange'}">${m[1]} · ${esc(m[0])}</span>`).join('')}</div>`:'<p class="small muted">No risk deductions: comps back the ARV and nothing looks off.</p>'}
+  </section>`;
+}
+
+/* ---------- comps ---------- */
+const COMP_ST={sold:['Sold','red'],for_sale:['For sale','green'],pending:['Pending','orange']};
+function compsCard(d,c){
+  const g=compGrid(d);const n=esc(negName());const mode=d.arvMode==='median'?'median':'smart';const arv=mode==='median'?g.median:g.smart;
+  const ms=marketSignal(d);const f=state.compFilter||'all';
+  const cnt=k=>g.rows.filter(r=>k==='all'||r.st===k).length;const shown=g.rows.filter(r=>f==='all'||r.st===f);
+  const confTag=g.conf?`<span class="tag ${g.conf==='high'?'green':g.conf==='medium'?'blue':'orange'}">${g.conf.toUpperCase()}-CONF ARV</span>`:'';
+  const sig=ms?`<div class="note ${ms.level==='rejection'?'red':'amber'}">${ico('down')} <b>${ms.level==='rejection'?'Market rejection':'Stale listing'}:</b> ${esc(ms.text)}${ms.level==='rejection'?'. The market keeps refusing this house at these prices. A big ARV spread doesn’t help if buyers won’t pay, so check condition and location before trusting the resale. It’s also strong leverage for a low offer.':'. The seller is likely getting flexible, which is good leverage for a lower number.'}</div>`:'';
+  const sup=g.sup;const keyAdj=g.used.filter(r=>r.adj.length).sort((a,b)=>b.match-a.match).slice(0,3);
+  const head=`<div class="card-head"><span class="ci blue">${ico('layers')}</span><div><h2>Comps and ARV</h2><p>Appraiser-style grid. ${n} cites these when an agent claims a higher value</p></div><div class="ch-r"><button class="btn sm" data-act="comp-add">${ico('plus')}Add comp</button><button class="btn sm" data-act="comps-paste-toggle">${ico('spark')}Paste comps</button><label class="btn sm" for="comps-csv" style="cursor:pointer">${ico('upload')}Import CSV</label><input type="file" id="comps-csv" data-comps-csv="${d.id}" accept=".csv,text/csv" hidden></div></div>`;
+  const paste=state.compsPaste?`<textarea class="input" id="comps-text" data-draft rows="5" placeholder="Paste sold listings from Zillow, Redfin or a CMA, or paste a Redfin CSV download">${esc(state.drafts['comps-text']||'')}</textarea><div class="row"><button class="btn primary sm" data-act="comps-parse">Read comps</button>${busyHTML('comps:'+d.id)}</div>`:'';
+  const arvBlock=g.rows.length?`<div class="arvline"><div class="seg" role="group" aria-label="ARV method">${[['smart','Smart ARV'],['median','Median']].map(([v,l])=>`<button data-act="arv-mode" data-v="${v}" aria-pressed="${mode===v}">${l}</button>`).join('')}</div>
+    <span class="lab">ARV</span><b class="arv-big tnum">${money(arv)}</b>${g.medPsf?`<span class="small muted">size-adjusted median ${'$'+Math.round(g.medPsf)}/sqft × ${numFmt(d.sqft)} sqft</span>`:''}${confTag}
+    ${arv?`<button class="btn sm" data-act="use-arv" data-v="${arv}" data-src="comps" ${d.arv===arv?'disabled':''}>${d.arv===arv?'In use':'Use as ARV'}</button>`:''}</div>
+    ${mode==='smart'&&sup?`<div class="note purple"><b>Super comp:</b> ${esc(sup.x.addr||'comp')} at ${money(sup.price)}${sup.psf?` ($${Math.round(sup.psf)}/sqft)`:''}${sup.adj.length?` adjusted to ${money(sup.adjPrice)}`:''}${sup.x.dist!=null?` · ${sup.x.dist} mi`:''} · ${sup.match}% match. The closest, most similar renovated sale; it counts the most.${keyAdj.length?`<br><b>Key adjustments:</b> ${keyAdj.map(r=>`${esc(r.x.addr||'comp')} ${money(r.price)} → ${money(r.adjPrice)} (${r.adj.map(a=>`${a[0].toLowerCase()} ${a[1]>0?'+':'−'}${moneyK(Math.abs(a[1])).replace('−','')}`).join(', ')})`).join(' · ')}`:''}</div>`:''}
+    <div class="row" style="gap:6px">${g.asIsPsf?`<span class="chip">If unrenovated (as-is) ~$${Math.round(g.asIsPsf)}/sqft · ${g.asIsN} sale${g.asIsN>1?'s':''}${d.sqft?` → ${moneyK(g.asIsPsf*d.sqft)}`:''}</span>`:''}${g.fsPsf?`<span class="chip">For-sale band ~$${Math.round(g.fsPsf)}/sqft (n=${g.fsN})</span>`:''}${g.cv!=null?`<span class="chip">Spread ±${Math.round(g.cv*100)}% across ${g.used.length} comps</span>`:''}${d.arv?`<span class="chip">ARV in use ${money(d.arv)}${d.wsClaims&&d.wsClaims.arv?` · wholesaler said ${money(d.wsClaims.arv)}`:''}</span>`:''}</div>`:'';
+  const map=compMapSVG(d,g);
+  const filt=g.rows.length?`<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="Show">${[['all','All'],['sold','Sold'],['for_sale','For sale'],['pending','Pending']].map(([v,l])=>`<button data-act="comp-filter" data-v="${v}" aria-pressed="${f===v}">${l} ${cnt(v)}</button>`).join('')}</div><span class="xs muted">Only checked, renovated, sold comps set the ARV</span></div>`:'';
+  const inp=(i,k,v,w,t)=>`<input class="input ${t==='num'?'tnum':''}" id="cp-${k}${i}" data-fd="comps.${i}.${k}" ${t==='num'?'data-t="num"':''} ${t==='date'?'type="date"':''} value="${esc(v??'')}" style="width:${w}px">`;
+  const table=shown.length?`<div class="tbl-wrap"><table class="tbl comps" style="min-width:1120px"><thead><tr><th>#</th><th class="c">Use</th><th>Comp</th><th>Status</th><th class="r">Price</th><th class="c">Bd / Ba</th><th class="r">Sqft</th><th class="r">$/sqft</th><th class="r">Adjusted</th><th class="r">Miles</th><th>When</th><th class="c">Reno</th><th class="r">Match</th><th></th></tr></thead><tbody>${shown.map(r=>{const x=r.x,i=r.i;const s=COMP_ST[r.st]||COMP_ST.sold;
+    return `<tr style="cursor:default" class="${r===sup?'sup':''}${x.skip?' off':''}"><td><span class="cnum ${r.st}${r.reno?'':' asis'}">${i+1}</span></td><td class="c"><input type="checkbox" id="cp-use${i}" data-fd="comps.${i}.skip" data-t="nbool" ${x.skip?'':'checked'} aria-label="Use this comp"></td>
+    <td><input class="input" id="cp-a${i}" data-fd="comps.${i}.addr" value="${esc(x.addr)}" style="min-width:170px">${r===sup?'<span class="tag purple">Super comp</span>':''}${x.url?` <a class="xs" href="${esc(x.url)}" target="_blank" rel="noopener">listing</a>`:''}</td>
+    <td><select class="input" id="cp-st${i}" data-fd="comps.${i}.status" style="width:104px">${Object.entries(COMP_ST).map(([k,v])=>`<option value="${k}" ${r.st===k?'selected':''}>${v[0]}</option>`).join('')}</select></td>
+    <td class="r">${inp(i,'price',x.price,96,'num')}</td><td class="c" style="white-space:nowrap">${inp(i,'beds',x.beds,44,'num')} ${inp(i,'baths',x.baths,48,'num')}</td><td class="r">${inp(i,'sqft',x.sqft,70,'num')}</td>
+    <td class="r tnum">${r.psf?'$'+Math.round(r.psf):'—'}</td><td class="r tnum" title="${esc(r.adj.map(a=>a[0]+' '+money(a[1])).join(', '))}">${r.adjPrice!=null?money(r.adjPrice):'—'}${r.adj.length?`<div class="xs muted">${r.total>0?'+':'−'}${moneyK(Math.abs(r.total)).replace('−','')}</div>`:''}</td>
+    <td class="r">${inp(i,'dist',x.dist,60,'num')}</td><td>${inp(i,'soldDate',x.soldDate||'',132,'date')}<div class="xs muted">${r.ageMo!=null?(r.ageMo<1?'this month':Math.round(r.ageMo)+' mo ago'):''}</div></td>
+    <td class="c"><input type="checkbox" id="cp-r${i}" data-fd="comps.${i}.reno" data-t="bool" ${x.reno===false?'':'checked'} aria-label="Renovated"></td>
+    <td class="r tnum"><b>${r.match}%</b>${r.use&&r.share?`<div class="xs muted">${pct(r.share,0)} weight</div>`:''}</td><td><button class="btn ghost sm" data-act="comp-del" data-i="${i}" aria-label="Remove comp">${ico('close')}</button></td></tr>`}).join('')}</tbody></table></div>`:g.rows.length?`<p class="small muted">No ${f.replace('_',' ')} comps.</p>`:`<p class="small muted">No comps yet. Add renovated houses that sold nearby so ${n} can defend your ARV.</p>`;
+  const how=`<details><summary>How to pull comps from Redfin in 1 minute</summary><ol class="steps" style="margin-top:8px"><li>On redfin.com, search the subject’s neighborhood and switch the filter to <b>Sold</b>, last 6 months. Add For sale too if you want the competition.</li><li>Scroll under the list and click <b>Download All</b>. You get a CSV file.</li><li>Click <b>Import CSV</b> above. OfferDesk works out distances, flags as-is sales, and picks the comps that count.</li></ol></details>`;
+  return `<section class="card" id="comps">${head}${paste}${sig}${arvBlock}${map}${filt}${table}${how}</section>`;
+}
+/* a small map drawn from the comps' coordinates, centered on the subject */
+function compMapSVG(d,g){
+  const pts=g.rows.filter(r=>r.x.lat&&r.x.lng);if(!pts.length)return '';
+  let lat0=d.lat,lng0=d.lng,approx=false;
+  if(!(lat0&&lng0)){lat0=median(pts.map(r=>r.x.lat));lng0=median(pts.map(r=>r.x.lng));approx=true}
+  const k=Math.cos(lat0*Math.PI/180);const mi=r=>({x:(r.x.lng-lng0)*69.17*k,y:(r.x.lat-lat0)*69.17});
+  const P=pts.map(r=>Object.assign({r},mi(r)));const core=P.filter(p=>!p.r.x.skip);const maxR=Math.max(.3,...(core.length?core:P).map(p=>Math.hypot(p.x,p.y)))*1.1;
+  for(const p of P){const h=Math.hypot(p.x,p.y);p.far=h>maxR;if(p.far){p.miles=h;p.x=p.x/h*maxR;p.y=p.y/h*maxR}}
+  const W=560,H=340,cx=W/2,cy=H/2,sc=(H/2-18)/maxR;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" class="cmap" role="img" aria-label="Map of comps around the subject">`;
+  for(const ring of [.25,.5,1,2,3,5])if(ring<=maxR&&ring*sc>=26)svg+=`<circle cx="${cx}" cy="${cy}" r="${(ring*sc).toFixed(1)}" class="cm-ring"/><text x="${cx+ring*sc*.71+3}" y="${cy-ring*sc*.71-3}" class="cm-lab">${ring} mi</text>`;
+  svg+=`<text x="${W-14}" y="22" class="cm-lab" text-anchor="end">N ↑</text>`;
+  for(const p of P.sort((a,b)=>a.r.match-b.r.match)){const r=p.r;const x=cx+p.x*sc,y=cy-p.y*sc;const cls=r.st!=='sold'?r.st:r.reno?'sold':'asis';
+    svg+=`<g class="cm-pt ${cls}${r.x.skip?' off':''}${r===g.sup?' sup':''}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r===g.sup?11:9}"/><text x="${x.toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="middle">${r.i+1}</text>${p.far?`<text class="cm-far" x="${(x+(p.x>=0?12:-12)).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="${p.x>=0?'start':'end'}">${p.miles.toFixed(1)} mi →</text>`:''}<title>${esc((r.x.addr||'comp')+' · '+money(r.price)+(r.psf?' · $'+Math.round(r.psf)+'/sqft':''))}</title></g>`}
+  svg+=`<path class="cm-star" d="${starPath(cx,cy,12,5)}"/></svg>`;
+  return `<div class="cmap-wrap">${svg}<div class="cm-legend"><span><i class="star"></i>Subject${approx?' (approximate)':''}</span><span><i class="sold"></i>Sold, renovated</span><span><i class="asis"></i>Sold as-is</span><span><i class="for_sale"></i>For sale</span><span><i class="pending"></i>Pending</span><span><i class="supx"></i>Super comp</span>${approx?`<button class="linkbtn" data-act="geo-subject">Locate the subject</button>`:''}</div></div>`;
+}
+function starPath(cx,cy,R,r){let p='';for(let i=0;i<10;i++){const a=Math.PI/5*i-Math.PI/2,rad=i%2?R*.45:R;p+=(i?'L':'M')+(cx+Math.cos(a)*rad).toFixed(1)+','+(cy+Math.sin(a)*rad).toFixed(1)}return p+'Z'}
+
+/* ---------- CSV import (Redfin "Download All", PropStream and similar) ---------- */
+function parseCSV(t){const rows=[];let row=[],f='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}else if(ch==='"')q=true;else if(ch===','){row.push(f);f=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.some(x=>x.trim()))rows.push(row);row=[]}else f+=ch}row.push(f);if(row.some(x=>x.trim()))rows.push(row);return rows}
+const looksCSV=t=>{const l=String(t||'').split(/\r?\n/)[0]||'';return (l.match(/,/g)||[]).length>=4&&/address/i.test(l)};
+function csvRecords(t){const rows=parseCSV(String(t).replace(/^﻿/,''));if(rows.length<2)return [];const h=rows[0].map(x=>x.trim().toLowerCase());return rows.slice(1).map(r=>Object.fromEntries(h.map((k,i)=>[k,(r[i]||'').trim()])))}
+function col(o,keys){for(const k of keys){if(o[k]!=null&&o[k]!=='')return o[k]}for(const k of keys){const kk=Object.keys(o).find(x=>x.startsWith(k+' ')||x.startsWith(k+'('));if(kk&&o[kk]!=='')return o[kk]}return ''}
+const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+function csvDate(s){s=String(s||'').trim();if(!s)return '';let m=s.match(/^([A-Za-z]+)[-\s](\d{1,2}),?[-\s](\d{4})$/);if(m){const mo=MONTHS.findIndex(x=>x.startsWith(m[1].toLowerCase().slice(0,3)));if(mo>=0)return `${m[3]}-${String(mo+1).padStart(2,'0')}-${m[2].padStart(2,'0')}`}
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m){const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];const t=new Date(s);return isNaN(t)?'':t.toISOString().slice(0,10)}
+function csvStatus(o){const s=(col(o,['status','listing status','sale type'])||'').toLowerCase();if(/pend|contingent|under contract/.test(s))return 'pending';if(/sold|past sale|closed/.test(s))return 'sold';if(/active|for sale|coming|mls listing|new/.test(s))return 'for_sale';return col(o,['sold date','sale date','last sale date','close date','closing date'])?'sold':'for_sale'}
+function haversine(a,b,c,d2){const R=3958.8,t=x=>x*Math.PI/180;const dl=t(c-a),dg=t(d2-b);const h=Math.sin(dl/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const normAddr=s=>String(s||'').toLowerCase().replace(/\(example\)/,'').replace(/[^a-z0-9 ]/g,' ').replace(/\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|place|pl|circle|cir|trail|trl|way)\b/g,'').replace(/\s+/g,' ').trim();
+async function geocodeDeal(d){
+  if(d.lat&&d.lng)return true;const q=[streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(', ');if(!q)return false;
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q='+encodeURIComponent(q),{headers:{Accept:'application/json'}});const j=await r.json();if(j&&j[0]){d.lat=+j[0].lat;d.lng=+j[0].lon;return true}}catch(e){}
+  return false;
+}
+async function importCompsCSV(id,text){
+  const d=state.deals[id];if(!d)return;const recs=csvRecords(text);
+  const subj=normAddr(streetOf(d.address));const got=[];
+  for(const o of recs){
+    const addr=col(o,['address','street address','property address','street','site address']);const price=parseNum(col(o,['price','sold price','sale price','last sale price','close price','list price','listing price']));
+    if(!addr||!price)continue;if(subj&&normAddr(addr)===subj){const la=parseNum(col(o,['latitude','lat'])),lo=parseNum(col(o,['longitude','lng','lon']));if(la&&lo){d.lat=la;d.lng=lo}continue}
+    got.push({addr,price,sqft:parseNum(col(o,['square feet','sqft','sq ft','living area','building sqft','living sqft'])),beds:parseNum(col(o,['beds','bedrooms','bd'])),baths:parseNum(col(o,['baths','bathrooms','total baths','ba'])),
+      year:parseNum(col(o,['year built'])),soldDate:csvDate(col(o,['sold date','sale date','last sale date','close date','closing date'])),status:csvStatus(o),lat:parseNum(col(o,['latitude','lat'])),lng:parseNum(col(o,['longitude','lng','lon'])),url:col(o,['url']),dom:parseNum(col(o,['days on market'])),dist:parseNum(col(o,['distance','miles']))});
+  }
+  if(!got.length){toast('No comps found in that file. It needs at least an address and a price column.',5200);return}
+  if(!(d.lat&&d.lng)&&got.some(x=>x.lat))await geocodeDeal(d);
+  for(const x of got)if(x.dist==null&&d.lat&&x.lat)x.dist=Math.round(haversine(d.lat,d.lng,x.lat,x.lng)*100)/100;
+  const soldPsf=median(got.filter(x=>x.status==='sold'&&x.sqft).map(x=>x.price/x.sqft));
+  for(const x of got){if(x.status==='sold'&&soldPsf&&x.sqft){x.reno=x.price/x.sqft>=soldPsf*.72;x.renoAuto=true}else x.reno=true;
+    const age=x.soldDate?(Date.now()-new Date(x.soldDate).getTime())/(30*DAY):null;x.skip=x.status==='sold'&&((x.dist!=null&&x.dist>1.5)||(age!=null&&age>12))}
+  got.sort((a,b)=>(a.status==='sold'?0:1)-(b.status==='sold'?0:1)||(a.dist??9)-(b.dist??9)||String(b.soldDate).localeCompare(String(a.soldDate)));
+  const have=new Set((d.comps||[]).map(x=>normAddr(x.addr)));const add=got.filter(x=>!have.has(normAddr(x.addr))).slice(0,40);
+  d.comps=(d.comps||[]).concat(add);saveDeal(d);
+  const s=add.filter(x=>x.status==='sold').length;toast(`Imported ${add.length} comp${add.length===1?'':'s'}: ${s} sold, ${add.length-s} for sale or pending${d.lat?'':'. Couldn’t locate the subject, so distances are missing'}.`,5200);
+}
+
+/* ---------- rental analysis ---------- */
+function rentalCard(d,c){
+  const r=rentalCalc(d,c);const R=state.settings.rental;const n=esc(negName());
+  const rc=d.rentComps||[];const used=rc.filter(x=>!x.skip&&x.rent>0);const medRent=median(used.map(x=>x.rent));
+  const f=(id,path,label,val,w,ph)=>`<label class="field" style="width:${w}px"><span>${label}</span><input class="input tnum" id="${id}" data-fd="${path}" data-t="num" value="${val??''}" placeholder="${ph||''}" inputmode="numeric"></label>`;
+  const k=(lab,val,sub,cls)=>`<div class="kpi ${cls||''}"><span class="lab">${lab}</span><span class="val">${val}</span>${sub?`<span class="sub">${sub}</span>`:''}</div>`;
+  const kp=r?`<div class="kpis">${k('Rental ROI',pct(r.gross,1),'Gross rent × 12 ÷ all-in',r.gross>=.12?'green':'')}${k('NOI / year',money(r.noi*12),money(r.noi)+'/mo after expenses')}${k('Cash flow / month',money(r.noi),'All cash, no loan',r.noi>0?'green':'red')}${k('Net yield',pct(r.netYield,1),'NOI ÷ all-in',r.netYield>=.08?'green':'')}</div>
+    <div class="row" style="gap:8px"><span class="chip">Rent to all-in (1% rule) <b>${pct(r.onePct,2)}</b>/mo ${r.onePct>=.01?'<span class="tag green">Beats the 1% rule</span>':'<span class="tag orange">Under 1%</span>'}</span><span class="small muted">${money(r.rent)}/mo vs ${money(r.allIn)} all-in (${money(r.price)} price + ${money(d.rehab||0)} repairs + ${money(r.closing)} closing)</span></div>
+    <p class="xs muted">Expenses: taxes + insurance ${money(r.fixed)}/mo${r.hoa?` · HOA ${money(r.hoa)}`:''} · management ${R.mgmtPct}% = ${money(r.mgmt)} · reserve ${R.maintPct+R.vacancyPct}% (upkeep, capex, vacancy) = ${money(r.reserve)} → ${money(r.opex)}/mo</p>`:`<p class="small muted">Add the market rent (or pick rental comps below, or run ${n}’s inspection) to see the rental numbers.</p>`;
+  const brrrr=r&&r.refi!=null?`<div class="brrrr"><div class="row" style="justify-content:space-between"><b>BRRRR structure</b>${r.infinite?'<span class="tag green">Full BRRRR · infinite return</span>':r.left<=r.allInB*.1&&r.cfRefi>0?'<span class="tag blue">Near-full BRRRR</span>':'<span class="tag orange">Cash stays in the deal</span>'}</div>
+    <div class="formula" style="margin-top:6px"><span>Buy with hard money: ${money(r.price)} + repairs ${money(d.rehab||0)} + closing ${money(r.closing)} + hard-money cost ${money(r.hmCost)} (${R.hmPoints??2} pts + ${R.hmRate??11}% for ${state.settings.buy.holdMonths} mo) = <b>${money(r.allInB)}</b></span>
+    <span>Refinance at ${R.refiLtv}% of ARV ${money(c.A)} = ${money(r.refi)} loan, ${money(r.refiNet)} after ${R.refiCostPct??2}% refi costs</span>
+    <span>${r.left<=0?`<b style="color:var(--t-green)">You pull out ${money(-r.left)} more than you put in</b>`:`Cash left in the deal: <b>${money(r.left)}</b>`} · P&I ${money(r.pay)} at ${R.refiRate}% (PITI ${money(r.piti)}) · cash flow after refi <b style="color:${r.cfRefi>=0?'var(--t-green)':'var(--t-red)'}">${money(r.cfRefi)}/mo</b>${r.coc!=null?` · ${pct(r.coc,1)} cash-on-cash`:''}</span></div></div>`:'';
+  const rows=rc.map((x,i)=>`<tr style="cursor:default" class="${x.skip?'off':''}"><td class="c"><input type="checkbox" id="rc-use${i}" data-fd="rentComps.${i}.skip" data-t="nbool" ${x.skip?'':'checked'} aria-label="Use this rental comp"></td><td><input class="input" id="rc-a${i}" data-fd="rentComps.${i}.addr" value="${esc(x.addr)}" style="min-width:160px"></td><td><input class="input tnum" id="rc-r${i}" data-fd="rentComps.${i}.rent" data-t="num" value="${x.rent??''}" style="width:86px"></td><td class="c" style="white-space:nowrap"><input class="input tnum" id="rc-b${i}" data-fd="rentComps.${i}.beds" data-t="num" value="${x.beds??''}" style="width:44px"> <input class="input tnum" id="rc-ba${i}" data-fd="rentComps.${i}.baths" data-t="num" value="${x.baths??''}" style="width:48px"></td><td><input class="input tnum" id="rc-s${i}" data-fd="rentComps.${i}.sqft" data-t="num" value="${x.sqft??''}" style="width:70px"></td><td class="r tnum">${x.rent&&x.sqft?'$'+(x.rent/x.sqft).toFixed(2):'—'}</td><td><input class="input tnum" id="rc-d${i}" data-fd="rentComps.${i}.dist" data-t="num" value="${x.dist??''}" style="width:60px"></td><td><button class="btn ghost sm" data-act="rc-del" data-i="${i}" aria-label="Remove">${ico('close')}</button></td></tr>`).join('');
+  const comps=`<div><div class="row" style="justify-content:space-between"><b>Rental comps${used.length?`: median <span class="tnum">${money(medRent)}/mo</span> of ${used.length}`:''}</b><div class="row"><button class="btn sm" data-act="rc-add">${ico('plus')}Add rental</button><button class="btn sm" data-act="rc-paste-toggle">${ico('spark')}Paste rentals</button>${medRent?`<button class="btn sm primary" data-act="use-rent" data-v="${Math.round(medRent)}" ${d.rent===Math.round(medRent)?'disabled':''}>${d.rent===Math.round(medRent)?'In use':'Use as rent'}</button>`:''}</div></div>
+    ${state.rcPaste?`<textarea class="input" id="rc-text" data-draft rows="4" placeholder="Paste rental listings or leases nearby (Zillow, Rentometer, the MLS)" style="margin-top:8px">${esc(state.drafts['rc-text']||'')}</textarea><div class="row"><button class="btn primary sm" data-act="rc-parse">Read rentals</button>${busyHTML('rc:'+d.id)}</div>`:''}
+    ${rc.length?`<div class="tbl-wrap" style="margin-top:8px"><table class="tbl" style="min-width:720px"><thead><tr><th class="c">Use</th><th>Rental comp</th><th>Rent</th><th class="c">Bd / Ba</th><th>Sqft</th><th class="r">$/sqft</th><th>Miles</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="small muted" style="margin-top:6px">Rentals that leased nearby in the last 12 months back up the rent a lender will use for the refi.</p>`}</div>`;
+  return `<section class="card" id="rental"><div class="card-head"><span class="ci amber">${ico('wallet')}</span><div><h2>Rental analysis</h2><p>At your offer${lastOurPrice(d)!=null?` (${money(lastOurPrice(d))})`:c.ready?` (opening ${money(c.opening)})`:''}, all cash · hold, BRRRR or sell to a landlord</p></div><div class="ch-r">${r?`<span class="pill ${r.onePct>=.01?'green':'slate'}">${money(r.rent)}/mo</span>`:''}</div></div>
+  <div class="grid-fields">${f('r-rent','rent','Market rent / mo',d.rent,150,d.rentEst?Math.round(d.rentEst):'')}${f('r-tax','taxYr','Property tax / yr',d.taxYr,150,'')}${f('r-hoa','hoa','HOA / mo',d.hoa,120,'0')}${f('r-ins','insMo','Insurance / mo',d.insMo,140,'')}</div>
+  ${kp}${brrrr}${comps}</section>`;
+}

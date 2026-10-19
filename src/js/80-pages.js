@@ -130,7 +130,14 @@ function setMaya(){
   return `<div class="split"><section class="card"><div class="card-head"><span class="ci slate">${ico('user')}</span><div><h2>You</h2><p>${n} signs with these</p></div></div><div class="grid-fields">${fset('profile.name','Your name','text')}${fset('profile.company','Company (optional)','text')}${fset('profile.phone','US phone','text','inputmode="tel" placeholder="+1 214 555 0100"')}${fset('profile.email','Email for offers','text','inputmode="email"')}</div></section>
   <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}</h2><p>Your negotiator’s name and manners</p></div></div><div class="grid-fields">${fset('neg.name','Name','text')}<label class="field"><span>Tone</span><select class="input" id="st-neg-tone" data-fs="neg.tone" data-t="text">${Object.keys(TONES).map(k=>`<option value="${k}" ${S.neg.tone===k?'selected':''}>${k[0].toUpperCase()+k.slice(1)}</option>`).join('')}</select></label>${fset('neg.senderName','Email sender name','text','placeholder="'+esc(senderName())+'"')}</div>
     <label class="check"><input type="checkbox" id="st-neg-disclose" data-fs="neg.disclose" data-t="bool" ${S.neg.disclose?'checked':''}><span>If someone asks, ${n} says she’s an AI assistant working for you</span></label>
-    <label class="check"><input type="checkbox" id="st-neg-opt" data-fs="neg.optOutLine" data-t="bool" ${S.neg.optOutLine?'checked':''}><span>End emails with a one-line “reply remove” opt-out</span></label></section></div>`;
+    <label class="check"><input type="checkbox" id="st-neg-opt" data-fs="neg.optOutLine" data-t="bool" ${S.neg.optOutLine?'checked':''}><span>End emails with a one-line “reply remove” opt-out</span></label></section></div>
+  <section class="card" id="pings"><div class="card-head"><span class="ci orange">${ico('bell')}</span><div><h2>${n} pings you</h2><p>So you hear about replies and decisions without keeping the tab in view</p></div></div>
+    <div class="grid-fields">${fset('notify.email','Email me at','text','inputmode="email" placeholder="your personal email"')}</div>
+    <label class="check"><input type="checkbox" id="st-n-needs" data-fs="notify.onNeeds" data-t="bool" ${S.notify.onNeeds?'checked':''}><span>When ${n} needs your call (an agent came back with a number near your max, an accept, a walk-away)</span></label>
+    <label class="check"><input type="checkbox" id="st-n-reply" data-fs="notify.onReply" data-t="bool" ${S.notify.onReply?'checked':''}><span>When an agent replies on a deal ${n} isn’t handling on autopilot</span></label>
+    <label class="check"><input type="checkbox" id="st-n-sms" data-fs="notify.sms" data-t="bool" ${S.notify.sms?'checked':''} ${smsOn()?'':'disabled'}><span>Also text me at ${esc(S.profile.phone||'your US phone')} ${smsOn()?'':'(needs Twilio)'}</span></label>
+    <label class="check"><input type="checkbox" id="st-n-cc" data-fs="notify.ccMe" data-t="bool" ${S.notify.ccMe?'checked':''}><span>CC me on every email ${n} sends, so agents can reply to you too</span></label>
+    <p class="small muted">Pings go out from ${gmailOn()?esc(sendEmail()):'your connected Gmail'} while OfferDesk is open on one of your devices. Each one links straight to the deal.</p></section>`;
 }
 function setWs(){
   const ws=state.settings.wholesalers||[];
@@ -165,6 +172,8 @@ function modalHTML(){
     <div class="row"><button class="btn primary" data-act="drop-save">Save${ourCount(d)?' and draft a follow-up':''}</button><button class="btn ghost" data-act="modal-close">Cancel</button></div>`;
   }else if(m.type==='confirm'){
     body=`<h2>${esc(m.title)}</h2><p>${esc(m.text)}</p><div class="row"><button class="btn" data-act="confirm-yes" style="background:var(--s-red);border-color:var(--s-red);color:#fff">${esc(m.yes)}</button>${m.yes2?`<button class="btn" data-act="confirm-yes2">${esc(m.yes2)}</button>`:''}<button class="btn ghost" data-act="modal-close">Cancel</button></div>`;
+  }else if(m.type==='offer'){
+    return `<div class="modal-scrim" data-act="modal-close"></div><div class="modal-box wide" role="dialog" aria-modal="true" aria-label="Preview offer">${offerModalHTML(m)}</div>`;
   }else if(m.type==='link'){
     body=linkModalHTML();
   }else if(m.type==='ask'){

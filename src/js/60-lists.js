@@ -4,7 +4,7 @@ const SPECIAL=[
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(d.zipAvgDom||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
-  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv]];
+  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}]];
 function listFilter(){
   const f=state.lf;const q=f.q.trim().toLowerCase();
   return Object.values(state.deals).filter(d=>{
@@ -63,13 +63,14 @@ function tableHTML(list){
     <td class="r ask tnum">${money(curList(d))}${priceDropped(d)?`<span class="drop-ic" title="Price dropped from ${money(origList(d))}">${ico('down')}</span>`:''}</td>
     <td class="r offer tnum">${money(lastOurPrice(d)??(d.draft&&d.draft.price))}</td>
     <td class="r ceil tnum">${c.ready?money(c.mao):'—'}</td>
+    <td class="c">${(()=>{const S=c.ready?dealScore(d):null;return S?`<span class="scorepill ${S.grade[1]}" title="${esc(S.grade[0]+' · best exit '+STRAT_LABEL[S.best])}">${S.score}</span>`:'<span class="muted">—</span>'})()}</td>
     <td class="c tnum">${d.beds??'—'}</td><td class="c tnum">${d.baths??'—'}</td><td class="r tnum">${numFmt(d.sqft)}</td>
     <td>${sent?`<b style="font-weight:650">${fmtDate(sent)}</b><div class="xs muted">${ago(sent)}</div>`:'<span class="muted">—</span>'}</td>
     <td><span class="pill ${os[1]}">${os[0]}</span></td>
     <td class="c">${sn?`<span class="sent-ic" style="background:var(--b-${sn[1]});color:var(--t-${sn[1]})" title="${sn[0]}">${ico('chat')}</span>`:'<span class="muted">—</span>'}</td>
     <td><span class="pill ${ms[1]}">${ms[0]}</span></td>
     <td class="c"><button class="btn ghost sm" data-act="open" data-id="${d.id}" aria-label="Open">${ico('eye')}</button></td></tr>`}).join('');
-  return pager+`<div class="tbl-wrap" id="tbl-wrap" data-keep-scroll><table class="tbl" style="min-width:1240px"><thead><tr><th>AI Autopilot</th><th>Property</th><th>Agent / wholesaler</th><th class="r">Asking</th><th class="r">Offered</th><th class="r">Ceiling</th><th class="c">Beds</th><th class="c">Baths</th><th class="r">Sqft</th><th>Offer sent</th><th>Offer status</th><th class="c">Sentiment</th><th>MLS status</th><th class="c">View</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return pager+`<div class="tbl-wrap" id="tbl-wrap" data-keep-scroll><table class="tbl" style="min-width:1300px"><thead><tr><th>AI Autopilot</th><th>Property</th><th>Agent / wholesaler</th><th class="r">Asking</th><th class="r">Offered</th><th class="r">Ceiling</th><th class="c">Score</th><th class="c">Beds</th><th class="c">Baths</th><th class="r">Sqft</th><th>Offer sent</th><th>Offer status</th><th class="c">Sentiment</th><th>MLS status</th><th class="c">View</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function kanbanHTML(list){
   return `<div class="board" id="board" data-keep-scroll>${STAGES.map(s=>{const items=list.filter(d=>(d.stage||'new')===s.id);

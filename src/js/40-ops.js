@@ -74,7 +74,7 @@ async function importEmail(id,quiet){
 }
 
 /* ---------- Maya's drafts ---------- */
-function setDraft(id,draft){const d=state.deals[id];if(!d)return;d.draft=Object.assign({at:nowISO(),flags:[]},draft);d.needsYou=null;saveDeal(d)}
+function setDraft(id,draft){const d=state.deals[id];if(!d)return;d.draft=Object.assign({at:nowISO(),flags:[],letterPrice:draft.price??null},draft);d.needsYou=null;saveDeal(d)}
 async function aiOpening(id,quiet){
   const d=state.deals[id];const c=calc(d);
   const res=await runAI('deal:'+id,`${negName()} is writing the opening offer…`,(ai,signal)=>ai.json(promptOpening(d,c),{signal}),quiet);
@@ -102,7 +102,7 @@ async function aiReply(id,instruction,quiet,label){
   if(SENTIMENT[res.sentiment])dd.sentiment=res.sentiment;
   if(dd.stage==='new'||dd.stage==='sent')dd.stage='negotiating';
   dd.lastAction=action;
-  dd.draft={kind:'reply',action,price,theirCounter:theirs,signals:Array.isArray(res.sellerSignals)?res.sellerSignals.slice(0,6).map(String):[],summary:String(res.summary||''),why:String(res.why||''),terms:String(res.terms||''),email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),flags,at:nowISO(),instruction:instruction||null};
+  dd.draft={kind:'reply',action,price,theirCounter:theirs,signals:Array.isArray(res.sellerSignals)?res.sellerSignals.slice(0,6).map(String):[],summary:String(res.summary||''),why:String(res.why||''),terms:String(res.terms||''),email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),flags,at:nowISO(),instruction:instruction||null,letterPrice:price};
   dd.needsYou=null;saveDeal(dd);
 }
 async function aiFollow(id,priceDrop,quiet){
@@ -123,7 +123,7 @@ async function aiChat(id,msg){
   if(dr&&(dr.email||dr.sms)){
     let price=parseNum(dr.price);const act=ACTION_LABEL[dr.action]?dr.action:'custom';const cap=act==='creative'?c.sfCap:c.mao;const flags=[];
     if(price!=null&&price>cap){flags.push({cls:'red',text:`Capped at ${money(cap)}: ${negName()} suggested ${money(price)}.`});price=cap}
-    dd.draft={kind:'chat',action:act,price,email:{subject:String(dr.email&&dr.email.subject||''),body:String(dr.email&&dr.email.body||'')},sms:String(dr.sms||''),why:'Drafted from your chat instruction.',flags,at:nowISO()};
+    dd.draft={kind:'chat',action:act,price,letterPrice:price,email:{subject:String(dr.email&&dr.email.subject||''),body:String(dr.email&&dr.email.body||'')},sms:String(dr.sms||''),why:'Drafted from your chat instruction.',flags,at:nowISO()};
     dd.needsYou=null;
   }
   saveDeal(dd);

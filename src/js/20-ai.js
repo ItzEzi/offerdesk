@@ -73,7 +73,8 @@ function dealFacts(d,c){
     a&&a.summary?`Photo inspection summary: ${a.summary} Level: ${a.level||'?'}.`:'',
     d.description?`Listing description: ${d.description.slice(0,1500)}`:'',
     d.instructions?`Investor's standing instructions for this deal (follow them): ${d.instructions.slice(0,800)}`:'',
-    d.notes?`Investor's private notes (context only, never quote): ${d.notes.slice(0,1200)}`:''
+    d.notes?`Investor's private notes (context only, never quote): ${d.notes.slice(0,1200)}`:'',
+    (()=>{const ms=marketSignal(d);return ms?`Negotiation leverage: ${ms.text}. ${ms.level==='rejection'?'The market has been refusing this house at these prices; buyers are not paying the ask.':'The listing is stale; the seller is likely getting flexible.'} You may point to the time on market and the price history, politely.`:''})()
   ].filter(Boolean).join('\n');
 }
 function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)return 'No comps entered.';return cs.slice(0,6).map(x=>`- ${x.addr||'comp'}: sold ${money(x.price)}${x.sqft?`, ${x.sqft} sqft ($${Math.round(x.price/x.sqft)}/sqft)`:''}${x.dist!=null?`, ${x.dist} mi away`:''}${x.soldDate?`, sold ${x.soldDate}`:''}${x.reno===false?', not renovated':', renovated'}`).join('\n')}
@@ -133,6 +134,7 @@ Choose one action:
 - "ask_owner": they are close but above our ceiling, or something unusual came up; draft a short holding reply and tell the investor what decision is needed.
 - "walk": far apart after several rounds; step back politely and leave the door open.
 - "stop": they asked not to be contacted; draft only a one-line acknowledgment.
+When you counter or hold, walk the math in one or two sentences so the number reads as reasoned: our ARV, the repairs, holding, closing and resale costs, and the margin an investor needs, arriving at our number. Never reveal the ceiling.
 If they claim a higher value, defend our ARV with the comps above. Also judge their sentiment.
 
 ${signRules()}
@@ -212,7 +214,15 @@ Listing:
 """${t.slice(0,14000)}"""`;
 const P_COMPS=(t,d)=>`These are sold comparable sales copied for the subject property at ${streetOf(d.address)||'unknown'} (${d.sqft||'?'} sqft). Extract each sold comp. Use null for unknowns. dist is miles from the subject if given.
 
-Reply with only JSON: {"comps":[{"addr":"","price":number,"sqft":number|null,"beds":number|null,"baths":number|null,"dist":number|null,"soldDate":"YYYY-MM-DD or null","reno":true|false|null}]}
+Include homes for sale or pending too if listed, with their status. reno is false when the text says the home sold as-is, needs work, or is a fixer.
+
+Reply with only JSON: {"comps":[{"addr":"","price":number,"sqft":number|null,"beds":number|null,"baths":number|null,"dist":number|null,"soldDate":"YYYY-MM-DD or null","status":"sold|for_sale|pending","reno":true|false|null}]}
+
+Text:
+"""${t.slice(0,12000)}"""`;
+const P_RENTCOMPS=(t,d)=>`These are rental listings or recent leases near the subject property at ${streetOf(d.address)||'unknown'} (${d.beds??'?'} bed, ${d.sqft||'?'} sqft). Extract each rental. Use null for unknowns. dist is miles from the subject if given.
+
+Reply with only JSON: {"rentals":[{"addr":"","rent":number,"beds":number|null,"baths":number|null,"sqft":number|null,"dist":number|null}]}
 
 Text:
 """${t.slice(0,12000)}"""`;

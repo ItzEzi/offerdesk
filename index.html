@@ -466,6 +466,57 @@ details.card:not([open]){padding-block:13px}
 .qr svg{display:block;width:100%;height:auto}
 @media (max-width:560px){.qr-wrap{grid-template-columns:minmax(0,1fr)}.qr{justify-self:center;width:180px}}
 
+/* deal score */
+.tag.score{font-variant-numeric:tabular-nums}
+.scorepill{display:inline-grid;place-items:center;min-width:34px;height:24px;padding:0 6px;border-radius:8px;font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--b-slate);color:var(--t-slate)}
+.scorepill.green{background:var(--b-green);color:var(--t-green)} .scorepill.blue{background:var(--b-blue);color:var(--t-blue)} .scorepill.amber{background:var(--b-amber);color:var(--t-amber)} .scorepill.red{background:var(--b-red);color:var(--t-red)}
+.score-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
+.ring{width:84px;height:84px}.ring-bg{fill:none;stroke:var(--sunk);stroke-width:9}.ring-fg{fill:none;stroke-width:9;stroke-linecap:round;stroke:var(--s-gray)}
+.ring.green .ring-fg{stroke:var(--s-green)} .ring.blue .ring-fg{stroke:var(--s-blue)} .ring.amber .ring-fg{stroke:var(--s-amber)} .ring.red .ring-fg{stroke:var(--s-red)}
+.ring text{font-size:24px;font-weight:800;fill:var(--ink);font-family:inherit}
+.srows{display:grid;gap:8px}
+.srow{display:grid;grid-template-columns:150px minmax(60px,1fr) 34px minmax(0,1.6fr);gap:10px;align-items:center;padding:6px 8px;border-radius:10px}
+.srow.best{background:var(--b-green)}
+.srow .sl{font-weight:700;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sbar{height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}.sbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--s-blue),var(--s-green))}
+.mods{display:flex;flex-wrap:wrap;gap:6px}
+@media (max-width:640px){.srow{grid-template-columns:minmax(0,1fr) 34px}.srow .sbar{grid-column:1/-1;grid-row:2}.srow .small{grid-column:1/-1}}
+/* comps */
+.arvline{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.arvline .lab{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.arv-big{font-size:26px;font-weight:800;color:var(--t-green)}
+.chip{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:4px 9px;font-size:12px;color:var(--ink-2)}
+.tbl.comps tr.sup td{background:var(--b-purple)} .tbl tr.off td{opacity:.55}
+.cnum{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:800;color:#fff;background:var(--s-green)}
+.cnum.asis{background:var(--s-gray)} .cnum.for_sale{background:var(--s-blue)} .cnum.pending{background:var(--s-amber)}
+.cmap-wrap{border:1px solid var(--line);border-radius:12px;background:var(--sunk);padding:8px;display:grid;gap:6px}
+.cmap{width:100%;height:auto;max-height:320px;display:block}
+.cm-ring{fill:none;stroke:var(--line-strong);stroke-dasharray:3 4}.cm-lab{font-size:10.5px;fill:var(--muted);font-family:inherit}
+.cm-pt circle{fill:var(--s-green);stroke:var(--surface);stroke-width:2}.cm-pt text{font-size:9.5px;font-weight:800;fill:#fff;font-family:inherit;pointer-events:none}
+.cm-pt.asis circle{fill:var(--s-gray)} .cm-pt.for_sale circle{fill:var(--s-blue)} .cm-pt.pending circle{fill:var(--s-amber)} .cm-pt.off{opacity:.4} .cm-pt.sup circle{stroke:var(--s-purple);stroke-width:3.5}
+.cm-star{fill:#F5B301;stroke:var(--ink);stroke-width:1}
+.cm-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--muted);padding:0 4px}
+.cm-legend span{display:inline-flex;align-items:center;gap:5px}.cm-legend i{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--s-green)}
+.cm-legend i.asis{background:var(--s-gray)} .cm-legend i.for_sale{background:var(--s-blue)} .cm-legend i.pending{background:var(--s-amber)} .cm-legend i.star{background:#F5B301;border-radius:2px;transform:rotate(45deg)} .cm-legend i.supx{background:none;border:3px solid var(--s-purple)}
+.bchip.warn{background:rgba(220,38,38,.85);color:#fff;display:inline-flex;align-items:center;gap:5px}
+/* rental */
+.brrrr{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--sunk)}
+/* offer preview */
+.modal-box.wide{width:min(1080px,calc(100% - 32px))}
+.ogrid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.25fr);gap:20px}
+.ocol{display:grid;gap:10px;align-content:start;min-width:0}
+.olab{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.otiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.otile{border:1px solid var(--line);border-radius:10px;padding:9px 11px;display:grid;gap:2px;background:var(--surface)}
+.otile .lab{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.otile b{font-size:17px}
+.otile.green{background:var(--b-green)} .otile.green b{color:var(--t-green)} .otile.orange{background:var(--b-orange)} .otile.orange b{color:var(--t-orange)} .otile.blue{background:var(--b-blue)} .otile.blue b{color:var(--t-blue)}
+.oagent{display:grid;gap:2px;border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+.input.big{font-size:24px;font-weight:800;padding:10px 12px;color:var(--t-green)} .input.bad{border-color:var(--s-red);color:var(--t-red)}
+.input.letter{font-size:13.5px;line-height:1.55;min-height:220px}
+.ofoot{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:12px}
+@media (max-width:860px){.ogrid{grid-template-columns:minmax(0,1fr)}}
+.cm-pt text.cm-far{fill:var(--muted);font-weight:700}
+
 </style>
 </head>
 <body>
@@ -545,6 +596,7 @@ function search_(query, max) {
 
 function send_(req) {
   var opts = { name: req.name || '' };
+  if (req.cc) opts.cc = String(req.cc);
   var body = String(req.body || '');
   if (!body) return { ok: false, error: 'empty_message' };
   if (req.threadId) {
@@ -790,7 +842,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261019-1523';
+const APP_V='20261019-1549';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -808,7 +860,8 @@ const DEFAULTS={
   neg:{name:'Maya',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
   auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
-  rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5},
+  rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
+  notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}
@@ -1065,17 +1118,51 @@ function verdict(d,c){
   if(L<=c.mao)return {cls:'green',text:'Works at ask'};
   const gap=(L-c.mao)/L;return {cls:gap<=.12?'amber':'red',text:pct(gap,0)+' over ceiling'};
 }
-function weightedArv(d){
-  const S=d.sqft;const rows=(d.comps||[]).filter(x=>x.price>0);if(!rows.length)return null;
-  let tw=0,tv=0;const parts=[];
-  for(const x of rows){
-    const val=S&&x.sqft?x.price/x.sqft*S:x.price;
-    const wd=1/(1+(x.dist??0.5)/0.35);
-    const age=x.soldDate?Math.max(0,(Date.now()-new Date(x.soldDate).getTime())/(30*DAY)):6;
-    const wa=1/(1+age/6);const ws=S&&x.sqft?1/(1+Math.abs(x.sqft-S)/S*3):0.7;const wr=x.reno===false?0.3:1;
-    const w=wd*wa*ws*wr;tw+=w;tv+=w*val;parts.push({w,val});
-  }
-  return {arv:floor500(tv/tw),parts:parts.map(p=>({...p,share:p.w/tw}))};
+function weightedArv(d){const g=compGrid(d);const arv=(d.arvMode==='median'?g.median:g.smart)||g.smart||g.median;if(!arv)return null;return {arv,parts:g.rows.map(r=>({share:r.share||0})),g}}
+/* ---------- comps: appraiser-style grid ---------- */
+const median=a=>{const s=a.filter(v=>v!=null&&isFinite(v)).sort((p,q)=>p-q);if(!s.length)return null;const k=Math.floor(s.length/2);return s.length%2?s[k]:(s[k-1]+s[k])/2};
+function compGrid(d){
+  const S=d.sqft||null,B=d.beds??null,Ba=d.baths??null;
+  const rows=(d.comps||[]).map((x,i)=>{
+    const st=x.status||'sold';const price=x.price>0?x.price:null;const psf=price&&x.sqft?price/x.sqft:null;
+    const adj=[];let total=0;
+    if(price&&S&&x.sqft&&psf&&x.sqft!==S){const v=Math.round((S-x.sqft)*psf*0.4/100)*100;if(v){adj.push(['Size',v]);total+=v}}
+    if(price&&B!=null&&x.beds!=null&&B!==x.beds){const v=Math.round((B-x.beds)*price*0.03/100)*100;adj.push(['Beds',v]);total+=v}
+    if(price&&Ba!=null&&x.baths!=null&&Ba!==x.baths){const v=Math.round((Ba-x.baths)*price*0.04/100)*100;adj.push(['Baths',v]);total+=v}
+    const adjPrice=price!=null?price+total:null;const net=price?Math.abs(total)/price:null;
+    const ageMo=x.soldDate?Math.max(0,(Date.now()-new Date(x.soldDate).getTime())/(30*DAY)):null;
+    let m=100;
+    m-=x.dist!=null?Math.min(30,x.dist*30):8;
+    if(st==='sold')m-=ageMo!=null?Math.min(25,Math.max(0,ageMo-3)*2.5):8;
+    if(S&&x.sqft)m-=Math.min(20,Math.abs(x.sqft-S)/S*60);
+    if(B!=null&&x.beds!=null)m-=Math.min(10,Math.abs(B-x.beds)*5);
+    if(Ba!=null&&x.baths!=null)m-=Math.min(8,Math.abs(Ba-x.baths)*4);
+    if(net!=null&&net>.15)m-=Math.min(10,(net-.15)*50);
+    m=Math.max(1,Math.round(m));
+    const reno=x.reno!==false;const use=st==='sold'&&reno&&!x.skip&&adjPrice>0;
+    return {i,x,st,price,psf,adj,total,adjPrice,net,match:m,ageMo,reno,use,share:0};
+  });
+  const used=rows.filter(r=>r.use);let smart=null;
+  if(used.length){let tw=0,tv=0;for(const r of used){r.w=Math.pow(r.match/100,2);tw+=r.w;tv+=r.w*r.adjPrice}for(const r of used)r.share=r.w/tw;smart=floor500(tv/tw)}
+  const medPsf=median(used.map(r=>r.psf));const med=medPsf&&S?floor500(medPsf*S):(used.length?floor500(median(used.map(r=>r.price))):null);
+  const sup=used.slice().sort((a,b)=>b.match-a.match)[0]||null;
+  const asIs=rows.filter(r=>r.st==='sold'&&!r.reno&&!r.x.skip&&r.psf);const fs=rows.filter(r=>(r.st==='for_sale'||r.st==='pending')&&r.psf&&!r.x.skip);
+  const vals=used.map(r=>r.adjPrice);let cv=null;
+  if(vals.length>1){const mean=vals.reduce((a,b)=>a+b,0)/vals.length;cv=Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/(vals.length-1))/mean}
+  const close=used.filter(r=>(r.x.dist==null||r.x.dist<=0.75)&&(r.ageMo==null||r.ageMo<=9)).length;
+  const conf=!used.length?null:used.length>=4&&close>=3&&cv!=null&&cv<=.10?'high':used.length>=3&&cv!=null&&cv<=.18?'medium':'low';
+  return {rows,used,smart,median:med,medPsf,sup,asIsPsf:median(asIs.map(r=>r.psf)),asIsN:asIs.length,fsPsf:median(fs.map(r=>r.psf)),fsN:fs.length,cv,conf};
+}
+/* ---------- market signal: has the market been refusing this house? ---------- */
+function marketSignal(d){
+  if(d.source==='wholesaler')return null;
+  const h=d.priceHistory||[];let cuts=0;for(let i=1;i<h.length;i++)if(h[i].price<h[i-1].price)cuts++;
+  const o=origList(d),L=curList(d);const drop=o&&L&&o>L?(o-L)/o:0;const dm=dom(d);const avg=d.zipAvgDom||null;
+  const rejection=(cuts>=2&&drop>=.10&&dm!=null&&dm>=90)||(drop>=.2&&dm!=null&&dm>=60);
+  const stale=!rejection&&((cuts>=1&&dm!=null&&dm>=(avg||60))||(dm!=null&&(avg?dm>=avg*2:dm>=120)));
+  if(!rejection&&!stale)return null;
+  const parts=[];if(cuts)parts.push(`${cuts} price cut${cuts>1?'s':''}`);if(drop>=.01)parts.push(`−${Math.round(drop*100)}% from ${money(o)}`);if(dm!=null)parts.push(`~${dm} days on market${avg?` (ZIP average ${avg})`:''}`);
+  return {level:rejection?'rejection':'stale',cuts,drop,dom:dm,text:parts.join(', ')};
 }
 function amort(P,ratePct,years){const n=years*12;if(!P||!n)return 0;const r=ratePct/100/12;return r===0?P/n:P*r/(1-Math.pow(1+r,-n))}
 function ceilingCheck(text,d,c,cap){
@@ -1102,16 +1189,61 @@ function sfCalc(d,c){
   const ask=curList(d)||null;
   return {v,down,P,T,interest1,principal1,months,years:months!=null?months/12:null,totalSeller,overAsk:ask&&totalSeller!=null?totalSeller-ask:null,overAskPct:ask&&totalSeller!=null?(totalSeller-ask)/ask:null,cf,annual:cf*12,cashIn,coc:cashIn>0?cf*12/cashIn:null,roiDown:down>0?cf*12/down:null};
 }
-function rentalCalc(d,c){
+function rentalCalc(d,c,P){
   const R=state.settings.rental;const rent=d.rent||d.rentEst||null;if(!rent)return null;
-  const price=lastTheirPrice(d)||curList(d)||0;const allIn=price+(d.rehab||0)+price*.03;
-  const opex=R.taxInsMonthly+rent*(R.mgmtPct+R.maintPct+R.vacancyPct)/100;
-  const noi=rent-opex;const cap=allIn>0?noi*12/allIn:null;
-  const refi=c.ready?c.A*R.refiLtv/100:null;const left=refi!=null?allIn-refi:null;
-  const pay=refi?amort(refi,R.refiRate,30):null;const cfRefi=pay!=null?noi-pay:null;
-  return {rent,price,allIn,opex,noi,cap,onePct:allIn>0?rent/allIn:null,refi,left,pay,cfRefi};
+  const price=P!=null?P:(lastOurPrice(d)??(c&&c.ready?c.opening:null)??curList(d)??0);
+  const closing=Math.round(price*.03);const allIn=price+(d.rehab||0)+closing;
+  const taxMo=d.taxYr!=null?d.taxYr/12:null,insMo=d.insMo!=null?d.insMo:null;
+  const fixed=taxMo!=null||insMo!=null?(taxMo||0)+(insMo||0):R.taxInsMonthly;
+  const hoa=d.hoa||0,mgmt=rent*R.mgmtPct/100,reserve=rent*(R.maintPct+R.vacancyPct)/100;
+  const opex=fixed+hoa+mgmt+reserve,noi=rent-opex;
+  const gross=allIn>0?rent*12/allIn:null,netYield=allIn>0?noi*12/allIn:null;
+  /* BRRRR: hard money buys and fixes it, then a 30-year refi pays the hard money off */
+  const months=state.settings.buy.holdMonths||5;const hmLoan=price+(d.rehab||0);
+  const hmCost=Math.round(hmLoan*((R.hmPoints??2)/100+(R.hmRate??11)/100*months/12));
+  const allInB=allIn+hmCost;const refi=c&&c.ready?Math.round(c.A*R.refiLtv/100):null;
+  const refiNet=refi!=null?Math.round(refi*(1-(R.refiCostPct??2)/100)):null;const left=refiNet!=null?allInB-refiNet:null;
+  const pay=refi?amort(refi,R.refiRate,30):null;const cfRefi=pay!=null?noi-pay:null;const piti=pay!=null?pay+fixed:null;
+  const coc=left!=null&&left>0&&cfRefi!=null?cfRefi*12/left:null;
+  return {rent,price,closing,allIn,fixed,hoa,mgmt,reserve,opex,noi,gross,netYield,cap:netYield,onePct:allIn>0?rent/allIn:null,hmCost,allInB,refi,refiNet,left,pay,piti,cfRefi,coc,infinite:left!=null&&left<=0&&cfRefi!=null&&cfRefi>0};
 }
 
+/* ================= deal score (0-100) and best exit ================= */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const scoreMap=(v,t)=>v==null||!isFinite(v)||!(t>0)?0:v>=t?80+Math.min(20,(v/t-1)*40):Math.max(0,v/t*80);
+function stratScores(d,c,P){
+  const s=state.settings.buy;const out={};
+  const f=c.flipAt(P);out.flip={score:Math.round(Math.min(scoreMap(f.roi,c.roi||.2),scoreMap(f.profit,s.minProfit||30000))),profit:f.profit,roi:f.roi};
+  const fee=c.buyerMax-P;out.wholesale={score:Math.round(scoreMap(fee,s.wsFee||10000)),fee};
+  const r=rentalCalc(d,c,P);
+  if(r){out.rental={score:Math.round(scoreMap(r.netYield,.10)),yield:r.netYield,noi:r.noi};
+    let b;if(r.left<=0)b=r.cfRefi>=150?96:r.cfRefi>=0?84:50;else{b=80-(r.left/r.allInB)*200;if(r.cfRefi<0)b-=25;else if(r.cfRefi<100)b-=8}
+    out.brrrr={score:Math.round(clamp(b,0,100)),left:r.left,cf:r.cfRefi,infinite:r.infinite}}
+  return out;
+}
+function scoreMods(d,c){
+  const mods=[];const g=compGrid(d);
+  if(g.conf==='medium')mods.push(['Comps back the ARV with medium confidence',-4]);
+  else if(g.conf==='low')mods.push(['Few or scattered comps behind the ARV',-8]);
+  else if(!g.conf)mods.push(d.arvSource==='wholesaler'?['ARV is only the wholesaler’s claim',-15]:['No comps behind the ARV yet',-10]);
+  const lvl=String((d.analysis&&d.analysis.level)||'').toLowerCase();if(lvl.includes('gut'))mods.push(['Full-gut rehab',-5]);
+  if(d.rehab&&c.A&&d.rehab/c.A>.4)mods.push(['Repairs over 40% of ARV',-5]);
+  const ms=marketSignal(d);if(ms&&ms.level==='rejection')mods.push(['Market rejection: resale risk',-8]);
+  return mods;
+}
+const STRAT_LABEL={flip:'Fix & flip',wholesale:'Wholesale',brrrr:'BRRRR',rental:'Rental (all cash)'};
+function dealScore(d,P0,full){
+  const c=calc(d);if(!c.ready)return null;
+  const L=curList(d);const basis=P0!=null?P0:(lastTheirPrice(d)??L??c.mao);if(basis==null)return null;
+  const mods=scoreMods(d,c);const modSum=mods.reduce((a,m)=>a+m[1],0);
+  const at=P=>{const st=stratScores(d,c,P);const best=Object.entries(st).sort((a,b)=>b[1].score-a[1].score)[0];return {st,best:best[0],score:clamp(Math.round(best[1].score+modSum),0,100)}};
+  const r=at(basis);const grade=r.score>=85?['Bonanza','green']:r.score>=80?['Strong','green']:r.score>=65?['Workable','blue']:r.score>=50?['Thin','amber']:['Pass','red'];
+  const out={score:r.score,best:r.best,strat:r.st,mods,basis,grade};
+  if(full){
+    let lo=0,hi=Math.max(basis,L||0,c.A||0);if(at(lo).score<80)out.at80=null;else{for(let k=0;k<22;k++){const mid=(lo+hi)/2;if(at(mid).score>=80)lo=mid;else hi=mid}out.at80=floor500(lo)}
+  }
+  return out;
+}
 /* ================= lead tags (inbox) ================= */
 function dealTags(d){
   const c=calc(d);const L=curList(d);const t=[];const txt=((d.description||'')+' '+((d.wsClaims&&d.wsClaims.terms)||'')).toLowerCase();
@@ -1214,7 +1346,8 @@ function dealFacts(d,c){
     a&&a.summary?`Photo inspection summary: ${a.summary} Level: ${a.level||'?'}.`:'',
     d.description?`Listing description: ${d.description.slice(0,1500)}`:'',
     d.instructions?`Investor's standing instructions for this deal (follow them): ${d.instructions.slice(0,800)}`:'',
-    d.notes?`Investor's private notes (context only, never quote): ${d.notes.slice(0,1200)}`:''
+    d.notes?`Investor's private notes (context only, never quote): ${d.notes.slice(0,1200)}`:'',
+    (()=>{const ms=marketSignal(d);return ms?`Negotiation leverage: ${ms.text}. ${ms.level==='rejection'?'The market has been refusing this house at these prices; buyers are not paying the ask.':'The listing is stale; the seller is likely getting flexible.'} You may point to the time on market and the price history, politely.`:''})()
   ].filter(Boolean).join('\n');
 }
 function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)return 'No comps entered.';return cs.slice(0,6).map(x=>`- ${x.addr||'comp'}: sold ${money(x.price)}${x.sqft?`, ${x.sqft} sqft ($${Math.round(x.price/x.sqft)}/sqft)`:''}${x.dist!=null?`, ${x.dist} mi away`:''}${x.soldDate?`, sold ${x.soldDate}`:''}${x.reno===false?', not renovated':', renovated'}`).join('\n')}
@@ -1274,6 +1407,7 @@ Choose one action:
 - "ask_owner": they are close but above our ceiling, or something unusual came up; draft a short holding reply and tell the investor what decision is needed.
 - "walk": far apart after several rounds; step back politely and leave the door open.
 - "stop": they asked not to be contacted; draft only a one-line acknowledgment.
+When you counter or hold, walk the math in one or two sentences so the number reads as reasoned: our ARV, the repairs, holding, closing and resale costs, and the margin an investor needs, arriving at our number. Never reveal the ceiling.
 If they claim a higher value, defend our ARV with the comps above. Also judge their sentiment.
 
 ${signRules()}
@@ -1353,7 +1487,15 @@ Listing:
 """${t.slice(0,14000)}"""`;
 const P_COMPS=(t,d)=>`These are sold comparable sales copied for the subject property at ${streetOf(d.address)||'unknown'} (${d.sqft||'?'} sqft). Extract each sold comp. Use null for unknowns. dist is miles from the subject if given.
 
-Reply with only JSON: {"comps":[{"addr":"","price":number,"sqft":number|null,"beds":number|null,"baths":number|null,"dist":number|null,"soldDate":"YYYY-MM-DD or null","reno":true|false|null}]}
+Include homes for sale or pending too if listed, with their status. reno is false when the text says the home sold as-is, needs work, or is a fixer.
+
+Reply with only JSON: {"comps":[{"addr":"","price":number,"sqft":number|null,"beds":number|null,"baths":number|null,"dist":number|null,"soldDate":"YYYY-MM-DD or null","status":"sold|for_sale|pending","reno":true|false|null}]}
+
+Text:
+"""${t.slice(0,12000)}"""`;
+const P_RENTCOMPS=(t,d)=>`These are rental listings or recent leases near the subject property at ${streetOf(d.address)||'unknown'} (${d.beds??'?'} bed, ${d.sqft||'?'} sqft). Extract each rental. Use null for unknowns. dist is miles from the subject if given.
+
+Reply with only JSON: {"rentals":[{"addr":"","rent":number,"beds":number|null,"baths":number|null,"sqft":number|null,"dist":number|null}]}
 
 Text:
 """${t.slice(0,12000)}"""`;
@@ -1498,7 +1640,8 @@ function receive(d,msg){
   d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m')},msg));d.thread.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
   if(['new','sent'].includes(d.stage))d.stage='negotiating';
   if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
-  else logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
+  else{logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
+    if(!(d.autopilot&&state.settings.auto.enabled))pingOwner(d,'reply',`${((d.agent&&d.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} replied by ${msg.channel==='sms'?'text':'email'}${msg.price?` with ${money(msg.price)}`:''}: "${String(msg.text||'').replace(/\s+/g,' ').slice(0,180)}"`,msg.gmailId||msg.at)}
   d.needsYou=null;
 }
 async function syncReplies(acct){
@@ -1568,7 +1711,7 @@ async function sendEmailNow(id,quiet){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return false;const to=((d.agent&&d.agent.email)||'').trim();
   if(!to&&!ownThread(d)){if(!quiet)toast('Add their email in Details first.');return false}
   const key='send:'+id;state.busy[key]={label:'Sending from '+sendEmail()+'…'};render();
-  try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName()});
+  try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName(),cc:ccMe()});
     const dd=state.deals[id];if(r.threadId){dd.gmailThreadId=r.threadId;dd.gmailAccount=sendAcct().id}if(r.messageId)dd.seenMsgIds=(dd.seenMsgIds||[]).concat(r.messageId).slice(-200);
     markSent(id,'email');if(!quiet)toast('Email sent from '+sendEmail());return true}
   catch(e){const m=bridgeErr(e);if(quiet)logActivity(id,'warn',`Email on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
@@ -1584,6 +1727,18 @@ async function sendTextNow(id,quiet){
     markSent(id,'sms');if(!quiet)toast('Text sent');return true}
   catch(e){const m=e&&e.message==='no_phone'?'Add their phone number in Details first.':e&&e.message==='no_text_channel'?'Texting isn’t connected for this deal.':bridgeErr(e);if(quiet)logActivity(id,'warn',`Text on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
   finally{delete state.busy[key];render()}
+}
+
+/* ================= pings to you ================= */
+function ccMe(){const N=state.settings.notify||{};return N.ccMe?(N.email||state.settings.profile.email||'').trim()||undefined:undefined}
+async function pingOwner(d,kind,text,key){
+  const N=state.settings.notify||{};if(kind==='reply'&&!N.onReply)return;if(kind==='needs'&&!N.onNeeds)return;if(d.example)return;
+  const k=kind+':'+(key||'');d.pinged=d.pinged||{};if(d.pinged[k])return;d.pinged[k]=nowISO();
+  const ks=Object.keys(d.pinged);if(ks.length>40)for(const x of ks.slice(0,ks.length-40))delete d.pinged[x];saveDeal(d,true);
+  const to=(N.email||'').trim();const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
+  if(to&&gmailOn()){try{await bridge('send',{to,subject:`OfferDesk · ${where}: ${kind==='needs'?negName()+' needs your call':'reply waiting'}`,body:`${text}\n\nOpen the deal: ${link}\n\n— ${negName()}, OfferDesk`,name:'OfferDesk · '+negName()})}catch(e){logActivity(d.id,'warn','Couldn’t email you about '+where+': '+bridgeErr(e))}}
+  const ph=e164(state.settings.profile.phone);
+  if(N.sms&&smsOn()&&ph){try{await bridge('sms_send',{to:ph,body:`OfferDesk · ${where}: ${text}`.slice(0,300)+' '+link})}catch(e){logActivity(d.id,'warn','Couldn’t text you about '+where+': '+bridgeErr(e))}}
 }
 
 /* ================= autopilot ================= */
@@ -1625,11 +1780,14 @@ async function autopilotRun(manual){
       if(!(canEmail(d)||canText(d)))continue;
       if(d.draft)continue;
       if(!ourCount(d)){if(openings<=0)continue;await aiOpening(id,true)}
-      else if(replyWaiting(d))await aiReply(id,null,true);
+      else if(replyWaiting(d)){
+        if(!d.deepOnReply){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
+        await aiReply(id,null,true)}
       else{const f=followDue(d);if(f&&f.overdue&&state.settings.auto.followUps)await aiFollow(id,false,true);else continue}
       const dd=state.deals[id];if(!dd||!dd.draft)continue;
       const why=draftSafety(dd);const act=dd.draft.action||dd.draft.kind;const price=dd.draft.price;
-      if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);continue}
+      if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);
+        const th=dd.draft.theirCounter;pingOwner(dd,'needs',`${th!=null?`${((dd.agent&&dd.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} came back at ${money(th)}. `:''}${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()}${price!=null?` at ${money(price)}`:''} and is waiting for you: ${dd.needsYou}.`,dd.draft.at);continue}
       if(await autoSend(dd)){acted++;if(act==='opening')openings--;logActivity(id,'sent',`${negName()} sent ${act==='opening'?'the opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} on ${streetOf(dd.address)}${price?' at '+money(price):''}.`)}
     }
     if(manual)toast(acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
@@ -1980,7 +2138,7 @@ async function importEmail(id,quiet){
 }
 
 /* ---------- Maya's drafts ---------- */
-function setDraft(id,draft){const d=state.deals[id];if(!d)return;d.draft=Object.assign({at:nowISO(),flags:[]},draft);d.needsYou=null;saveDeal(d)}
+function setDraft(id,draft){const d=state.deals[id];if(!d)return;d.draft=Object.assign({at:nowISO(),flags:[],letterPrice:draft.price??null},draft);d.needsYou=null;saveDeal(d)}
 async function aiOpening(id,quiet){
   const d=state.deals[id];const c=calc(d);
   const res=await runAI('deal:'+id,`${negName()} is writing the opening offer…`,(ai,signal)=>ai.json(promptOpening(d,c),{signal}),quiet);
@@ -2008,7 +2166,7 @@ async function aiReply(id,instruction,quiet,label){
   if(SENTIMENT[res.sentiment])dd.sentiment=res.sentiment;
   if(dd.stage==='new'||dd.stage==='sent')dd.stage='negotiating';
   dd.lastAction=action;
-  dd.draft={kind:'reply',action,price,theirCounter:theirs,signals:Array.isArray(res.sellerSignals)?res.sellerSignals.slice(0,6).map(String):[],summary:String(res.summary||''),why:String(res.why||''),terms:String(res.terms||''),email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),flags,at:nowISO(),instruction:instruction||null};
+  dd.draft={kind:'reply',action,price,theirCounter:theirs,signals:Array.isArray(res.sellerSignals)?res.sellerSignals.slice(0,6).map(String):[],summary:String(res.summary||''),why:String(res.why||''),terms:String(res.terms||''),email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),flags,at:nowISO(),instruction:instruction||null,letterPrice:price};
   dd.needsYou=null;saveDeal(dd);
 }
 async function aiFollow(id,priceDrop,quiet){
@@ -2029,7 +2187,7 @@ async function aiChat(id,msg){
   if(dr&&(dr.email||dr.sms)){
     let price=parseNum(dr.price);const act=ACTION_LABEL[dr.action]?dr.action:'custom';const cap=act==='creative'?c.sfCap:c.mao;const flags=[];
     if(price!=null&&price>cap){flags.push({cls:'red',text:`Capped at ${money(cap)}: ${negName()} suggested ${money(price)}.`});price=cap}
-    dd.draft={kind:'chat',action:act,price,email:{subject:String(dr.email&&dr.email.subject||''),body:String(dr.email&&dr.email.body||'')},sms:String(dr.sms||''),why:'Drafted from your chat instruction.',flags,at:nowISO()};
+    dd.draft={kind:'chat',action:act,price,letterPrice:price,email:{subject:String(dr.email&&dr.email.subject||''),body:String(dr.email&&dr.email.body||'')},sms:String(dr.sms||''),why:'Drafted from your chat instruction.',flags,at:nowISO()};
     dd.needsYou=null;
   }
   saveDeal(dd);
@@ -2268,7 +2426,7 @@ const SPECIAL=[
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(d.zipAvgDom||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
-  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv]];
+  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}]];
 function listFilter(){
   const f=state.lf;const q=f.q.trim().toLowerCase();
   return Object.values(state.deals).filter(d=>{
@@ -2327,13 +2485,14 @@ function tableHTML(list){
     <td class="r ask tnum">${money(curList(d))}${priceDropped(d)?`<span class="drop-ic" title="Price dropped from ${money(origList(d))}">${ico('down')}</span>`:''}</td>
     <td class="r offer tnum">${money(lastOurPrice(d)??(d.draft&&d.draft.price))}</td>
     <td class="r ceil tnum">${c.ready?money(c.mao):'—'}</td>
+    <td class="c">${(()=>{const S=c.ready?dealScore(d):null;return S?`<span class="scorepill ${S.grade[1]}" title="${esc(S.grade[0]+' · best exit '+STRAT_LABEL[S.best])}">${S.score}</span>`:'<span class="muted">—</span>'})()}</td>
     <td class="c tnum">${d.beds??'—'}</td><td class="c tnum">${d.baths??'—'}</td><td class="r tnum">${numFmt(d.sqft)}</td>
     <td>${sent?`<b style="font-weight:650">${fmtDate(sent)}</b><div class="xs muted">${ago(sent)}</div>`:'<span class="muted">—</span>'}</td>
     <td><span class="pill ${os[1]}">${os[0]}</span></td>
     <td class="c">${sn?`<span class="sent-ic" style="background:var(--b-${sn[1]});color:var(--t-${sn[1]})" title="${sn[0]}">${ico('chat')}</span>`:'<span class="muted">—</span>'}</td>
     <td><span class="pill ${ms[1]}">${ms[0]}</span></td>
     <td class="c"><button class="btn ghost sm" data-act="open" data-id="${d.id}" aria-label="Open">${ico('eye')}</button></td></tr>`}).join('');
-  return pager+`<div class="tbl-wrap" id="tbl-wrap" data-keep-scroll><table class="tbl" style="min-width:1240px"><thead><tr><th>AI Autopilot</th><th>Property</th><th>Agent / wholesaler</th><th class="r">Asking</th><th class="r">Offered</th><th class="r">Ceiling</th><th class="c">Beds</th><th class="c">Baths</th><th class="r">Sqft</th><th>Offer sent</th><th>Offer status</th><th class="c">Sentiment</th><th>MLS status</th><th class="c">View</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return pager+`<div class="tbl-wrap" id="tbl-wrap" data-keep-scroll><table class="tbl" style="min-width:1300px"><thead><tr><th>AI Autopilot</th><th>Property</th><th>Agent / wholesaler</th><th class="r">Asking</th><th class="r">Offered</th><th class="r">Ceiling</th><th class="c">Score</th><th class="c">Beds</th><th class="c">Baths</th><th class="r">Sqft</th><th>Offer sent</th><th>Offer status</th><th class="c">Sentiment</th><th>MLS status</th><th class="c">View</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function kanbanHTML(list){
   return `<div class="board" id="board" data-keep-scroll>${STAGES.map(s=>{const items=list.filter(d=>(d.stage||'new')===s.id);
@@ -2399,15 +2558,15 @@ function viewDeal(){
   const ms=mlsOf(d);const os=offerStatus(d);const L=curList(d);
   const autoLive=d.autopilot&&state.settings.auto.enabled;
   const head=`<div class="deal-head"><div style="min-width:0"><a class="backbtn" href="#listings">${ico('back')}Back to listings</a>
-    <div class="deal-title"><h1>${esc(streetOf(d.address)||'Untitled deal')}</h1>${d.autopilot?`<span class="tag purple">${ico('bolt')}Autopilot ${autoLive?'ON':'set (master switch off)'}</span>`:''}${ins(d).length&&ourCount(d)?'<span class="tag green">Replied</span>':''}${d.example?'<span class="tag ex">Example</span>':''}${d.optedOut?'<span class="tag red">Opted out</span>':''}</div>
+    <div class="deal-title"><h1>${esc(streetOf(d.address)||'Untitled deal')}</h1>${d.autopilot?`<span class="tag purple">${ico('bolt')}Autopilot ${autoLive?'ON':'set (master switch off)'}</span>`:''}${ins(d).length&&ourCount(d)?'<span class="tag green">Replied</span>':''}${d.example?'<span class="tag ex">Example</span>':''}${d.optedOut?'<span class="tag red">Opted out</span>':''}${scoreTag(d)}</div>
     <p class="muted" style="margin-top:4px">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.autopilot?` · ${autoLive?n+' replies automatically within your limits':'Turn on autopilot in Connect for '+n+' to act'}`:''}</p></div>
     <div class="row"><label class="small muted" for="deal-stage" style="font-weight:700">Stage</label><select class="fsel" id="deal-stage" aria-label="Stage">${STAGES.map(s=>`<option value="${s.id}" ${d.stage===s.id?'selected':''}>${s.label}</option>`).join('')}</select>
     <button class="btn" data-act="star" data-id="${d.id}" style="color:${d.starred?'var(--s-amber)':'inherit'}">${d.starred?icoFill('star'):ico('star')}${d.starred?'Starred':'Star'}</button>
-    <button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
+    ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
   const dm=dom(d);
-  const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${d.zipAvgDom?`<span class="bchip">ZIP avg ${d.zipAvgDom} days</span>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
+  const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${d.zipAvgDom?`<span class="bchip">ZIP avg ${d.zipAvgDom} days</span>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
-  const main=[overviewCard(d,c),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
+  const main=[overviewCard(d,c),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
   return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${mayaPanel(d,c)}</aside></div></div>`;
 }
 function overviewCard(d,c){
@@ -2500,13 +2659,6 @@ function eyesCard(d,c){
   ${lines.length?`<div><b>Rehab scope</b><div class="tbl-wrap" style="margin-top:6px"><table class="tbl" style="min-width:520px"><thead><tr><th>Item</th><th>Detail</th><th class="r">Cost</th><th></th></tr></thead><tbody>${lines.map((x,i)=>`<tr style="cursor:default"><td><input class="input" id="rl-i${i}" data-fd="rehabLines.${i}.item" value="${esc(x.item)}"></td><td><input class="input" id="rl-d${i}" data-fd="rehabLines.${i}.detail" value="${esc(x.detail)}"></td><td><input class="input tnum" id="rl-c${i}" data-fd="rehabLines.${i}.cost" data-t="num" value="${x.cost??''}" style="width:104px"></td><td><button class="btn ghost sm" data-act="rehab-del" data-i="${i}" aria-label="Remove line">${ico('close')}</button></td></tr>`).join('')}</tbody></table></div>
   <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-act="rehab-add">${ico('plus')}Add line</button><label class="field" style="width:130px"><span>Contingency %</span><input class="input tnum" id="rl-cont" data-fd="rehabCont" data-t="num" value="${d.rehabCont??10}"></label><span>Total with contingency: <b class="tnum">${money(tot)}</b></span><button class="btn sm" data-act="use-rehab" data-v="${tot}">Use as rehab cost</button></div></div>`:`<button class="btn ghost sm" data-act="rehab-add" style="justify-self:start">${ico('plus')}Build the scope line by line</button>`}</section>`;
 }
-function compsCard(d,c){
-  const comps=d.comps||[];const w=weightedArv(d);const n=esc(negName());
-  return `<section class="card" id="comps"><div class="card-head"><span class="ci blue">${ico('layers')}</span><div><h2>Comps and ARV defense</h2><p>${n} cites these when an agent claims a higher value</p></div><div class="ch-r"><button class="btn sm" data-act="comp-add">${ico('plus')}Add comp</button><button class="btn sm" data-act="comps-paste-toggle">${ico('spark')}Paste comps</button></div></div>
-  ${state.compsPaste?`<textarea class="input" id="comps-text" data-draft rows="5" placeholder="Paste sold listings from Zillow, Redfin or a CMA">${esc(state.drafts['comps-text']||'')}</textarea><div class="row"><button class="btn primary sm" data-act="comps-parse">Read comps</button>${busyHTML('comps:'+d.id)}</div>`:''}
-  ${comps.length?`<div class="tbl-wrap"><table class="tbl" style="min-width:760px"><thead><tr><th>Address</th><th class="r">Sold</th><th class="r">Sq ft</th><th class="r">$/sqft</th><th class="r">Miles</th><th>Sold on</th><th class="c">Renovated</th><th class="r">Weight</th><th></th></tr></thead><tbody>${comps.map((x,i)=>`<tr style="cursor:default"><td><input class="input" id="cp-a${i}" data-fd="comps.${i}.addr" value="${esc(x.addr)}" style="min-width:150px"></td><td><input class="input tnum" id="cp-p${i}" data-fd="comps.${i}.price" data-t="num" value="${x.price??''}" style="width:100px"></td><td><input class="input tnum" id="cp-s${i}" data-fd="comps.${i}.sqft" data-t="num" value="${x.sqft??''}" style="width:74px"></td><td class="r tnum">${x.price&&x.sqft?'$'+Math.round(x.price/x.sqft):'—'}</td><td><input class="input tnum" id="cp-d${i}" data-fd="comps.${i}.dist" data-t="num" value="${x.dist??''}" style="width:62px"></td><td><input class="input" type="date" id="cp-t${i}" data-fd="comps.${i}.soldDate" value="${esc(x.soldDate||'')}"></td><td class="c"><input type="checkbox" id="cp-r${i}" data-fd="comps.${i}.reno" data-t="bool" ${x.reno===false?'':'checked'} aria-label="Renovated"></td><td class="r tnum">${w&&w.parts[i]?pct(w.parts[i].share,0):'—'}</td><td><button class="btn ghost sm" data-act="comp-del" data-i="${i}" aria-label="Remove comp">${ico('close')}</button></td></tr>`).join('')}</tbody></table></div>
-  ${w?`<div class="row"><span>Weighted ARV from these comps: <b class="tnum">${money(w.arv)}</b> <span class="muted">(using ${money(d.arv)}${d.wsClaims&&d.wsClaims.arv?`; wholesaler said ${money(d.wsClaims.arv)}`:''})</span></span><button class="btn sm" data-act="use-arv" data-v="${w.arv}" data-src="comps">Use as ARV</button></div><p class="small muted">Closer, newer, similar-size, renovated sales count more.</p>`:''}`:`<p class="small muted">No comps yet. Add sold, renovated houses nearby so ${n} can defend your ARV.</p>`}</section>`;
-}
 function sfCard(d,c){
   if(!c.ready)return '';const s=sfCalc(d,c);const v=s.v;const n=esc(negName());const healthy=s.cf>=250;
   const sl=(id,label,val,min,max,step,fmt)=>`<div class="sl"><div class="slh"><span>${label}</span><b>${fmt}</b></div><input type="range" id="${id}" data-sf="${id.slice(3)}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
@@ -2522,14 +2674,6 @@ function sfCard(d,c){
   <div class="split"><div class="formula"><b>Numbers behind it</b><span>Down payment: ${money(s.down)}</span><span>Financed: ${money(s.P)}</span><span>Monthly payment: ${money(s.T)}</span><span>Payoff: ${s.years!=null?s.years.toFixed(1)+' years':'—'}</span><span>Cash in: ${money(s.cashIn)} (down + repairs + 2% closing)</span></div>
   <div class="formula"><b>Formulas</b><ul style="margin:0;padding:0"><li>Cash flow = rent − payment − expenses</li><li>Annual cash flow = monthly × 12</li><li>Return on cash = annual cash flow ÷ cash in</li><li>Total to seller = down + payment × months to payoff</li></ul></div></div>
   <p class="small muted">“Save as offer” hands these terms to ${n} for her next creative pitch. Nothing is sent.</p></section>`;
-}
-function rentalCard(d,c){
-  const r=rentalCalc(d,c);const R=state.settings.rental;
-  return `<section class="card" id="rental"><div class="card-head"><span class="ci amber">${ico('wallet')}</span><div><h2>Rental analysis</h2><p>Hold, BRRRR, or sell to a landlord buyer</p></div><div class="ch-r"><label class="field" style="width:150px"><span>Market rent / mo</span><input class="input tnum" id="r-rent" data-fd="rent" data-t="num" value="${d.rent??''}" placeholder="${d.rentEst?Math.round(d.rentEst):''}"></label></div></div>
-  ${r?`<div class="kpis"><div class="kpi"><span class="lab">Net operating income</span><span class="val">${money(r.noi)}<span class="small">/mo</span></span><span class="sub">After ${money(r.opex)} taxes, insurance, management, upkeep, vacancy</span></div>
-  <div class="kpi ${r.onePct>=.01?'green':''}"><span class="lab">1% rule</span><span class="val">${pct(r.onePct,2)}</span><span class="sub">Rent ÷ all-in cost ${money(r.allIn)}</span></div>
-  <div class="kpi"><span class="lab">Cap rate</span><span class="val">${pct(r.cap,1)}</span><span class="sub">NOI × 12 ÷ all-in</span></div>
-  ${r.refi!=null?`<div class="kpi ${r.left<=0?'green':'blue'}"><span class="lab">BRRRR: cash left in deal</span><span class="val">${money(r.left)}</span><span class="sub">Refi at ${R.refiLtv}% of ARV = ${money(r.refi)} · cash flow after refi ${money(r.cfRefi)}/mo</span></div>`:''}</div>`:`<p class="small muted">Add the market rent (or run ${esc(negName())}’s inspection for an estimate) to see the rental numbers.</p>`}</section>`;
 }
 function timelineCard(d,c){
   const t0=d.listedDate||(d.domAtAdd!=null?new Date(new Date(d.created).getTime()-d.domAtAdd*DAY).toISOString():d.created);
@@ -2637,6 +2781,222 @@ function draftHTML(d,c){
     ${guarded?`<button class="btn sm ghost danger" data-act="send-force" style="justify-self:start">I checked it. Send anyway</button>`:''}
     ${busyHTML('send:'+d.id,false)}
     <div class="row" style="border-top:1px solid var(--line);padding-top:10px">${act==='accept'?'<button class="btn green sm" data-act="to-contract">Move to under contract</button>':''}<button class="btn ghost sm" data-act="redraft">${ico('refresh')}Redraft</button><button class="btn ghost sm" data-act="discard-draft">${sent.email||sent.sms?'Done':'Discard'}</button></div></div>`;
+}
+
+/* ================= deal score, comps, rental (deal page cards) ================= */
+function scoreTag(d){const S=dealScore(d);if(!S)return '';return `<span class="tag score ${S.grade[1]}" title="Deal score at ${money(S.basis)}">${S.score} · ${esc(STRAT_LABEL[S.best])}</span>`}
+function scoreRing(score,cls){const r=34,C=2*Math.PI*r,f=Math.max(0,Math.min(100,score))/100;return `<svg class="ring ${cls}" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="${r}" class="ring-bg"/><circle cx="42" cy="42" r="${r}" class="ring-fg" stroke-dasharray="${(C*f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 42 42)"/><text x="42" y="49" text-anchor="middle">${score}</text></svg>`}
+function scoreCard(d,c){
+  if(!c.ready)return '';const S=dealScore(d,null,true);if(!S)return '';const n=esc(negName());const L=curList(d);
+  const basisLab=lastTheirPrice(d)!=null?'their last number':d.source==='wholesaler'?'the asking price':'the list price';
+  const row=(k,v)=>{const st=S.strat[k];if(!st)return '';const key=k==='flip'?`${money(st.profit)} profit · ${pct(st.roi,1)} ROI`:k==='wholesale'?`${money(st.fee)} assignment fee`:k==='brrrr'?(st.left<=0?`Pulls out ${money(-st.left)} more than you put in · ${money(st.cf)}/mo after refi`:`${money(st.left)} left in the deal · ${money(st.cf)}/mo after refi`):`${pct(st.yield,1)} net yield · ${money(st.noi)}/mo NOI`;
+    return `<div class="srow ${k===S.best?'best':''}"><span class="sl">${esc(v)}${k===S.best?' <span class="tag green">Best exit</span>':''}</span><span class="sbar"><i style="width:${st.score}%"></i></span><b class="tnum">${st.score}</b><span class="small muted">${key}</span></div>`};
+  const at80=S.at80;let line='';
+  if(at80!=null&&L){line=at80>=S.basis?`Already 80+ at ${basisLab}. It stays 80+ up to <b>${money(at80)}</b>.`:`Becomes an 80+ deal at <b>${money(at80)}</b>, which is ${money(S.basis-at80)} under ${basisLab}.`}
+  else if(at80==null)line='Doesn’t reach 80 at any price with these numbers. Check the ARV and repairs.';
+  return `<section class="card" id="score"><div class="card-head"><span class="ci green">${ico('gauge')}</span><div><h2>Deal score</h2><p>Every exit checked at ${basisLab} (${money(S.basis)})</p></div></div>
+  <div class="score-top">${scoreRing(S.score,S.grade[1])}<div style="min-width:0"><div class="row" style="gap:8px"><span class="pill ${S.grade[1]==='blue'?'blue':S.grade[1]==='amber'?'orange':S.grade[1]}">${esc(S.grade[0])}</span><b>Best exit: ${esc(STRAT_LABEL[S.best])}</b></div><p class="small" style="margin-top:6px">${line}</p><p class="xs muted">80+ is the bar a lender or partner would fund. 85+ is a bonanza.</p></div></div>
+  <div class="srows">${row('flip','Fix & flip')}${row('brrrr','BRRRR')}${row('wholesale','Wholesale')}${row('rental','Rental (all cash)')}</div>
+  ${!S.strat.brrrr?`<p class="small muted">Add the market rent (Rental analysis) to score BRRRR and rental too.</p>`:''}
+  ${S.mods.length?`<div class="mods">${S.mods.map(m=>`<span class="tag ${m[1]<=-8?'red':'orange'}">${m[1]} · ${esc(m[0])}</span>`).join('')}</div>`:'<p class="small muted">No risk deductions: comps back the ARV and nothing looks off.</p>'}
+  </section>`;
+}
+
+/* ---------- comps ---------- */
+const COMP_ST={sold:['Sold','red'],for_sale:['For sale','green'],pending:['Pending','orange']};
+function compsCard(d,c){
+  const g=compGrid(d);const n=esc(negName());const mode=d.arvMode==='median'?'median':'smart';const arv=mode==='median'?g.median:g.smart;
+  const ms=marketSignal(d);const f=state.compFilter||'all';
+  const cnt=k=>g.rows.filter(r=>k==='all'||r.st===k).length;const shown=g.rows.filter(r=>f==='all'||r.st===f);
+  const confTag=g.conf?`<span class="tag ${g.conf==='high'?'green':g.conf==='medium'?'blue':'orange'}">${g.conf.toUpperCase()}-CONF ARV</span>`:'';
+  const sig=ms?`<div class="note ${ms.level==='rejection'?'red':'amber'}">${ico('down')} <b>${ms.level==='rejection'?'Market rejection':'Stale listing'}:</b> ${esc(ms.text)}${ms.level==='rejection'?'. The market keeps refusing this house at these prices. A big ARV spread doesn’t help if buyers won’t pay, so check condition and location before trusting the resale. It’s also strong leverage for a low offer.':'. The seller is likely getting flexible, which is good leverage for a lower number.'}</div>`:'';
+  const sup=g.sup;const keyAdj=g.used.filter(r=>r.adj.length).sort((a,b)=>b.match-a.match).slice(0,3);
+  const head=`<div class="card-head"><span class="ci blue">${ico('layers')}</span><div><h2>Comps and ARV</h2><p>Appraiser-style grid. ${n} cites these when an agent claims a higher value</p></div><div class="ch-r"><button class="btn sm" data-act="comp-add">${ico('plus')}Add comp</button><button class="btn sm" data-act="comps-paste-toggle">${ico('spark')}Paste comps</button><label class="btn sm" for="comps-csv" style="cursor:pointer">${ico('upload')}Import CSV</label><input type="file" id="comps-csv" data-comps-csv="${d.id}" accept=".csv,text/csv" hidden></div></div>`;
+  const paste=state.compsPaste?`<textarea class="input" id="comps-text" data-draft rows="5" placeholder="Paste sold listings from Zillow, Redfin or a CMA, or paste a Redfin CSV download">${esc(state.drafts['comps-text']||'')}</textarea><div class="row"><button class="btn primary sm" data-act="comps-parse">Read comps</button>${busyHTML('comps:'+d.id)}</div>`:'';
+  const arvBlock=g.rows.length?`<div class="arvline"><div class="seg" role="group" aria-label="ARV method">${[['smart','Smart ARV'],['median','Median']].map(([v,l])=>`<button data-act="arv-mode" data-v="${v}" aria-pressed="${mode===v}">${l}</button>`).join('')}</div>
+    <span class="lab">ARV</span><b class="arv-big tnum">${money(arv)}</b>${g.medPsf?`<span class="small muted">size-adjusted median ${'$'+Math.round(g.medPsf)}/sqft × ${numFmt(d.sqft)} sqft</span>`:''}${confTag}
+    ${arv?`<button class="btn sm" data-act="use-arv" data-v="${arv}" data-src="comps" ${d.arv===arv?'disabled':''}>${d.arv===arv?'In use':'Use as ARV'}</button>`:''}</div>
+    ${mode==='smart'&&sup?`<div class="note purple"><b>Super comp:</b> ${esc(sup.x.addr||'comp')} at ${money(sup.price)}${sup.psf?` ($${Math.round(sup.psf)}/sqft)`:''}${sup.adj.length?` adjusted to ${money(sup.adjPrice)}`:''}${sup.x.dist!=null?` · ${sup.x.dist} mi`:''} · ${sup.match}% match. The closest, most similar renovated sale; it counts the most.${keyAdj.length?`<br><b>Key adjustments:</b> ${keyAdj.map(r=>`${esc(r.x.addr||'comp')} ${money(r.price)} → ${money(r.adjPrice)} (${r.adj.map(a=>`${a[0].toLowerCase()} ${a[1]>0?'+':'−'}${moneyK(Math.abs(a[1])).replace('−','')}`).join(', ')})`).join(' · ')}`:''}</div>`:''}
+    <div class="row" style="gap:6px">${g.asIsPsf?`<span class="chip">If unrenovated (as-is) ~$${Math.round(g.asIsPsf)}/sqft · ${g.asIsN} sale${g.asIsN>1?'s':''}${d.sqft?` → ${moneyK(g.asIsPsf*d.sqft)}`:''}</span>`:''}${g.fsPsf?`<span class="chip">For-sale band ~$${Math.round(g.fsPsf)}/sqft (n=${g.fsN})</span>`:''}${g.cv!=null?`<span class="chip">Spread ±${Math.round(g.cv*100)}% across ${g.used.length} comps</span>`:''}${d.arv?`<span class="chip">ARV in use ${money(d.arv)}${d.wsClaims&&d.wsClaims.arv?` · wholesaler said ${money(d.wsClaims.arv)}`:''}</span>`:''}</div>`:'';
+  const map=compMapSVG(d,g);
+  const filt=g.rows.length?`<div class="row" style="justify-content:space-between"><div class="seg" role="group" aria-label="Show">${[['all','All'],['sold','Sold'],['for_sale','For sale'],['pending','Pending']].map(([v,l])=>`<button data-act="comp-filter" data-v="${v}" aria-pressed="${f===v}">${l} ${cnt(v)}</button>`).join('')}</div><span class="xs muted">Only checked, renovated, sold comps set the ARV</span></div>`:'';
+  const inp=(i,k,v,w,t)=>`<input class="input ${t==='num'?'tnum':''}" id="cp-${k}${i}" data-fd="comps.${i}.${k}" ${t==='num'?'data-t="num"':''} ${t==='date'?'type="date"':''} value="${esc(v??'')}" style="width:${w}px">`;
+  const table=shown.length?`<div class="tbl-wrap"><table class="tbl comps" style="min-width:1120px"><thead><tr><th>#</th><th class="c">Use</th><th>Comp</th><th>Status</th><th class="r">Price</th><th class="c">Bd / Ba</th><th class="r">Sqft</th><th class="r">$/sqft</th><th class="r">Adjusted</th><th class="r">Miles</th><th>When</th><th class="c">Reno</th><th class="r">Match</th><th></th></tr></thead><tbody>${shown.map(r=>{const x=r.x,i=r.i;const s=COMP_ST[r.st]||COMP_ST.sold;
+    return `<tr style="cursor:default" class="${r===sup?'sup':''}${x.skip?' off':''}"><td><span class="cnum ${r.st}${r.reno?'':' asis'}">${i+1}</span></td><td class="c"><input type="checkbox" id="cp-use${i}" data-fd="comps.${i}.skip" data-t="nbool" ${x.skip?'':'checked'} aria-label="Use this comp"></td>
+    <td><input class="input" id="cp-a${i}" data-fd="comps.${i}.addr" value="${esc(x.addr)}" style="min-width:170px">${r===sup?'<span class="tag purple">Super comp</span>':''}${x.url?` <a class="xs" href="${esc(x.url)}" target="_blank" rel="noopener">listing</a>`:''}</td>
+    <td><select class="input" id="cp-st${i}" data-fd="comps.${i}.status" style="width:104px">${Object.entries(COMP_ST).map(([k,v])=>`<option value="${k}" ${r.st===k?'selected':''}>${v[0]}</option>`).join('')}</select></td>
+    <td class="r">${inp(i,'price',x.price,96,'num')}</td><td class="c" style="white-space:nowrap">${inp(i,'beds',x.beds,44,'num')} ${inp(i,'baths',x.baths,48,'num')}</td><td class="r">${inp(i,'sqft',x.sqft,70,'num')}</td>
+    <td class="r tnum">${r.psf?'$'+Math.round(r.psf):'—'}</td><td class="r tnum" title="${esc(r.adj.map(a=>a[0]+' '+money(a[1])).join(', '))}">${r.adjPrice!=null?money(r.adjPrice):'—'}${r.adj.length?`<div class="xs muted">${r.total>0?'+':'−'}${moneyK(Math.abs(r.total)).replace('−','')}</div>`:''}</td>
+    <td class="r">${inp(i,'dist',x.dist,60,'num')}</td><td>${inp(i,'soldDate',x.soldDate||'',132,'date')}<div class="xs muted">${r.ageMo!=null?(r.ageMo<1?'this month':Math.round(r.ageMo)+' mo ago'):''}</div></td>
+    <td class="c"><input type="checkbox" id="cp-r${i}" data-fd="comps.${i}.reno" data-t="bool" ${x.reno===false?'':'checked'} aria-label="Renovated"></td>
+    <td class="r tnum"><b>${r.match}%</b>${r.use&&r.share?`<div class="xs muted">${pct(r.share,0)} weight</div>`:''}</td><td><button class="btn ghost sm" data-act="comp-del" data-i="${i}" aria-label="Remove comp">${ico('close')}</button></td></tr>`}).join('')}</tbody></table></div>`:g.rows.length?`<p class="small muted">No ${f.replace('_',' ')} comps.</p>`:`<p class="small muted">No comps yet. Add renovated houses that sold nearby so ${n} can defend your ARV.</p>`;
+  const how=`<details><summary>How to pull comps from Redfin in 1 minute</summary><ol class="steps" style="margin-top:8px"><li>On redfin.com, search the subject’s neighborhood and switch the filter to <b>Sold</b>, last 6 months. Add For sale too if you want the competition.</li><li>Scroll under the list and click <b>Download All</b>. You get a CSV file.</li><li>Click <b>Import CSV</b> above. OfferDesk works out distances, flags as-is sales, and picks the comps that count.</li></ol></details>`;
+  return `<section class="card" id="comps">${head}${paste}${sig}${arvBlock}${map}${filt}${table}${how}</section>`;
+}
+/* a small map drawn from the comps' coordinates, centered on the subject */
+function compMapSVG(d,g){
+  const pts=g.rows.filter(r=>r.x.lat&&r.x.lng);if(!pts.length)return '';
+  let lat0=d.lat,lng0=d.lng,approx=false;
+  if(!(lat0&&lng0)){lat0=median(pts.map(r=>r.x.lat));lng0=median(pts.map(r=>r.x.lng));approx=true}
+  const k=Math.cos(lat0*Math.PI/180);const mi=r=>({x:(r.x.lng-lng0)*69.17*k,y:(r.x.lat-lat0)*69.17});
+  const P=pts.map(r=>Object.assign({r},mi(r)));const core=P.filter(p=>!p.r.x.skip);const maxR=Math.max(.3,...(core.length?core:P).map(p=>Math.hypot(p.x,p.y)))*1.1;
+  for(const p of P){const h=Math.hypot(p.x,p.y);p.far=h>maxR;if(p.far){p.miles=h;p.x=p.x/h*maxR;p.y=p.y/h*maxR}}
+  const W=560,H=340,cx=W/2,cy=H/2,sc=(H/2-18)/maxR;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" class="cmap" role="img" aria-label="Map of comps around the subject">`;
+  for(const ring of [.25,.5,1,2,3,5])if(ring<=maxR&&ring*sc>=26)svg+=`<circle cx="${cx}" cy="${cy}" r="${(ring*sc).toFixed(1)}" class="cm-ring"/><text x="${cx+ring*sc*.71+3}" y="${cy-ring*sc*.71-3}" class="cm-lab">${ring} mi</text>`;
+  svg+=`<text x="${W-14}" y="22" class="cm-lab" text-anchor="end">N ↑</text>`;
+  for(const p of P.sort((a,b)=>a.r.match-b.r.match)){const r=p.r;const x=cx+p.x*sc,y=cy-p.y*sc;const cls=r.st!=='sold'?r.st:r.reno?'sold':'asis';
+    svg+=`<g class="cm-pt ${cls}${r.x.skip?' off':''}${r===g.sup?' sup':''}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r===g.sup?11:9}"/><text x="${x.toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="middle">${r.i+1}</text>${p.far?`<text class="cm-far" x="${(x+(p.x>=0?12:-12)).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="${p.x>=0?'start':'end'}">${p.miles.toFixed(1)} mi →</text>`:''}<title>${esc((r.x.addr||'comp')+' · '+money(r.price)+(r.psf?' · $'+Math.round(r.psf)+'/sqft':''))}</title></g>`}
+  svg+=`<path class="cm-star" d="${starPath(cx,cy,12,5)}"/></svg>`;
+  return `<div class="cmap-wrap">${svg}<div class="cm-legend"><span><i class="star"></i>Subject${approx?' (approximate)':''}</span><span><i class="sold"></i>Sold, renovated</span><span><i class="asis"></i>Sold as-is</span><span><i class="for_sale"></i>For sale</span><span><i class="pending"></i>Pending</span><span><i class="supx"></i>Super comp</span>${approx?`<button class="linkbtn" data-act="geo-subject">Locate the subject</button>`:''}</div></div>`;
+}
+function starPath(cx,cy,R,r){let p='';for(let i=0;i<10;i++){const a=Math.PI/5*i-Math.PI/2,rad=i%2?R*.45:R;p+=(i?'L':'M')+(cx+Math.cos(a)*rad).toFixed(1)+','+(cy+Math.sin(a)*rad).toFixed(1)}return p+'Z'}
+
+/* ---------- CSV import (Redfin "Download All", PropStream and similar) ---------- */
+function parseCSV(t){const rows=[];let row=[],f='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}else if(ch==='"')q=true;else if(ch===','){row.push(f);f=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.some(x=>x.trim()))rows.push(row);row=[]}else f+=ch}row.push(f);if(row.some(x=>x.trim()))rows.push(row);return rows}
+const looksCSV=t=>{const l=String(t||'').split(/\r?\n/)[0]||'';return (l.match(/,/g)||[]).length>=4&&/address/i.test(l)};
+function csvRecords(t){const rows=parseCSV(String(t).replace(/^﻿/,''));if(rows.length<2)return [];const h=rows[0].map(x=>x.trim().toLowerCase());return rows.slice(1).map(r=>Object.fromEntries(h.map((k,i)=>[k,(r[i]||'').trim()])))}
+function col(o,keys){for(const k of keys){if(o[k]!=null&&o[k]!=='')return o[k]}for(const k of keys){const kk=Object.keys(o).find(x=>x.startsWith(k+' ')||x.startsWith(k+'('));if(kk&&o[kk]!=='')return o[kk]}return ''}
+const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+function csvDate(s){s=String(s||'').trim();if(!s)return '';let m=s.match(/^([A-Za-z]+)[-\s](\d{1,2}),?[-\s](\d{4})$/);if(m){const mo=MONTHS.findIndex(x=>x.startsWith(m[1].toLowerCase().slice(0,3)));if(mo>=0)return `${m[3]}-${String(mo+1).padStart(2,'0')}-${m[2].padStart(2,'0')}`}
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m){const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];const t=new Date(s);return isNaN(t)?'':t.toISOString().slice(0,10)}
+function csvStatus(o){const s=(col(o,['status','listing status','sale type'])||'').toLowerCase();if(/pend|contingent|under contract/.test(s))return 'pending';if(/sold|past sale|closed/.test(s))return 'sold';if(/active|for sale|coming|mls listing|new/.test(s))return 'for_sale';return col(o,['sold date','sale date','last sale date','close date','closing date'])?'sold':'for_sale'}
+function haversine(a,b,c,d2){const R=3958.8,t=x=>x*Math.PI/180;const dl=t(c-a),dg=t(d2-b);const h=Math.sin(dl/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const normAddr=s=>String(s||'').toLowerCase().replace(/\(example\)/,'').replace(/[^a-z0-9 ]/g,' ').replace(/\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|place|pl|circle|cir|trail|trl|way)\b/g,'').replace(/\s+/g,' ').trim();
+async function geocodeDeal(d){
+  if(d.lat&&d.lng)return true;const q=[streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(', ');if(!q)return false;
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q='+encodeURIComponent(q),{headers:{Accept:'application/json'}});const j=await r.json();if(j&&j[0]){d.lat=+j[0].lat;d.lng=+j[0].lon;return true}}catch(e){}
+  return false;
+}
+async function importCompsCSV(id,text){
+  const d=state.deals[id];if(!d)return;const recs=csvRecords(text);
+  const subj=normAddr(streetOf(d.address));const got=[];
+  for(const o of recs){
+    const addr=col(o,['address','street address','property address','street','site address']);const price=parseNum(col(o,['price','sold price','sale price','last sale price','close price','list price','listing price']));
+    if(!addr||!price)continue;if(subj&&normAddr(addr)===subj){const la=parseNum(col(o,['latitude','lat'])),lo=parseNum(col(o,['longitude','lng','lon']));if(la&&lo){d.lat=la;d.lng=lo}continue}
+    got.push({addr,price,sqft:parseNum(col(o,['square feet','sqft','sq ft','living area','building sqft','living sqft'])),beds:parseNum(col(o,['beds','bedrooms','bd'])),baths:parseNum(col(o,['baths','bathrooms','total baths','ba'])),
+      year:parseNum(col(o,['year built'])),soldDate:csvDate(col(o,['sold date','sale date','last sale date','close date','closing date'])),status:csvStatus(o),lat:parseNum(col(o,['latitude','lat'])),lng:parseNum(col(o,['longitude','lng','lon'])),url:col(o,['url']),dom:parseNum(col(o,['days on market'])),dist:parseNum(col(o,['distance','miles']))});
+  }
+  if(!got.length){toast('No comps found in that file. It needs at least an address and a price column.',5200);return}
+  if(!(d.lat&&d.lng)&&got.some(x=>x.lat))await geocodeDeal(d);
+  for(const x of got)if(x.dist==null&&d.lat&&x.lat)x.dist=Math.round(haversine(d.lat,d.lng,x.lat,x.lng)*100)/100;
+  const soldPsf=median(got.filter(x=>x.status==='sold'&&x.sqft).map(x=>x.price/x.sqft));
+  for(const x of got){if(x.status==='sold'&&soldPsf&&x.sqft){x.reno=x.price/x.sqft>=soldPsf*.72;x.renoAuto=true}else x.reno=true;
+    const age=x.soldDate?(Date.now()-new Date(x.soldDate).getTime())/(30*DAY):null;x.skip=x.status==='sold'&&((x.dist!=null&&x.dist>1.5)||(age!=null&&age>12))}
+  got.sort((a,b)=>(a.status==='sold'?0:1)-(b.status==='sold'?0:1)||(a.dist??9)-(b.dist??9)||String(b.soldDate).localeCompare(String(a.soldDate)));
+  const have=new Set((d.comps||[]).map(x=>normAddr(x.addr)));const add=got.filter(x=>!have.has(normAddr(x.addr))).slice(0,40);
+  d.comps=(d.comps||[]).concat(add);saveDeal(d);
+  const s=add.filter(x=>x.status==='sold').length;toast(`Imported ${add.length} comp${add.length===1?'':'s'}: ${s} sold, ${add.length-s} for sale or pending${d.lat?'':'. Couldn’t locate the subject, so distances are missing'}.`,5200);
+}
+
+/* ---------- rental analysis ---------- */
+function rentalCard(d,c){
+  const r=rentalCalc(d,c);const R=state.settings.rental;const n=esc(negName());
+  const rc=d.rentComps||[];const used=rc.filter(x=>!x.skip&&x.rent>0);const medRent=median(used.map(x=>x.rent));
+  const f=(id,path,label,val,w,ph)=>`<label class="field" style="width:${w}px"><span>${label}</span><input class="input tnum" id="${id}" data-fd="${path}" data-t="num" value="${val??''}" placeholder="${ph||''}" inputmode="numeric"></label>`;
+  const k=(lab,val,sub,cls)=>`<div class="kpi ${cls||''}"><span class="lab">${lab}</span><span class="val">${val}</span>${sub?`<span class="sub">${sub}</span>`:''}</div>`;
+  const kp=r?`<div class="kpis">${k('Rental ROI',pct(r.gross,1),'Gross rent × 12 ÷ all-in',r.gross>=.12?'green':'')}${k('NOI / year',money(r.noi*12),money(r.noi)+'/mo after expenses')}${k('Cash flow / month',money(r.noi),'All cash, no loan',r.noi>0?'green':'red')}${k('Net yield',pct(r.netYield,1),'NOI ÷ all-in',r.netYield>=.08?'green':'')}</div>
+    <div class="row" style="gap:8px"><span class="chip">Rent to all-in (1% rule) <b>${pct(r.onePct,2)}</b>/mo ${r.onePct>=.01?'<span class="tag green">Beats the 1% rule</span>':'<span class="tag orange">Under 1%</span>'}</span><span class="small muted">${money(r.rent)}/mo vs ${money(r.allIn)} all-in (${money(r.price)} price + ${money(d.rehab||0)} repairs + ${money(r.closing)} closing)</span></div>
+    <p class="xs muted">Expenses: taxes + insurance ${money(r.fixed)}/mo${r.hoa?` · HOA ${money(r.hoa)}`:''} · management ${R.mgmtPct}% = ${money(r.mgmt)} · reserve ${R.maintPct+R.vacancyPct}% (upkeep, capex, vacancy) = ${money(r.reserve)} → ${money(r.opex)}/mo</p>`:`<p class="small muted">Add the market rent (or pick rental comps below, or run ${n}’s inspection) to see the rental numbers.</p>`;
+  const brrrr=r&&r.refi!=null?`<div class="brrrr"><div class="row" style="justify-content:space-between"><b>BRRRR structure</b>${r.infinite?'<span class="tag green">Full BRRRR · infinite return</span>':r.left<=r.allInB*.1&&r.cfRefi>0?'<span class="tag blue">Near-full BRRRR</span>':'<span class="tag orange">Cash stays in the deal</span>'}</div>
+    <div class="formula" style="margin-top:6px"><span>Buy with hard money: ${money(r.price)} + repairs ${money(d.rehab||0)} + closing ${money(r.closing)} + hard-money cost ${money(r.hmCost)} (${R.hmPoints??2} pts + ${R.hmRate??11}% for ${state.settings.buy.holdMonths} mo) = <b>${money(r.allInB)}</b></span>
+    <span>Refinance at ${R.refiLtv}% of ARV ${money(c.A)} = ${money(r.refi)} loan, ${money(r.refiNet)} after ${R.refiCostPct??2}% refi costs</span>
+    <span>${r.left<=0?`<b style="color:var(--t-green)">You pull out ${money(-r.left)} more than you put in</b>`:`Cash left in the deal: <b>${money(r.left)}</b>`} · P&I ${money(r.pay)} at ${R.refiRate}% (PITI ${money(r.piti)}) · cash flow after refi <b style="color:${r.cfRefi>=0?'var(--t-green)':'var(--t-red)'}">${money(r.cfRefi)}/mo</b>${r.coc!=null?` · ${pct(r.coc,1)} cash-on-cash`:''}</span></div></div>`:'';
+  const rows=rc.map((x,i)=>`<tr style="cursor:default" class="${x.skip?'off':''}"><td class="c"><input type="checkbox" id="rc-use${i}" data-fd="rentComps.${i}.skip" data-t="nbool" ${x.skip?'':'checked'} aria-label="Use this rental comp"></td><td><input class="input" id="rc-a${i}" data-fd="rentComps.${i}.addr" value="${esc(x.addr)}" style="min-width:160px"></td><td><input class="input tnum" id="rc-r${i}" data-fd="rentComps.${i}.rent" data-t="num" value="${x.rent??''}" style="width:86px"></td><td class="c" style="white-space:nowrap"><input class="input tnum" id="rc-b${i}" data-fd="rentComps.${i}.beds" data-t="num" value="${x.beds??''}" style="width:44px"> <input class="input tnum" id="rc-ba${i}" data-fd="rentComps.${i}.baths" data-t="num" value="${x.baths??''}" style="width:48px"></td><td><input class="input tnum" id="rc-s${i}" data-fd="rentComps.${i}.sqft" data-t="num" value="${x.sqft??''}" style="width:70px"></td><td class="r tnum">${x.rent&&x.sqft?'$'+(x.rent/x.sqft).toFixed(2):'—'}</td><td><input class="input tnum" id="rc-d${i}" data-fd="rentComps.${i}.dist" data-t="num" value="${x.dist??''}" style="width:60px"></td><td><button class="btn ghost sm" data-act="rc-del" data-i="${i}" aria-label="Remove">${ico('close')}</button></td></tr>`).join('');
+  const comps=`<div><div class="row" style="justify-content:space-between"><b>Rental comps${used.length?`: median <span class="tnum">${money(medRent)}/mo</span> of ${used.length}`:''}</b><div class="row"><button class="btn sm" data-act="rc-add">${ico('plus')}Add rental</button><button class="btn sm" data-act="rc-paste-toggle">${ico('spark')}Paste rentals</button>${medRent?`<button class="btn sm primary" data-act="use-rent" data-v="${Math.round(medRent)}" ${d.rent===Math.round(medRent)?'disabled':''}>${d.rent===Math.round(medRent)?'In use':'Use as rent'}</button>`:''}</div></div>
+    ${state.rcPaste?`<textarea class="input" id="rc-text" data-draft rows="4" placeholder="Paste rental listings or leases nearby (Zillow, Rentometer, the MLS)" style="margin-top:8px">${esc(state.drafts['rc-text']||'')}</textarea><div class="row"><button class="btn primary sm" data-act="rc-parse">Read rentals</button>${busyHTML('rc:'+d.id)}</div>`:''}
+    ${rc.length?`<div class="tbl-wrap" style="margin-top:8px"><table class="tbl" style="min-width:720px"><thead><tr><th class="c">Use</th><th>Rental comp</th><th>Rent</th><th class="c">Bd / Ba</th><th>Sqft</th><th class="r">$/sqft</th><th>Miles</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="small muted" style="margin-top:6px">Rentals that leased nearby in the last 12 months back up the rent a lender will use for the refi.</p>`}</div>`;
+  return `<section class="card" id="rental"><div class="card-head"><span class="ci amber">${ico('wallet')}</span><div><h2>Rental analysis</h2><p>At your offer${lastOurPrice(d)!=null?` (${money(lastOurPrice(d))})`:c.ready?` (opening ${money(c.opening)})`:''}, all cash · hold, BRRRR or sell to a landlord</p></div><div class="ch-r">${r?`<span class="pill ${r.onePct>=.01?'green':'slate'}">${money(r.rent)}/mo</span>`:''}</div></div>
+  <div class="grid-fields">${f('r-rent','rent','Market rent / mo',d.rent,150,d.rentEst?Math.round(d.rentEst):'')}${f('r-tax','taxYr','Property tax / yr',d.taxYr,150,'')}${f('r-hoa','hoa','HOA / mo',d.hoa,120,'0')}${f('r-ins','insMo','Insurance / mo',d.insMo,140,'')}</div>
+  ${kp}${brrrr}${comps}</section>`;
+}
+
+/* ================= Preview offer (review, rewrite, send) ================= */
+const REWRITES=[
+  {id:'short',label:'Shorter and to the point',ins:'Make it shorter and to the point: at most 90 words in the email and 200 characters in the text. Keep the price, the terms and the one-line math.'},
+  {id:'engage',label:'Make it engaging',ins:'Make it more engaging and personal: mention one specific detail from the listing, keep it warm and confident, still brief.'},
+  {id:'creative',label:'Add creative option',ins:'Keep the cash offer as option 1. Add a short option 2: seller financing (higher price, small down payment, monthly payments) within the limits given. Explain in one sentence how the seller can net more with option 2.'},
+  {id:'firm',label:'Firmer tone',ins:'Make the tone firmer and more businesslike. Fewer words, no softening phrases.'}
+];
+function offerCap(d,c){const dr=d.draft;return dr&&(dr.creative||dr.action==='creative')?c.sfCap:c.mao}
+function offerModalHTML(m){
+  const d=state.deals[m.id];if(!d)return '';const c=calc(d);const dr=d.draft&&!(d.draft.sent&&(d.draft.sent.email||d.draft.sent.sms))?d.draft:null;const n=esc(negName());
+  const L=curList(d);const ag=d.agent||{};const busy=state.busy['deal:'+d.id]||state.busy['rw:'+d.id];
+  const tile=(lab,val,sub,cls)=>`<div class="otile ${cls||''}"><span class="lab">${lab}</span><b class="tnum">${val}</b>${sub?`<span class="xs muted">${sub}</span>`:''}</div>`;
+  const head=`<div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><h2>${ourCount(d)?'Preview next offer':'Preview offer'}</h2><p class="small muted">${esc([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.year?' · built '+d.year:''}${d.sqft?' · '+numFmt(d.sqft)+' sqft':''}${d.beds?' · '+d.beds+' bd':''}${d.baths?' / '+d.baths+' ba':''}</p></div><button class="btn ghost sm" data-act="modal-close" aria-label="Close">${ico('close')}</button></div>`;
+  if(!dr)return `${head}<div class="note">${busy?'':'No draft yet.'}</div>${busyHTML('deal:'+d.id)}${!busy?`<button class="btn primary" data-act="offer-preview">${ico('spark')}Ask ${n} to write it</button>`:''}`;
+  const P=dr.price;const cap=offerCap(d,c);const over=P!=null&&cap!=null&&P>cap;const under=P!=null&&L?(L-P)/L:null;
+  const guard=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap),...ceilingCheck(dr.sms,d,c,cap)];
+  const stale=dr.letterPrice!=null&&P!=null&&dr.letterPrice!==P;
+  const left=`<div class="ocol"><span class="olab">The deal</span><div class="otiles">${tile(d.source==='wholesaler'?'Asking':'Asking',money(L),priceDropped(d)?'down from '+moneyK(origList(d)):'')}${tile('ARV',money(c.A),d.arvSource==='comps'?'from comps':d.arvSource==='maya'?n+'’s estimate':d.arvSource==='wholesaler'?'wholesaler’s claim':'your number','green')}${tile('Rehab',money(d.rehab),d.rehabSource==='maya'?'from the inspection':'','orange')}${(d.rent||d.rentEst)?tile('Rent / mo',money(d.rent||d.rentEst),d.rent?'':'estimate','blue'):''}</div>
+    <div class="oagent"><span class="small muted">${d.source==='wholesaler'?'Wholesaler':'Listing agent'}</span><b>${esc((ag.name||'Unknown').replace(/\s*\(example\)/i,''))}</b>${ag.email?`<span class="xs muted">${esc(ag.email)}</span>`:`<input class="input" id="of-email" data-fd="agent.email" placeholder="Their email, so ${n} can send it" inputmode="email">`}</div>
+    <span class="olab">Your offer</span>
+    <label class="field"><span>Offer amount: what the agent receives</span><input class="input big tnum ${over?'bad':''}" id="of-price" data-fd="draft.price" data-t="num" value="${P??''}" inputmode="numeric"></label>
+    <span class="xs muted">${under!=null?(under>=0?pct(under,0)+' under asking':pct(-under,0)+' over asking'):''}</span>
+    <label class="field"><span>Your max: ${n} negotiates up to here and stops</span><input class="input tnum" id="of-max" data-fd="lockedMao" data-t="num" value="${d.lockedMao??''}" placeholder="${c.mao}" inputmode="numeric"></label>
+    <span class="xs muted">${d.lockedMao?`Locked by you. Calculated ceiling ${money(c.maoCalc)}.`:`Calculated from your buy box: ${money(c.mao)}. Type a number to lock your own.`}${dr.creative?` Seller-finance cap ${money(c.sfCap)}.`:''}</span>
+    ${over?`<div class="note red">The offer is above your max. Lower the offer or raise your max.</div>`:''}</div>`;
+  const ce=canEmail(d);const sent=dr.sent||{};
+  const right=`<div class="ocol"><div class="row" style="justify-content:space-between"><span class="olab">The letter</span><span class="xs muted">${dr.rewrites?dr.rewrites+' rewrite'+(dr.rewrites>1?'s':''):''}</span></div>
+    <input class="input" id="of-subj" data-fd="draft.email.subject" value="${esc(dr.email&&dr.email.subject)}" aria-label="Subject">
+    <textarea class="input letter" id="of-body" data-fd="draft.email.body" rows="12" aria-label="Email">${esc(dr.email&&dr.email.body)}</textarea>
+    ${stale?`<div class="note amber row" style="justify-content:space-between"><span>The offer changed. ${n} will rewrite the letter for ${money(P)}.</span><button class="btn sm" data-act="offer-rewrite" data-q="price" ${busy?'disabled':''}>Rewrite</button></div>`:''}
+    ${guard.length?`<div class="note red"><b>Ceiling guard:</b> the letter mentions ${guard.map(money).join(', ')}, above your max of ${money(cap)}. Rewrite or edit it before sending.</div>`:''}
+    <div class="qchips" style="padding:0">${REWRITES.filter(r=>r.id!=='creative'||state.settings.creative.enabled).map(r=>`<button class="qchip ${r.id==='creative'?'purple':'blue'}" data-act="offer-rewrite" data-q="${r.id}" ${busy?'disabled':''}>${esc(r.label)}</button>`).join('')}</div>
+    <div class="chat-in" style="padding:0;border:0"><input class="input" id="of-ins" data-draft value="${esc(state.drafts['of-ins']||'')}" placeholder="Ask ${n} to change the letter…"><button class="btn sm" data-act="offer-rewrite" data-q="custom" ${busy?'disabled':''}>${ico('spark')}Ask ${n}</button></div>
+    ${busyHTML('rw:'+d.id,false)}${busyHTML('deal:'+d.id,false)}
+    <details><summary>Text message version (${(dr.sms||'').length} chars)</summary><textarea class="input" id="of-sms" data-fd="draft.sms" rows="3" style="margin-top:6px">${esc(dr.sms)}</textarea></details></div>`;
+  const notify=state.settings.notify||{};const ccTo=notify.email||state.settings.profile.email;
+  const foot=`<div class="ofoot"><div class="row" style="gap:10px">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot for this deal')}<span class="small"><b>${n} autopilot</b><span class="muted"> · replies, negotiates up to your max, follows up</span></span></div>
+    ${ccTo&&ce?`<label class="check small"><input type="checkbox" id="of-cc" data-fs="notify.ccMe" data-t="bool" ${notify.ccMe?'checked':''}><span>CC me (${esc(ccTo)})</span></label>`:''}
+    <span class="spacer"></span><button class="btn ghost" data-act="modal-close">Cancel</button>
+    ${ce?`<button class="btn green" data-act="offer-send" ${over||guard.length||busy||P==null||sent.email?'disabled':''}>${ico('send')}Send offer ${money(P)}</button>`:`<a class="btn" href="mailto:${encodeURIComponent(ag.email||'')}?subject=${encodeURIComponent((dr.email&&dr.email.subject)||'')}&body=${encodeURIComponent((dr.email&&dr.email.body)||'')}" target="_blank" rel="noopener">${ico('mail')}Open in mail app</a><button class="btn green" data-act="offer-mark" ${over||P==null?'disabled':''}>${ico('check')}I sent it</button>`}</div>
+    ${!ce?`<p class="xs muted">${gmailOn()?'Add their email above so '+n+' can send it from '+esc(sendEmail())+'.':'Connect Gmail so '+n+' can send it herself.'}</p>`:''}`;
+  return `${head}<div class="ogrid">${left}${right}</div>${foot}`;
+}
+async function openOfferPreview(id){
+  const d=state.deals[id];if(!d)return;const c=calc(d);
+  if(!c.ready){toast('Add an ARV first so '+negName()+' knows your ceiling.');return}
+  state.modal={type:'offer',id};render();
+  const dr=d.draft;const usable=dr&&!(dr.sent&&(dr.sent.email||dr.sent.sms));
+  if(usable)return;
+  if(!ourCount(d))await aiOpening(id);
+  else{const f=followDue(d);if(!replyWaiting(d)&&f&&f.overdue)await aiFollow(id,false);else await aiReply(id)}
+}
+function promptRewrite(d,c,instruction,P){
+  const dr=d.draft;const cr=state.settings.creative;
+  return `You edit offer letters for a real estate investor. Rewrite the email and the text message below by following the instruction.
+
+${dealFacts(d,c)}
+
+Rules:
+- The cash offer price is exactly ${money(P)}. It is the only cash price you may state. Never mention or hint at a maximum, ceiling or budget.
+- Keep the terms, the facts and the one or two sentences of math that explain the number. Do not invent facts.
+- ${cr.enabled?`If you add seller financing: price up to ${money(c.sfCap)}, at most ${cr.maxDownPct}% down, interest up to ${cr.maxRate}%, ${cr.termYears}-year amortization.`:'Do not offer seller financing.'}
+- Email opens with "Hi ${firstName(d)},". Text under 320 characters.
+${signRules()}
+
+INSTRUCTION: ${instruction}
+
+Current subject: ${(dr.email&&dr.email.subject)||''}
+Current email:
+"""${((dr.email&&dr.email.body)||'').slice(0,4000)}"""
+Current text: """${(dr.sms||'').slice(0,600)}"""
+
+Reply with only JSON: {"email":{"subject":"...","body":"..."},"sms":"..."}`;
+}
+async function aiRewrite(id,q){
+  const d=state.deals[id];if(!d||!d.draft)return;const c=calc(d);const P=d.draft.price;
+  let ins;if(q==='price')ins=`Change the offer price to ${money(P)} everywhere it appears and update the math sentence to match. Keep everything else.`;
+  else if(q==='custom'){ins=(state.drafts['of-ins']||'').trim();if(!ins){toast('Type what to change first.');return}}
+  else ins=(REWRITES.find(r=>r.id===q)||{}).ins;if(!ins)return;
+  const res=await runAI('rw:'+id,`${negName()} is rewriting the letter…`,(ai,signal)=>ai.json(promptRewrite(d,c,ins,P),{signal}));
+  if(!res)return;const dd=state.deals[id];if(!dd||!dd.draft)return;
+  dd.draft.email={subject:String(res.email&&res.email.subject||dd.draft.email.subject||''),body:String(res.email&&res.email.body||dd.draft.email.body||'')};
+  dd.draft.sms=String(res.sms||dd.draft.sms||'');dd.draft.letterPrice=P;dd.draft.rewrites=(dd.draft.rewrites||0)+1;
+  if(q==='creative')dd.draft.creative=true;if(q==='custom')state.drafts['of-ins']='';
+  saveDeal(dd);
 }
 
 /* ================= Practice ================= */
@@ -2771,7 +3131,14 @@ function setMaya(){
   return `<div class="split"><section class="card"><div class="card-head"><span class="ci slate">${ico('user')}</span><div><h2>You</h2><p>${n} signs with these</p></div></div><div class="grid-fields">${fset('profile.name','Your name','text')}${fset('profile.company','Company (optional)','text')}${fset('profile.phone','US phone','text','inputmode="tel" placeholder="+1 214 555 0100"')}${fset('profile.email','Email for offers','text','inputmode="email"')}</div></section>
   <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}</h2><p>Your negotiator’s name and manners</p></div></div><div class="grid-fields">${fset('neg.name','Name','text')}<label class="field"><span>Tone</span><select class="input" id="st-neg-tone" data-fs="neg.tone" data-t="text">${Object.keys(TONES).map(k=>`<option value="${k}" ${S.neg.tone===k?'selected':''}>${k[0].toUpperCase()+k.slice(1)}</option>`).join('')}</select></label>${fset('neg.senderName','Email sender name','text','placeholder="'+esc(senderName())+'"')}</div>
     <label class="check"><input type="checkbox" id="st-neg-disclose" data-fs="neg.disclose" data-t="bool" ${S.neg.disclose?'checked':''}><span>If someone asks, ${n} says she’s an AI assistant working for you</span></label>
-    <label class="check"><input type="checkbox" id="st-neg-opt" data-fs="neg.optOutLine" data-t="bool" ${S.neg.optOutLine?'checked':''}><span>End emails with a one-line “reply remove” opt-out</span></label></section></div>`;
+    <label class="check"><input type="checkbox" id="st-neg-opt" data-fs="neg.optOutLine" data-t="bool" ${S.neg.optOutLine?'checked':''}><span>End emails with a one-line “reply remove” opt-out</span></label></section></div>
+  <section class="card" id="pings"><div class="card-head"><span class="ci orange">${ico('bell')}</span><div><h2>${n} pings you</h2><p>So you hear about replies and decisions without keeping the tab in view</p></div></div>
+    <div class="grid-fields">${fset('notify.email','Email me at','text','inputmode="email" placeholder="your personal email"')}</div>
+    <label class="check"><input type="checkbox" id="st-n-needs" data-fs="notify.onNeeds" data-t="bool" ${S.notify.onNeeds?'checked':''}><span>When ${n} needs your call (an agent came back with a number near your max, an accept, a walk-away)</span></label>
+    <label class="check"><input type="checkbox" id="st-n-reply" data-fs="notify.onReply" data-t="bool" ${S.notify.onReply?'checked':''}><span>When an agent replies on a deal ${n} isn’t handling on autopilot</span></label>
+    <label class="check"><input type="checkbox" id="st-n-sms" data-fs="notify.sms" data-t="bool" ${S.notify.sms?'checked':''} ${smsOn()?'':'disabled'}><span>Also text me at ${esc(S.profile.phone||'your US phone')} ${smsOn()?'':'(needs Twilio)'}</span></label>
+    <label class="check"><input type="checkbox" id="st-n-cc" data-fs="notify.ccMe" data-t="bool" ${S.notify.ccMe?'checked':''}><span>CC me on every email ${n} sends, so agents can reply to you too</span></label>
+    <p class="small muted">Pings go out from ${gmailOn()?esc(sendEmail()):'your connected Gmail'} while OfferDesk is open on one of your devices. Each one links straight to the deal.</p></section>`;
 }
 function setWs(){
   const ws=state.settings.wholesalers||[];
@@ -2806,6 +3173,8 @@ function modalHTML(){
     <div class="row"><button class="btn primary" data-act="drop-save">Save${ourCount(d)?' and draft a follow-up':''}</button><button class="btn ghost" data-act="modal-close">Cancel</button></div>`;
   }else if(m.type==='confirm'){
     body=`<h2>${esc(m.title)}</h2><p>${esc(m.text)}</p><div class="row"><button class="btn" data-act="confirm-yes" style="background:var(--s-red);border-color:var(--s-red);color:#fff">${esc(m.yes)}</button>${m.yes2?`<button class="btn" data-act="confirm-yes2">${esc(m.yes2)}</button>`:''}<button class="btn ghost" data-act="modal-close">Cancel</button></div>`;
+  }else if(m.type==='offer'){
+    return `<div class="modal-scrim" data-act="modal-close"></div><div class="modal-box wide" role="dialog" aria-modal="true" aria-label="Preview offer">${offerModalHTML(m)}</div>`;
   }else if(m.type==='link'){
     body=linkModalHTML();
   }else if(m.type==='ask'){
@@ -2825,7 +3194,7 @@ document.addEventListener('click',e=>{
   if(el.tagName==='A')return;
   const fn=A[el.dataset.act];if(fn){e.preventDefault();fn(el,e)}
 });
-const D=()=>cur();
+const D=()=>(state.modal&&state.modal.id&&state.deals[state.modal.id])||cur();
 A.bell=()=>{state.bellOpen=!state.bellOpen;if(state.bellOpen){state.conn.seenAt=nowISO();saveConn()}render()};
 A['stop-ai']=el=>{const b=state.busy[el.dataset.key];if(b&&b.ctl)b.ctl.abort()};
 A.open=el=>{const d=state.deals[el.dataset.id];if(!d)return;state.bellOpen=false;state.logKind='in';if(d.source==='wholesaler'&&!d.reviewed){d.reviewed=true;saveDeal(d,true)}go('deal',d.id)};
@@ -2884,11 +3253,30 @@ A['comp-add']=()=>{const d=D();d.comps=d.comps||[];d.comps.push({addr:'',price:n
 A['comp-del']=el=>{const d=D();d.comps.splice(+el.dataset.i,1);saveDeal(d)};
 A['comps-paste-toggle']=()=>{state.compsPaste=!state.compsPaste;render()};
 A['comps-parse']=async()=>{const d=D();const t=(state.drafts['comps-text']||'').trim();if(!t){toast('Paste the sold listings first.');return}
+  if(looksCSV(t)){await importCompsCSV(d.id,t);state.drafts['comps-text']='';state.compsPaste=false;render();return}
   const res=await runAI('comps:'+d.id,'Reading comps…',(ai,signal)=>ai.json(P_COMPS(t,d),{signal,modelTier:'quick'}));
   if(!res)return;const rows=(res.comps||[]).filter(x=>parseNum(x.price));if(!rows.length){toast('No sold comps found in that text.');return}
-  const dd=state.deals[d.id];dd.comps=(dd.comps||[]).concat(rows.map(x=>({addr:String(x.addr||''),price:parseNum(x.price),sqft:parseNum(x.sqft),dist:parseNum(x.dist),soldDate:x.soldDate||'',reno:x.reno===false?false:true})));
+  const dd=state.deals[d.id];dd.comps=(dd.comps||[]).concat(rows.map(x=>({addr:String(x.addr||''),price:parseNum(x.price),sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),soldDate:x.soldDate||'',status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true})));
   state.drafts['comps-text']='';state.compsPaste=false;saveDeal(dd);toast(`Added ${rows.length} comp${rows.length>1?'s':''}`)};
 A.deep=el=>aiDeep(el.dataset.id||state.dealId);
+A['arv-mode']=el=>{const d=D();d.arvMode=el.dataset.v;saveDeal(d)};
+A['comp-filter']=el=>{state.compFilter=el.dataset.v;render()};
+A['geo-subject']=async()=>{const d=D();if(await geocodeDeal(d)){for(const x of d.comps||[])if(x.lat&&x.lng)x.dist=Math.round(haversine(d.lat,d.lng,x.lat,x.lng)*100)/100;saveDeal(d);toast('Found it. Distances updated.')}else toast('Couldn’t find that address on the map. Check the street, city and ZIP in Details.',5200)};
+A['rc-add']=()=>{const d=D();d.rentComps=d.rentComps||[];d.rentComps.push({addr:'',rent:null,beds:null,baths:null,sqft:null,dist:null});saveDeal(d)};
+A['rc-del']=el=>{const d=D();d.rentComps.splice(+el.dataset.i,1);saveDeal(d)};
+A['rc-paste-toggle']=()=>{state.rcPaste=!state.rcPaste;render()};
+A['rc-parse']=async()=>{const d=D();const t=(state.drafts['rc-text']||'').trim();if(!t){toast('Paste the rental listings first.');return}
+  const res=await runAI('rc:'+d.id,'Reading rentals…',(ai,signal)=>ai.json(P_RENTCOMPS(t,d),{signal,modelTier:'quick'}));
+  if(!res)return;const rows=(res.rentals||[]).filter(x=>parseNum(x.rent));if(!rows.length){toast('No rentals found in that text.');return}
+  const dd=state.deals[d.id];dd.rentComps=(dd.rentComps||[]).concat(rows.map(x=>({addr:String(x.addr||''),rent:parseNum(x.rent),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),dist:parseNum(x.dist)})));
+  state.drafts['rc-text']='';state.rcPaste=false;saveDeal(dd);toast(`Added ${rows.length} rental${rows.length>1?'s':''}`)};
+A['offer-preview']=()=>openOfferPreview((state.modal&&state.modal.id)||state.dealId);
+A['offer-rewrite']=el=>aiRewrite(state.modal&&state.modal.id,el.dataset.q);
+A['offer-send']=async()=>{const id=state.modal&&state.modal.id;const d=state.deals[id];if(!d||!d.draft)return;const c=calc(d);const P=d.draft.price;
+  if(P==null||P>offerCap(d,c)){toast('The offer is above your max.');return}
+  if(d.draft.letterPrice!=null&&d.draft.letterPrice!==P){toast('The letter still has the old price. Tap Rewrite first.',4600);return}
+  const ok=await sendEmailNow(id);if(ok){state.modal=null;render();toast(`Offer of ${money(P)} sent from ${sendEmail()}${d.autopilot&&state.settings.auto.enabled?'. '+negName()+' takes it from here.':''}`,4600)}};
+A['offer-mark']=()=>{const id=state.modal&&state.modal.id;if(!id)return;markSent(id,'email');state.modal=null;render();toast('Logged as sent.')};
 A['deep-all']=()=>deepAll();
 A['photo-del']=el=>removePhoto(state.dealId,el.dataset.pid);
 A['photo-urls']=()=>{const t=state.drafts['ph-url']||'';const urls=t.split(/[\s,]+/).filter(Boolean);const n=addPhotoUrls(state.dealId,urls);state.drafts['ph-url']='';render();toast(n?`Added ${n} photo link${n>1?'s':''}`:'Paste direct https links to images.')};
@@ -3052,13 +3440,14 @@ document.addEventListener('change',e=>{
   if(t.hasAttribute('data-draft')){state.drafts[t.id]=t.value;return}
   if(t.dataset.mfBool&&state.modal){state.modal.form[t.dataset.mfBool]=t.checked;return}
   if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();saveDeal(d,true)}return}
+  if(t.dataset.compsCsv&&t.files&&t.files[0]){const id=t.dataset.compsCsv;const fr=new FileReader();fr.onload=()=>importCompsCSV(id,String(fr.result||''));fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
   if(t.dataset.sec){setSecret(t.dataset.sec,t.value.trim());render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   const typ=t.dataset.t||'text';
-  const val=typ==='num'?parseNum(t.value):typ==='bool'?t.checked:typ==='date'?(t.value?new Date(t.value).toISOString():null):typ==='list'?t.value.split(/[,\s]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b):t.value;
+  const val=typ==='num'?parseNum(t.value):typ==='bool'?t.checked:typ==='nbool'?!t.checked:typ==='date'?(t.value?new Date(t.value).toISOString():null):typ==='list'?t.value.split(/[,\s]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b):t.value;
   if(t.dataset.fd){
-    const d=cur();if(!d)return;const p=t.dataset.fd;
+    const d=D();if(!d)return;const p=t.dataset.fd;
     if(p==='_list'){d.priceHistory=d.priceHistory||[];if(d.priceHistory.length)d.priceHistory[d.priceHistory.length-1].price=val;else if(val!=null)d.priceHistory.push({date:d.listedDate||d.created,price:val});d.listPrice=val}
     else if(p.startsWith('comps.')&&p.endsWith('.soldDate'))setPath(d,p,t.value);
     else setPath(d,p,val);

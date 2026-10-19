@@ -125,7 +125,8 @@ function receive(d,msg){
   d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m')},msg));d.thread.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
   if(['new','sent'].includes(d.stage))d.stage='negotiating';
   if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
-  else logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
+  else{logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
+    if(!(d.autopilot&&state.settings.auto.enabled))pingOwner(d,'reply',`${((d.agent&&d.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} replied by ${msg.channel==='sms'?'text':'email'}${msg.price?` with ${money(msg.price)}`:''}: "${String(msg.text||'').replace(/\s+/g,' ').slice(0,180)}"`,msg.gmailId||msg.at)}
   d.needsYou=null;
 }
 async function syncReplies(acct){
@@ -195,7 +196,7 @@ async function sendEmailNow(id,quiet){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return false;const to=((d.agent&&d.agent.email)||'').trim();
   if(!to&&!ownThread(d)){if(!quiet)toast('Add their email in Details first.');return false}
   const key='send:'+id;state.busy[key]={label:'Sending from '+sendEmail()+'…'};render();
-  try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName()});
+  try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName(),cc:ccMe()});
     const dd=state.deals[id];if(r.threadId){dd.gmailThreadId=r.threadId;dd.gmailAccount=sendAcct().id}if(r.messageId)dd.seenMsgIds=(dd.seenMsgIds||[]).concat(r.messageId).slice(-200);
     markSent(id,'email');if(!quiet)toast('Email sent from '+sendEmail());return true}
   catch(e){const m=bridgeErr(e);if(quiet)logActivity(id,'warn',`Email on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
@@ -211,6 +212,18 @@ async function sendTextNow(id,quiet){
     markSent(id,'sms');if(!quiet)toast('Text sent');return true}
   catch(e){const m=e&&e.message==='no_phone'?'Add their phone number in Details first.':e&&e.message==='no_text_channel'?'Texting isn’t connected for this deal.':bridgeErr(e);if(quiet)logActivity(id,'warn',`Text on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
   finally{delete state.busy[key];render()}
+}
+
+/* ================= pings to you ================= */
+function ccMe(){const N=state.settings.notify||{};return N.ccMe?(N.email||state.settings.profile.email||'').trim()||undefined:undefined}
+async function pingOwner(d,kind,text,key){
+  const N=state.settings.notify||{};if(kind==='reply'&&!N.onReply)return;if(kind==='needs'&&!N.onNeeds)return;if(d.example)return;
+  const k=kind+':'+(key||'');d.pinged=d.pinged||{};if(d.pinged[k])return;d.pinged[k]=nowISO();
+  const ks=Object.keys(d.pinged);if(ks.length>40)for(const x of ks.slice(0,ks.length-40))delete d.pinged[x];saveDeal(d,true);
+  const to=(N.email||'').trim();const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
+  if(to&&gmailOn()){try{await bridge('send',{to,subject:`OfferDesk · ${where}: ${kind==='needs'?negName()+' needs your call':'reply waiting'}`,body:`${text}\n\nOpen the deal: ${link}\n\n— ${negName()}, OfferDesk`,name:'OfferDesk · '+negName()})}catch(e){logActivity(d.id,'warn','Couldn’t email you about '+where+': '+bridgeErr(e))}}
+  const ph=e164(state.settings.profile.phone);
+  if(N.sms&&smsOn()&&ph){try{await bridge('sms_send',{to:ph,body:`OfferDesk · ${where}: ${text}`.slice(0,300)+' '+link})}catch(e){logActivity(d.id,'warn','Couldn’t text you about '+where+': '+bridgeErr(e))}}
 }
 
 /* ================= autopilot ================= */
@@ -252,11 +265,14 @@ async function autopilotRun(manual){
       if(!(canEmail(d)||canText(d)))continue;
       if(d.draft)continue;
       if(!ourCount(d)){if(openings<=0)continue;await aiOpening(id,true)}
-      else if(replyWaiting(d))await aiReply(id,null,true);
+      else if(replyWaiting(d)){
+        if(!d.deepOnReply){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
+        await aiReply(id,null,true)}
       else{const f=followDue(d);if(f&&f.overdue&&state.settings.auto.followUps)await aiFollow(id,false,true);else continue}
       const dd=state.deals[id];if(!dd||!dd.draft)continue;
       const why=draftSafety(dd);const act=dd.draft.action||dd.draft.kind;const price=dd.draft.price;
-      if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);continue}
+      if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);
+        const th=dd.draft.theirCounter;pingOwner(dd,'needs',`${th!=null?`${((dd.agent&&dd.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} came back at ${money(th)}. `:''}${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()}${price!=null?` at ${money(price)}`:''} and is waiting for you: ${dd.needsYou}.`,dd.draft.at);continue}
       if(await autoSend(dd)){acted++;if(act==='opening')openings--;logActivity(id,'sent',`${negName()} sent ${act==='opening'?'the opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} on ${streetOf(dd.address)}${price?' at '+money(price):''}.`)}
     }
     if(manual)toast(acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);

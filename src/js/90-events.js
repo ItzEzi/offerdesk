@@ -7,7 +7,7 @@ document.addEventListener('click',e=>{
   if(el.tagName==='A')return;
   const fn=A[el.dataset.act];if(fn){e.preventDefault();fn(el,e)}
 });
-const D=()=>cur();
+const D=()=>(state.modal&&state.modal.id&&state.deals[state.modal.id])||cur();
 A.bell=()=>{state.bellOpen=!state.bellOpen;if(state.bellOpen){state.conn.seenAt=nowISO();saveConn()}render()};
 A['stop-ai']=el=>{const b=state.busy[el.dataset.key];if(b&&b.ctl)b.ctl.abort()};
 A.open=el=>{const d=state.deals[el.dataset.id];if(!d)return;state.bellOpen=false;state.logKind='in';if(d.source==='wholesaler'&&!d.reviewed){d.reviewed=true;saveDeal(d,true)}go('deal',d.id)};
@@ -66,11 +66,30 @@ A['comp-add']=()=>{const d=D();d.comps=d.comps||[];d.comps.push({addr:'',price:n
 A['comp-del']=el=>{const d=D();d.comps.splice(+el.dataset.i,1);saveDeal(d)};
 A['comps-paste-toggle']=()=>{state.compsPaste=!state.compsPaste;render()};
 A['comps-parse']=async()=>{const d=D();const t=(state.drafts['comps-text']||'').trim();if(!t){toast('Paste the sold listings first.');return}
+  if(looksCSV(t)){await importCompsCSV(d.id,t);state.drafts['comps-text']='';state.compsPaste=false;render();return}
   const res=await runAI('comps:'+d.id,'Reading comps…',(ai,signal)=>ai.json(P_COMPS(t,d),{signal,modelTier:'quick'}));
   if(!res)return;const rows=(res.comps||[]).filter(x=>parseNum(x.price));if(!rows.length){toast('No sold comps found in that text.');return}
-  const dd=state.deals[d.id];dd.comps=(dd.comps||[]).concat(rows.map(x=>({addr:String(x.addr||''),price:parseNum(x.price),sqft:parseNum(x.sqft),dist:parseNum(x.dist),soldDate:x.soldDate||'',reno:x.reno===false?false:true})));
+  const dd=state.deals[d.id];dd.comps=(dd.comps||[]).concat(rows.map(x=>({addr:String(x.addr||''),price:parseNum(x.price),sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),soldDate:x.soldDate||'',status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true})));
   state.drafts['comps-text']='';state.compsPaste=false;saveDeal(dd);toast(`Added ${rows.length} comp${rows.length>1?'s':''}`)};
 A.deep=el=>aiDeep(el.dataset.id||state.dealId);
+A['arv-mode']=el=>{const d=D();d.arvMode=el.dataset.v;saveDeal(d)};
+A['comp-filter']=el=>{state.compFilter=el.dataset.v;render()};
+A['geo-subject']=async()=>{const d=D();if(await geocodeDeal(d)){for(const x of d.comps||[])if(x.lat&&x.lng)x.dist=Math.round(haversine(d.lat,d.lng,x.lat,x.lng)*100)/100;saveDeal(d);toast('Found it. Distances updated.')}else toast('Couldn’t find that address on the map. Check the street, city and ZIP in Details.',5200)};
+A['rc-add']=()=>{const d=D();d.rentComps=d.rentComps||[];d.rentComps.push({addr:'',rent:null,beds:null,baths:null,sqft:null,dist:null});saveDeal(d)};
+A['rc-del']=el=>{const d=D();d.rentComps.splice(+el.dataset.i,1);saveDeal(d)};
+A['rc-paste-toggle']=()=>{state.rcPaste=!state.rcPaste;render()};
+A['rc-parse']=async()=>{const d=D();const t=(state.drafts['rc-text']||'').trim();if(!t){toast('Paste the rental listings first.');return}
+  const res=await runAI('rc:'+d.id,'Reading rentals…',(ai,signal)=>ai.json(P_RENTCOMPS(t,d),{signal,modelTier:'quick'}));
+  if(!res)return;const rows=(res.rentals||[]).filter(x=>parseNum(x.rent));if(!rows.length){toast('No rentals found in that text.');return}
+  const dd=state.deals[d.id];dd.rentComps=(dd.rentComps||[]).concat(rows.map(x=>({addr:String(x.addr||''),rent:parseNum(x.rent),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),dist:parseNum(x.dist)})));
+  state.drafts['rc-text']='';state.rcPaste=false;saveDeal(dd);toast(`Added ${rows.length} rental${rows.length>1?'s':''}`)};
+A['offer-preview']=()=>openOfferPreview((state.modal&&state.modal.id)||state.dealId);
+A['offer-rewrite']=el=>aiRewrite(state.modal&&state.modal.id,el.dataset.q);
+A['offer-send']=async()=>{const id=state.modal&&state.modal.id;const d=state.deals[id];if(!d||!d.draft)return;const c=calc(d);const P=d.draft.price;
+  if(P==null||P>offerCap(d,c)){toast('The offer is above your max.');return}
+  if(d.draft.letterPrice!=null&&d.draft.letterPrice!==P){toast('The letter still has the old price. Tap Rewrite first.',4600);return}
+  const ok=await sendEmailNow(id);if(ok){state.modal=null;render();toast(`Offer of ${money(P)} sent from ${sendEmail()}${d.autopilot&&state.settings.auto.enabled?'. '+negName()+' takes it from here.':''}`,4600)}};
+A['offer-mark']=()=>{const id=state.modal&&state.modal.id;if(!id)return;markSent(id,'email');state.modal=null;render();toast('Logged as sent.')};
 A['deep-all']=()=>deepAll();
 A['photo-del']=el=>removePhoto(state.dealId,el.dataset.pid);
 A['photo-urls']=()=>{const t=state.drafts['ph-url']||'';const urls=t.split(/[\s,]+/).filter(Boolean);const n=addPhotoUrls(state.dealId,urls);state.drafts['ph-url']='';render();toast(n?`Added ${n} photo link${n>1?'s':''}`:'Paste direct https links to images.')};
@@ -234,13 +253,14 @@ document.addEventListener('change',e=>{
   if(t.hasAttribute('data-draft')){state.drafts[t.id]=t.value;return}
   if(t.dataset.mfBool&&state.modal){state.modal.form[t.dataset.mfBool]=t.checked;return}
   if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();saveDeal(d,true)}return}
+  if(t.dataset.compsCsv&&t.files&&t.files[0]){const id=t.dataset.compsCsv;const fr=new FileReader();fr.onload=()=>importCompsCSV(id,String(fr.result||''));fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
   if(t.dataset.sec){setSecret(t.dataset.sec,t.value.trim());render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   const typ=t.dataset.t||'text';
-  const val=typ==='num'?parseNum(t.value):typ==='bool'?t.checked:typ==='date'?(t.value?new Date(t.value).toISOString():null):typ==='list'?t.value.split(/[,\s]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b):t.value;
+  const val=typ==='num'?parseNum(t.value):typ==='bool'?t.checked:typ==='nbool'?!t.checked:typ==='date'?(t.value?new Date(t.value).toISOString():null):typ==='list'?t.value.split(/[,\s]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b):t.value;
   if(t.dataset.fd){
-    const d=cur();if(!d)return;const p=t.dataset.fd;
+    const d=D();if(!d)return;const p=t.dataset.fd;
     if(p==='_list'){d.priceHistory=d.priceHistory||[];if(d.priceHistory.length)d.priceHistory[d.priceHistory.length-1].price=val;else if(val!=null)d.priceHistory.push({date:d.listedDate||d.created,price:val});d.listPrice=val}
     else if(p.startsWith('comps.')&&p.endsWith('.soldDate'))setPath(d,p,t.value);
     else setPath(d,p,val);

@@ -84,17 +84,51 @@ function verdict(d,c){
   if(L<=c.mao)return {cls:'green',text:'Works at ask'};
   const gap=(L-c.mao)/L;return {cls:gap<=.12?'amber':'red',text:pct(gap,0)+' over ceiling'};
 }
-function weightedArv(d){
-  const S=d.sqft;const rows=(d.comps||[]).filter(x=>x.price>0);if(!rows.length)return null;
-  let tw=0,tv=0;const parts=[];
-  for(const x of rows){
-    const val=S&&x.sqft?x.price/x.sqft*S:x.price;
-    const wd=1/(1+(x.dist??0.5)/0.35);
-    const age=x.soldDate?Math.max(0,(Date.now()-new Date(x.soldDate).getTime())/(30*DAY)):6;
-    const wa=1/(1+age/6);const ws=S&&x.sqft?1/(1+Math.abs(x.sqft-S)/S*3):0.7;const wr=x.reno===false?0.3:1;
-    const w=wd*wa*ws*wr;tw+=w;tv+=w*val;parts.push({w,val});
-  }
-  return {arv:floor500(tv/tw),parts:parts.map(p=>({...p,share:p.w/tw}))};
+function weightedArv(d){const g=compGrid(d);const arv=(d.arvMode==='median'?g.median:g.smart)||g.smart||g.median;if(!arv)return null;return {arv,parts:g.rows.map(r=>({share:r.share||0})),g}}
+/* ---------- comps: appraiser-style grid ---------- */
+const median=a=>{const s=a.filter(v=>v!=null&&isFinite(v)).sort((p,q)=>p-q);if(!s.length)return null;const k=Math.floor(s.length/2);return s.length%2?s[k]:(s[k-1]+s[k])/2};
+function compGrid(d){
+  const S=d.sqft||null,B=d.beds??null,Ba=d.baths??null;
+  const rows=(d.comps||[]).map((x,i)=>{
+    const st=x.status||'sold';const price=x.price>0?x.price:null;const psf=price&&x.sqft?price/x.sqft:null;
+    const adj=[];let total=0;
+    if(price&&S&&x.sqft&&psf&&x.sqft!==S){const v=Math.round((S-x.sqft)*psf*0.4/100)*100;if(v){adj.push(['Size',v]);total+=v}}
+    if(price&&B!=null&&x.beds!=null&&B!==x.beds){const v=Math.round((B-x.beds)*price*0.03/100)*100;adj.push(['Beds',v]);total+=v}
+    if(price&&Ba!=null&&x.baths!=null&&Ba!==x.baths){const v=Math.round((Ba-x.baths)*price*0.04/100)*100;adj.push(['Baths',v]);total+=v}
+    const adjPrice=price!=null?price+total:null;const net=price?Math.abs(total)/price:null;
+    const ageMo=x.soldDate?Math.max(0,(Date.now()-new Date(x.soldDate).getTime())/(30*DAY)):null;
+    let m=100;
+    m-=x.dist!=null?Math.min(30,x.dist*30):8;
+    if(st==='sold')m-=ageMo!=null?Math.min(25,Math.max(0,ageMo-3)*2.5):8;
+    if(S&&x.sqft)m-=Math.min(20,Math.abs(x.sqft-S)/S*60);
+    if(B!=null&&x.beds!=null)m-=Math.min(10,Math.abs(B-x.beds)*5);
+    if(Ba!=null&&x.baths!=null)m-=Math.min(8,Math.abs(Ba-x.baths)*4);
+    if(net!=null&&net>.15)m-=Math.min(10,(net-.15)*50);
+    m=Math.max(1,Math.round(m));
+    const reno=x.reno!==false;const use=st==='sold'&&reno&&!x.skip&&adjPrice>0;
+    return {i,x,st,price,psf,adj,total,adjPrice,net,match:m,ageMo,reno,use,share:0};
+  });
+  const used=rows.filter(r=>r.use);let smart=null;
+  if(used.length){let tw=0,tv=0;for(const r of used){r.w=Math.pow(r.match/100,2);tw+=r.w;tv+=r.w*r.adjPrice}for(const r of used)r.share=r.w/tw;smart=floor500(tv/tw)}
+  const medPsf=median(used.map(r=>r.psf));const med=medPsf&&S?floor500(medPsf*S):(used.length?floor500(median(used.map(r=>r.price))):null);
+  const sup=used.slice().sort((a,b)=>b.match-a.match)[0]||null;
+  const asIs=rows.filter(r=>r.st==='sold'&&!r.reno&&!r.x.skip&&r.psf);const fs=rows.filter(r=>(r.st==='for_sale'||r.st==='pending')&&r.psf&&!r.x.skip);
+  const vals=used.map(r=>r.adjPrice);let cv=null;
+  if(vals.length>1){const mean=vals.reduce((a,b)=>a+b,0)/vals.length;cv=Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/(vals.length-1))/mean}
+  const close=used.filter(r=>(r.x.dist==null||r.x.dist<=0.75)&&(r.ageMo==null||r.ageMo<=9)).length;
+  const conf=!used.length?null:used.length>=4&&close>=3&&cv!=null&&cv<=.10?'high':used.length>=3&&cv!=null&&cv<=.18?'medium':'low';
+  return {rows,used,smart,median:med,medPsf,sup,asIsPsf:median(asIs.map(r=>r.psf)),asIsN:asIs.length,fsPsf:median(fs.map(r=>r.psf)),fsN:fs.length,cv,conf};
+}
+/* ---------- market signal: has the market been refusing this house? ---------- */
+function marketSignal(d){
+  if(d.source==='wholesaler')return null;
+  const h=d.priceHistory||[];let cuts=0;for(let i=1;i<h.length;i++)if(h[i].price<h[i-1].price)cuts++;
+  const o=origList(d),L=curList(d);const drop=o&&L&&o>L?(o-L)/o:0;const dm=dom(d);const avg=d.zipAvgDom||null;
+  const rejection=(cuts>=2&&drop>=.10&&dm!=null&&dm>=90)||(drop>=.2&&dm!=null&&dm>=60);
+  const stale=!rejection&&((cuts>=1&&dm!=null&&dm>=(avg||60))||(dm!=null&&(avg?dm>=avg*2:dm>=120)));
+  if(!rejection&&!stale)return null;
+  const parts=[];if(cuts)parts.push(`${cuts} price cut${cuts>1?'s':''}`);if(drop>=.01)parts.push(`−${Math.round(drop*100)}% from ${money(o)}`);if(dm!=null)parts.push(`~${dm} days on market${avg?` (ZIP average ${avg})`:''}`);
+  return {level:rejection?'rejection':'stale',cuts,drop,dom:dm,text:parts.join(', ')};
 }
 function amort(P,ratePct,years){const n=years*12;if(!P||!n)return 0;const r=ratePct/100/12;return r===0?P/n:P*r/(1-Math.pow(1+r,-n))}
 function ceilingCheck(text,d,c,cap){
@@ -121,16 +155,61 @@ function sfCalc(d,c){
   const ask=curList(d)||null;
   return {v,down,P,T,interest1,principal1,months,years:months!=null?months/12:null,totalSeller,overAsk:ask&&totalSeller!=null?totalSeller-ask:null,overAskPct:ask&&totalSeller!=null?(totalSeller-ask)/ask:null,cf,annual:cf*12,cashIn,coc:cashIn>0?cf*12/cashIn:null,roiDown:down>0?cf*12/down:null};
 }
-function rentalCalc(d,c){
+function rentalCalc(d,c,P){
   const R=state.settings.rental;const rent=d.rent||d.rentEst||null;if(!rent)return null;
-  const price=lastTheirPrice(d)||curList(d)||0;const allIn=price+(d.rehab||0)+price*.03;
-  const opex=R.taxInsMonthly+rent*(R.mgmtPct+R.maintPct+R.vacancyPct)/100;
-  const noi=rent-opex;const cap=allIn>0?noi*12/allIn:null;
-  const refi=c.ready?c.A*R.refiLtv/100:null;const left=refi!=null?allIn-refi:null;
-  const pay=refi?amort(refi,R.refiRate,30):null;const cfRefi=pay!=null?noi-pay:null;
-  return {rent,price,allIn,opex,noi,cap,onePct:allIn>0?rent/allIn:null,refi,left,pay,cfRefi};
+  const price=P!=null?P:(lastOurPrice(d)??(c&&c.ready?c.opening:null)??curList(d)??0);
+  const closing=Math.round(price*.03);const allIn=price+(d.rehab||0)+closing;
+  const taxMo=d.taxYr!=null?d.taxYr/12:null,insMo=d.insMo!=null?d.insMo:null;
+  const fixed=taxMo!=null||insMo!=null?(taxMo||0)+(insMo||0):R.taxInsMonthly;
+  const hoa=d.hoa||0,mgmt=rent*R.mgmtPct/100,reserve=rent*(R.maintPct+R.vacancyPct)/100;
+  const opex=fixed+hoa+mgmt+reserve,noi=rent-opex;
+  const gross=allIn>0?rent*12/allIn:null,netYield=allIn>0?noi*12/allIn:null;
+  /* BRRRR: hard money buys and fixes it, then a 30-year refi pays the hard money off */
+  const months=state.settings.buy.holdMonths||5;const hmLoan=price+(d.rehab||0);
+  const hmCost=Math.round(hmLoan*((R.hmPoints??2)/100+(R.hmRate??11)/100*months/12));
+  const allInB=allIn+hmCost;const refi=c&&c.ready?Math.round(c.A*R.refiLtv/100):null;
+  const refiNet=refi!=null?Math.round(refi*(1-(R.refiCostPct??2)/100)):null;const left=refiNet!=null?allInB-refiNet:null;
+  const pay=refi?amort(refi,R.refiRate,30):null;const cfRefi=pay!=null?noi-pay:null;const piti=pay!=null?pay+fixed:null;
+  const coc=left!=null&&left>0&&cfRefi!=null?cfRefi*12/left:null;
+  return {rent,price,closing,allIn,fixed,hoa,mgmt,reserve,opex,noi,gross,netYield,cap:netYield,onePct:allIn>0?rent/allIn:null,hmCost,allInB,refi,refiNet,left,pay,piti,cfRefi,coc,infinite:left!=null&&left<=0&&cfRefi!=null&&cfRefi>0};
 }
 
+/* ================= deal score (0-100) and best exit ================= */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const scoreMap=(v,t)=>v==null||!isFinite(v)||!(t>0)?0:v>=t?80+Math.min(20,(v/t-1)*40):Math.max(0,v/t*80);
+function stratScores(d,c,P){
+  const s=state.settings.buy;const out={};
+  const f=c.flipAt(P);out.flip={score:Math.round(Math.min(scoreMap(f.roi,c.roi||.2),scoreMap(f.profit,s.minProfit||30000))),profit:f.profit,roi:f.roi};
+  const fee=c.buyerMax-P;out.wholesale={score:Math.round(scoreMap(fee,s.wsFee||10000)),fee};
+  const r=rentalCalc(d,c,P);
+  if(r){out.rental={score:Math.round(scoreMap(r.netYield,.10)),yield:r.netYield,noi:r.noi};
+    let b;if(r.left<=0)b=r.cfRefi>=150?96:r.cfRefi>=0?84:50;else{b=80-(r.left/r.allInB)*200;if(r.cfRefi<0)b-=25;else if(r.cfRefi<100)b-=8}
+    out.brrrr={score:Math.round(clamp(b,0,100)),left:r.left,cf:r.cfRefi,infinite:r.infinite}}
+  return out;
+}
+function scoreMods(d,c){
+  const mods=[];const g=compGrid(d);
+  if(g.conf==='medium')mods.push(['Comps back the ARV with medium confidence',-4]);
+  else if(g.conf==='low')mods.push(['Few or scattered comps behind the ARV',-8]);
+  else if(!g.conf)mods.push(d.arvSource==='wholesaler'?['ARV is only the wholesaler’s claim',-15]:['No comps behind the ARV yet',-10]);
+  const lvl=String((d.analysis&&d.analysis.level)||'').toLowerCase();if(lvl.includes('gut'))mods.push(['Full-gut rehab',-5]);
+  if(d.rehab&&c.A&&d.rehab/c.A>.4)mods.push(['Repairs over 40% of ARV',-5]);
+  const ms=marketSignal(d);if(ms&&ms.level==='rejection')mods.push(['Market rejection: resale risk',-8]);
+  return mods;
+}
+const STRAT_LABEL={flip:'Fix & flip',wholesale:'Wholesale',brrrr:'BRRRR',rental:'Rental (all cash)'};
+function dealScore(d,P0,full){
+  const c=calc(d);if(!c.ready)return null;
+  const L=curList(d);const basis=P0!=null?P0:(lastTheirPrice(d)??L??c.mao);if(basis==null)return null;
+  const mods=scoreMods(d,c);const modSum=mods.reduce((a,m)=>a+m[1],0);
+  const at=P=>{const st=stratScores(d,c,P);const best=Object.entries(st).sort((a,b)=>b[1].score-a[1].score)[0];return {st,best:best[0],score:clamp(Math.round(best[1].score+modSum),0,100)}};
+  const r=at(basis);const grade=r.score>=85?['Bonanza','green']:r.score>=80?['Strong','green']:r.score>=65?['Workable','blue']:r.score>=50?['Thin','amber']:['Pass','red'];
+  const out={score:r.score,best:r.best,strat:r.st,mods,basis,grade};
+  if(full){
+    let lo=0,hi=Math.max(basis,L||0,c.A||0);if(at(lo).score<80)out.at80=null;else{for(let k=0;k<22;k++){const mid=(lo+hi)/2;if(at(mid).score>=80)lo=mid;else hi=mid}out.at80=floor500(lo)}
+  }
+  return out;
+}
 /* ================= lead tags (inbox) ================= */
 function dealTags(d){
   const c=calc(d);const L=curList(d);const t=[];const txt=((d.description||'')+' '+((d.wsClaims&&d.wsClaims.terms)||'')).toLowerCase();
