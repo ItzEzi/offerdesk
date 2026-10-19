@@ -161,28 +161,19 @@ A.sync=()=>syncAll(true);
 
 /* practice */
 A.persona=el=>{state.practicePersona=el.dataset.v;render()};
-A['pr-start']=async()=>{
-  const dealId=state.drafts['pr-deal']!==undefined?state.drafts['pr-deal']:((document.getElementById('pr-deal')||{}).value||'');const persona=state.practicePersona||'tough';
-  const d=state.deals[dealId];const P=PERSONAS[persona];
-  const sc=d?{address:streetOf(d.address),listPrice:curList(d)||d.arv*.8,arv:d.arv,rehab:d.rehab,beds:d.beds,baths:d.baths,sqft:d.sqft,dom:dom(d),description:d.description}:SAMPLE_SCENARIO;
-  const floor=round500(sc.listPrice*(P.band[0]+Math.random()*(P.band[1]-P.band[0])));
-  const role=persona==='wholesaler'?'wholesaler':'listing agent';
-  const facts=`Property: ${sc.address}. ${persona==='wholesaler'?'Asking':'List price'} ${money(sc.listPrice)}. ${sc.beds??'?'} bed / ${sc.baths??'?'} bath, ${sc.sqft??'?'} sqft. ${sc.dom!=null?sc.dom+' days on market. ':''}${sc.description?'Condition: '+String(sc.description).slice(0,600):''}`;
-  const rules=`You are role-playing for negotiation practice. You are a ${role}: ${P.brief}.\n${facts}\nThe user is a real estate investor trying to buy it. Stay in character the whole time and talk like a real ${role} on a phone call: one to four sentences, natural, and push back with questions.\nHidden: the seller would accept as low as ${money(floor)} if the buyer earns it with solid reasoning, flexible terms and certainty to close. Never reveal that number or that a floor exists. Move toward it slowly and only for good reasons. If the buyer is pushy or sloppy, get firmer.\nNever break character and never mention being an AI or a practice exercise.\n\nThe call starts now. Answer the phone as the ${role}.`;
-  const s={id:uid('p'),dealId:dealId||null,persona,floor,facts,title:sc.address,turns:[{role:'user',content:rules}],created:nowISO()};
-  const res=await runAI('pr-start','Dialing…',(ai,signal)=>ai.text(s.turns,{signal,modelTier:'quick'}));
-  if(!res)return;s.turns.push({role:'assistant',content:res.text.trim()});state.practiceId=s.id;savePractice(s);if(state.voiceOn)speakAgent(res.text.trim(),persona)};
+A['pr-start']=()=>practiceStart();
+A['pr-stage']=el=>{state.drafts['pr-stage']=el.dataset.v;render()};
 A['pr-send']=async()=>{
   const s=state.practice[state.practiceId];const msg=(state.drafts['pr-msg']||'').trim();if(!s||!msg||state.busy['pr-chat'])return;
   s.turns.push({role:'user',content:msg});state.drafts['pr-msg']='';savePractice(s);
   const turns=[s.turns[0],...s.turns.slice(1).slice(-24)];
   const res=await runAI('pr-chat','',(ai,signal)=>ai.text(turns,{signal,modelTier:'quick'}));
-  const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:res.text.trim()});savePractice(ss);if(state.voiceOn)speakAgent(res.text.trim(),ss.persona)}else voiceBits()};
+  const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:cleanSpoken(res.text)});savePractice(ss);if(state.voiceOn)speakAgent(res.text,ss.persona)}else voiceBits()};
 A['pr-end']=async()=>{
   const s=state.practice[state.practiceId];if(!s)return;stopSpeaking();voiceStopListening();
   const transcript=s.turns.slice(1).map(t=>(t.role==='user'?'INVESTOR: ':'AGENT: ')+t.content).join('\n');
   const d=state.deals[s.dealId];const c=d?calc(d):null;
-  const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nJudge: did the investor anchor well, walk the math, ask about the seller's needs, trade concessions instead of giving them away, stay calm, and get a number or next step? Be specific and quote their words where useful.\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences on where it ended and how close they got to the floor","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
+  const k=s.caseFile;const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:k?` The investor's own ceiling is ${money(k.mao)} and target ${money(k.target)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nJudge: did the investor anchor well, walk the math, ask about the seller's needs, trade concessions instead of giving them away, stay calm, and get a number or next step? Be specific and quote their words where useful.\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences on where it ended and how close they got to the floor","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
   const res=await runAI('pr-end','Grading the call…',(ai,signal)=>ai.json(prompt,{signal}));
   if(!res)return;const ss=state.practice[s.id];ss.feedback={score:parseNum(res.score)??'—',outcome:String(res.outcome||''),wins:(res.wins||[]).map(String),gaps:(res.gaps||[]).map(String),nextMoves:(res.nextMoves||[]).map(String),lines:(res.lines||[]).map(String)};savePractice(ss)};
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
@@ -195,7 +186,22 @@ A['mk-more']=()=>{state.mk.show=(state.mk.show||25)+25;render()};
 A['mk-star']=el=>mkStar(el.dataset.type,el.dataset.k);
 A['mk-memo']=()=>mkMemo();
 A['mk-reload']=()=>{DISC.err='';MKT.idx=null;MKT.idxFail=0;render();loadDiscover()};
-A.mic=()=>{state.voiceOn=true;if(VOICE.listening)voiceStopListening();else voiceListen();voiceBits()};
+A['cp-new']=()=>{const c=newCampaign();go('campaigns');setTimeout(()=>{const el=document.getElementById('cp-in');if(el)el.scrollIntoView({block:'start'})},120)};
+A['cp-open']=el=>{state.cp.id=el.dataset.id;state.cp.filter='all';if(state.view!=='campaigns')go('campaigns');else render()};
+A['cp-paste']=async()=>{const c=cpCur();if(!c)return;const items=cpItemsFromLines(state.drafts['cp-paste']);if(!items.length){toast('Paste one address or link per line.');return}const n=await cpAddItems(c,items);state.drafts['cp-paste']='';toast(`Added ${n} listing${n===1?'':'s'}.`)};
+A['cp-filter']=el=>{state.cp.filter=el.dataset.v;state.cp.show=80;render()};
+A['cp-more']=()=>{state.cp.show=(state.cp.show||80)+80;render()};
+A['cp-agents']=()=>{const c=cpCur();if(c)cpFindAgents(c)};
+A['cp-calls']=()=>{const c=cpCur();if(c)cpCallList(c)};
+A['cp-launch']=()=>{const c=cpCur();if(c)cpLaunch(c)};
+A['cp-pause']=()=>{const c=cpCur();if(!c)return;c.status='paused';(c.log=c.log||[]).unshift({at:nowISO(),t:'Paused'});saveCampaign(c)};
+A['cp-resume']=()=>{const c=cpCur();if(!c)return;c.status='running';(c.log=c.log||[]).unshift({at:nowISO(),t:'Resumed'});saveCampaign(c)};
+A['cp-delete']=el=>{const c=cpCur();if(!c)return;if(el.dataset.sure!=='1'){el.dataset.sure='1';el.classList.add('red');el.innerHTML='Delete campaign? Tap again';setTimeout(()=>{if(el.isConnected){el.dataset.sure='';render()}},4000);return}
+  delete state.campaigns[c.id];state.cp.id=null;persist('campaigns');render();toast('Campaign deleted. Its deals stay in Listings.')};
+A['cp-del']=el=>{const c=cpCur();if(!c)return;c.items=c.items.filter(i=>i.k!==el.dataset.k);saveCampaign(c)};
+A['cp-mode']=el=>{const c=cpCur();if(!c)return;c.rules.mode=el.dataset.v;if(c.rules.mode==='template'&&!c.rules.template)c.rules.template=CP_TEMPLATE;saveCampaign(c)};
+A.mic=()=>{state.voiceOn=true;if(VOICE.listening||VOICE.want)voiceStopListening();else voiceListen();voiceBits()};
+A['voice-send']=()=>voiceSendNow();
 A['voice-mode']=()=>{state.voiceOn=!state.voiceOn;if(!state.voiceOn){stopSpeaking();voiceStopListening()}render()};
 A['voice-stop']=()=>{stopSpeaking();voiceListen()};
 A['voices-load']=()=>loadVoices();
@@ -288,8 +294,12 @@ document.addEventListener('change',e=>{
   if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
   if(t.dataset.sec){setSecret(t.dataset.sec,t.value.trim());render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
+  if(t.dataset.cpCsv&&t.files&&t.files[0]){const c=state.campaigns[t.dataset.cpCsv];const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));if(!items.length){toast('That file has no addresses. Use Redfin’s Download All.',5200);return}const n=await cpAddItems(c,items);toast(`Added ${n} listing${n===1?'':'s'}${n<items.length?` (${items.length-n} were already here)`:''}.`)};fr.readAsText(t.files[0]);t.value='';return}
+  if(t.dataset.cpAgent){const c=cpCur();const it=c&&c.items.find(i=>i.k===t.dataset.cpAgent);if(it){const v=t.value.trim().toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v)){toast('That doesn’t look like an email.');return}it.agent=Object.assign(it.agent||{},{email:v,src:it.agent&&it.agent.src||'you'});cpPrice(c).then(()=>saveCampaign(c))}return}
+  if(t.id==='cp-sort'){state.cp.sort=t.value;render();return}
   const typ=t.dataset.t||'text';
   const val=typ==='num'?parseNum(t.value):typ==='bool'?t.checked:typ==='nbool'?!t.checked:typ==='date'?(t.value?new Date(t.value).toISOString():null):typ==='list'?t.value.split(/[,\s]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b):t.value;
+  if(t.dataset.cp){const c=cpCur();if(!c)return;setPath(c,t.dataset.cp,val);if(t.dataset.cp.startsWith('rules.')&&!['rules.template','rules.mode'].includes(t.dataset.cp))cpPrice(c).then(()=>saveCampaign(c));else saveCampaign(c);return}
   if(t.dataset.fd){
     const d=D();if(!d)return;const p=t.dataset.fd;
     if(p==='_list'){d.priceHistory=d.priceHistory||[];if(d.priceHistory.length)d.priceHistory[d.priceHistory.length-1].price=val;else if(val!=null)d.priceHistory.push({date:d.listedDate||d.created,price:val});d.listPrice=val}
@@ -320,6 +330,7 @@ document.addEventListener('dragover',e=>{
 document.addEventListener('dragleave',e=>{const el=e.target.closest&&e.target.closest('.col,[data-drop]');if(el&&!el.contains(e.relatedTarget))el.classList.remove('over')});
 document.addEventListener('drop',e=>{
   const z=e.target.closest&&e.target.closest('[data-drop]');
+  if(z&&z.dataset.drop==='cp'&&e.dataTransfer.files&&e.dataTransfer.files.length){e.preventDefault();z.classList.remove('over');const c=cpCur();const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));const n=items.length?await cpAddItems(c,items):0;toast(n?`Added ${n} listings.`:'That file has no addresses. Use Redfin’s Download All.')};fr.readAsText(e.dataTransfer.files[0]);return}
   if(z&&e.dataTransfer.files&&e.dataTransfer.files.length){e.preventDefault();z.classList.remove('over');addPhotoBlobs(z.dataset.drop,[...e.dataTransfer.files],'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}`)});return}
   const col=e.target.closest&&e.target.closest('.col');if(!col)return;e.preventDefault();col.classList.remove('over');
   const id=e.dataTransfer.getData('text/x-deal');const d=state.deals[id];if(d&&d.stage!==col.dataset.stage){d.stage=col.dataset.stage;if(['contract','closed','dead'].includes(d.stage))d.autopilot=false;saveDeal(d);toast('Moved to '+STAGE_LABEL[d.stage])}});
@@ -337,7 +348,7 @@ async function boot(){
     try{v.conn=v.conn||JSON.parse(lsGet('od.conn')||'null')}catch(e){}
   }
   state.settings=deepMerge(DEFAULTS,v.settings);
-  state.practice=v.practice||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
+  state.practice=v.practice||{};state.campaigns=v.campaigns||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
   if(state.conn.email&&!state.conn.accounts){state.conn.accounts={g1:{email:state.conn.email,twilio:!!state.conn.twilio,twilioFrom:state.conn.twilioFrom||'',version:state.conn.version||1}};if(!state.settings.conn.sendAccount)state.settings.conn.sendAccount='g1'}
   state.deals=v.deals||null;
   if(!state.deals){state.deals=exampleDeals();if(!state.settings.profile.name)state.settings.profile.name='Ezra Rothschild';persist('deals');persist('settings')}

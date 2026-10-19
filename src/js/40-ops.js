@@ -1,7 +1,7 @@
 /* ================= deal operations ================= */
 function newDeal(o){
   const at=nowISO();
-  const d=Object.assign({id:uid('d'),created:at,updated:at,stage:'new',source:'mls',thread:[],offers:[],priceHistory:[],comps:[],state:'TX',autopilot:!!state.settings.auto.newDealsOn,mayaChat:[]},o);
+  const d=Object.assign({id:uid('d'),created:at,updated:at,stage:'new',source:'mls',thread:[],offers:[],priceHistory:[],comps:[],state:'',autopilot:!!state.settings.auto.newDealsOn,mayaChat:[]},o);
   if(o.listPrice!=null&&!(o.priceHistory||[]).length)d.priceHistory=[{date:o.listedDate||at,price:o.listPrice}];
   return d;
 }

@@ -23,7 +23,9 @@ const DEFAULTS={
   ai:{bigModel:'claude-opus-5-5'},
   brief:{on:true,hour:8,tz:''},
   rehab:{costs:{},notes:''},
-  voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true},
+  voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true,silenceSec:'7'},
+  dnc:[],
+  lender:{purchasePct:90,rehabPct:100,points:2,rate:11,termMonths:12,maxLtv:70,dscrRate:7.5,price:'auto'},
   markets:{strategy:'',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
   followDays:[2,5,10,20],
   wholesalers:[],
@@ -142,7 +144,7 @@ const state={
   loaded:false,view:'dashboard',dealId:null,busy:{},drafts:{},modal:null,syncing:false,autoRunning:false,cloudSyncing:false,
   lf:{q:'',source:'all',stage:'all',status:'all',sentiment:'all',type:'all',beds:'any',price:'any',state:'all',special:'all',autopilot:'all'},
   leads:{q:'',tag:null,fav:false,type:'all'},
-  mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
+  campaigns:{},cp:{id:null,filter:'all',sort:'offerPct',show:80},mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
 };
 const negName=()=>state.settings.neg.name||'Maya';
 
@@ -156,7 +158,9 @@ const IDB={db:null,
   put(store,val,key){return IDB.tx(store,'readwrite',s=>key===undefined?s.put(val):s.put(val,key))},
   del(store,key){return IDB.tx(store,'readwrite',s=>s.delete(key))}
 };
-const KEYS=['settings','deals','practice','mail','activity','conn'];
+const KEYS=['settings','deals','practice','mail','activity','conn','campaigns'];
+/* Maya 24/7 (the Gmail script runs this same code) stops starting new work near its time limit */
+const WORKER={on:false,deadline:0};const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
 const saveTimers={};
 function writeKey(key){
   const val=state[key];
@@ -183,7 +187,7 @@ function cur(){return state.deals[state.dealId]}
 let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
 
 /* ================= routing ================= */
-const VIEWS=['dashboard','listings','markets','leads','deal','practice','stats','settings'];
+const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','practice','stats','settings'];
 function go(view,id){const h='#'+view+(id?'/'+id:'');if(location.hash===h)route();else location.hash=h}
 function route(){
   const h=(location.hash||'#dashboard').slice(1);const [v,id,sub]=h.split('/');
