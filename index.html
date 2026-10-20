@@ -1195,7 +1195,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261020-1654';
+const APP_V='20261020-1713';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1682,8 +1682,8 @@ async function apiText(input,opts){
   if(!text)throw {code:'empty_completion'};
   return {text,truncated:j.stop_reason==='max_tokens'};
 }
-async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';
-  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m}}
+async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';const st=res.status;
+  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m,status:st}}
 /* a call where Claude may search the web and open pages (server tools); continues paused turns */
 const WEB_TOOLS=(n)=>[{type:'web_search_20250305',name:'web_search',max_uses:n||6},{type:'web_fetch_20250910',name:'web_fetch',max_uses:n||6,max_content_tokens:12000}];
 async function apiTools(prompt,opts){
@@ -1720,13 +1720,15 @@ function aiErr(e){
   if(c==='cancelled')return null;
   if(c==='no_ai')return `${n} needs your Anthropic API key. Add it in Connect → ${n}’s brain.`;
   if(c==='bad_key')return `Anthropic rejected your API key${e&&e.message?` (“${String(e.message).slice(0,140)}”)`:''}. In Connect → ${n}’s brain, paste a fresh key from console.anthropic.com → API keys, then press Test.`;
-  if(c==='no_credit')return 'Your Anthropic account is out of credits. Add credits in the Anthropic Console.';
+  if(c==='no_credit')return 'Your Anthropic account has no credits. The API is pay-as-you-go: add credits at console.anthropic.com → Billing, then try again.';
   if(c==='bad_model')return 'That model isn’t available on your API key. Pick another in Connect.';
-  if(c==='network')return 'Couldn’t reach Anthropic. Check your internet connection.';
+  if(c==='network')return 'Couldn’t reach Anthropic. If your internet works, the usual cause is an Anthropic account with no credits or a key that was turned off: check console.anthropic.com → Billing and API keys.';
   if(c==='rate_limited')return 'Anthropic says slow down for a minute. Try again shortly.';
   if(c==='invalid_json')return `${n}’s answer came back garbled. Try again.`;
   if(c==='image_rejected')return 'One of the photos couldn’t be read. Remove it and try again.';
-  return (e&&e.message)?'Claude error: '+e.message:'Couldn’t reach Claude. Try again.';
+  if(c==='empty_completion')return 'Claude sent back an empty answer. Try again.';
+  if(c==='upstream_error')return `Anthropic’s servers had a problem${e.status?' (HTTP '+e.status+')':''}. Try again in a minute.`;
+  return (e&&e.message)?`Claude error${e.status?' (HTTP '+e.status+')':''}: ${e.message}`:`Couldn’t reach Claude${c?' ('+c+')':''}. Try again.`;
 }
 async function runAI(key,label,fn,quiet){
   if(state.busy[key])return null;
@@ -1952,6 +1954,23 @@ const QUICK=[
   {id:'checkin',label:'Send a check-in',c:'blue',ins:'Send a short, friendly check-in asking where things stand. No new price.'},
   {id:'feedback',label:'Ask for seller feedback',c:'blue',ins:'Ask what the seller thought of our offer and what would need to be true for them to accept: price, timing, or terms.'}
 ];
+
+/* ---- is the key actually working? (a real 1-word call to each model OfferDesk uses) ---- */
+async function testKey(){
+  if(!aiOn())return;const key='ai-test';if(state.busy[key])return;state.busy[key]={label:'Asking Anthropic if your key works…'};render();
+  const sec=secrets();const models=[...new Set([sec.model||'claude-sonnet-5-5','claude-haiku-5-5'])];const res={};let ok=true,msg='';
+  for(const m of models){try{await apiText('Reply with the single word OK.',{model:m,maxTokens:5});res[m]='ok'}catch(e){ok=false;res[m]=e&&e.code||'error';if(!msg)msg=aiErr(e)||'';if(e&&['bad_key','no_credit','network'].includes(e.code))break}}
+  state.conn.aiCheck={ok,at:nowISO(),msg,models:res,key:String(sec.apiKey||'').slice(-6)};delete state.busy[key];saveConn();render();
+  toast(ok?`Your key works. ${negName()} is ready.`:msg,ok?3200:7000);
+}
+function keyState(){const c=state.conn.aiCheck;if(!aiOn())return 'none';if(!c||c.key!==String(secrets().apiKey||'').slice(-6))return 'untested';return c.ok?'ok':'bad'}
+function keyPill(){const k=keyState();return k==='ok'?'<span class="pill green">Working</span>':k==='bad'?'<span class="pill red">Not working</span>':k==='untested'?'<span class="pill orange">Saved, not tested</span>':'<span class="pill orange">Not set up</span>'}
+function keyNote(){const k=keyState();const c=state.conn.aiCheck||{};
+  if(k==='ok')return `<div class="note green small">Tested ${ago(c.at)}: Anthropic accepted the key${Object.keys(c.models||{}).length>1?' for every model OfferDesk uses':''}.</div>`;
+  if(k==='bad')return `<div class="note red small"><b>Tested ${ago(c.at)}: not working.</b> ${esc(c.msg||'')}${c.models?`<br><span class="xs">${Object.entries(c.models).map(([m,v])=>`${esc(m.replace('claude-','').replace(/-/g,' '))}: ${v==='ok'?'works':esc(v)}`).join(' · ')}</span>`:''}</div>`;
+  if(k==='untested')return `<div class="note amber small">The key is saved but hasn’t been checked with Anthropic yet. Press <b>Test key</b>.</div>`;
+  return '';
+}
 
 /* ================= photos (IndexedDB) ================= */
 const photoObjURL={};
@@ -2766,7 +2785,7 @@ function topbarHTML(){
   const k=counts();const n=esc(negName());
   const items=[['dashboard','Dashboard','dashboard',k.reply+k.draft],['listings','Listings','listings',0],['markets','Markets','map',0],['campaigns','Campaigns','send',cpList().filter(c=>c.items.some(i=>i.status==='needs')).length],['leads','Inbox Leads','leads',k.ws+k.newMail],['practice','Practice','practice',0],['stats','Stats','stats',0],['settings','Connect','settings',(aiOn()&&gmailOn())?0:1]];
   const live=state.settings.auto.enabled&&aiOn();
-  const st=!aiOn()?['warn','needs a key']:live?['live','autopilot on']:['on','ready'];
+  const st=!aiOn()?['warn','needs a key']:keyState()==='bad'?['warn','key not working']:live?['live','autopilot on']:['on','ready'];
   const cur=state.view==='deal'||state.view==='report'?'listings':state.view;
   const unseen=unseenCount();
   return `<div class="wrap">
@@ -3852,7 +3871,7 @@ function viewPractice(){
   const head=hero('g-practice','Practice calls','Rehearse a negotiation on a realistic case file or one of your deals, then get a written prep sheet',`<span>${ico('practice')}${sessions.length} call${sessions.length===1?'':'s'} so far</span>${sessions.find(s=>s.feedback)?(()=>{const f=sessions.find(s=>s.feedback).feedback;return `<span>${ico('trend')}Last score ${esc(f.score)}/${f.v===2?100:10}</span>`})():''}`,'');
   const setup=`<section class="card"><div class="card-head"><span class="ci pink">${ico('practice')}</span><div><h2>New practice call</h2><p>The agent has a secret lowest price. Earn it with reasons, not pressure.</p></div></div>
     <label class="field"><span>Deal</span><select class="input" id="pr-deal" data-draft><option value="case" ${!state.drafts['pr-deal']||state.drafts['pr-deal']==='case'?'selected':''}>New case file: a realistic made-up deal with comps and history</option>${deals.filter(d=>!d.example).map(d=>`<option value="${d.id}" ${state.drafts['pr-deal']===d.id?'selected':''}>${esc(streetOf(d.address)||'Untitled')}</option>`).join('')}</select></label>
-    <div class="field"><span>Where the deal stands</span><div class="seg wrapseg" role="group" aria-label="Where the deal stands">${Object.entries(PR_STAGES).map(([k,v])=>`<button data-act="pr-stage" data-v="${k}" aria-pressed="${(state.drafts['pr-stage']||'offer_sent')===k}" title="${esc(v[1])}">${v[0]}</button>`).join('')}</div><span class="xs muted">${esc(PR_STAGES[state.drafts['pr-stage']||'offer_sent'][1])}.</span></div>
+    <div class="field"><span>Where the deal stands</span><div class="seg wrapseg" role="group" aria-label="Where the deal stands">${Object.entries(PR_STAGES).map(([k,v])=>`<button data-act="pr-stage" data-v="${k}" aria-pressed="${(state.drafts['pr-stage']||'first')===k}" title="${esc(v[1])}">${v[0]}</button>`).join('')}</div><span class="xs muted">${esc(PR_STAGES[state.drafts['pr-stage']||'first'][1])}.</span></div>
     <div class="opts">${Object.entries(PERSONAS).map(([k,p])=>`<button class="persona" data-act="persona" data-v="${k}" aria-pressed="${state.practicePersona===k}"><span class="tag ${p.color}" style="justify-self:start">${esc(p.label)}</span><span class="small muted">${esc(p.brief.replace(/^./,m=>m.toUpperCase()))}</span></button>`).join('')}</div>
     ${state.prErr?`<div class="note amber">${esc(state.prErr)}${/key|Connect/.test(state.prErr)?` <a href="#settings/connections">Open Connect</a>`:''}</div>`:''}
     <div class="row">${state.prBrief&&!state.modal?`<button class="btn" data-act="pr-brief">${ico('doc')}Open your brief</button>`:''}<button class="btn primary" data-act="pr-start" ${state.busy['pr-prep']||state.busy['pr-start']?'disabled':''}>${ico('doc')}${state.prBrief?'New brief':'Prepare the call'}</button>${busyHTML('pr-prep',false)}${busyHTML('pr-start',false)}</div>
@@ -3908,11 +3927,12 @@ function viewSettings(){
 function fset(path,label,type='num',extra=''){const v=getPath(state.settings,path);return `<label class="field"><span>${label}</span><input class="input ${type==='num'?'tnum':''}" id="st-${path.replace(/\./g,'-')}" data-fs="${path}" data-t="${type}" value="${esc(v??'')}" ${extra}></label>`}
 function setConn(){
   const sec=secrets();const n=esc(negName());const S=state.settings;const gm=gmailOn();
-  const brain=`<section class="conn-card" id="conn-ai"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}’s brain and eyes</h2><p>Claude, through your Anthropic API key</p></div><div class="ch-r">${aiOn()?'<span class="pill green">Connected</span>':'<span class="pill orange">Not set up</span>'}</div></div>
-    <p class="small">This file runs on its own, so ${n} uses an Anthropic API key (the same kind your Mazkir app uses). The same model reads text and looks at photos, so there’s no separate vision bot to connect. A negotiation draft costs about a cent; an inspection with 10 photos costs a few cents.</p>
-    <div class="grid-fields"><label class="field"><span>Anthropic API key</span><input class="input" type="password" id="sec-apiKey" data-sec="apiKey" value="${esc(sec.apiKey||'')}" placeholder="sk-ant-…" autocomplete="off" spellcheck="false"></label>
+  const brain=`<section class="conn-card" id="conn-ai"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>${n}’s brain and eyes</h2><p>Claude, through your Anthropic API key</p></div><div class="ch-r">${keyPill()}</div></div>
+    <p class="small">This file runs on its own, so ${n} uses an Anthropic API key (the same kind your Mazkir app uses). The same model reads text and looks at photos, so there’s no separate vision bot to connect. A negotiation draft costs about a cent; an inspection with 10 photos costs a few cents. The API is pay-as-you-go and separate from a Claude subscription: add credits at console.anthropic.com → Billing.</p>
+    <div class="grid-fields"><label class="field"><span>Anthropic API key</span><span class="row" style="flex-wrap:nowrap;gap:6px"><input class="input" type="${state.showKey?'text':'password'}" id="sec-apiKey" data-sec="apiKey" value="${esc(sec.apiKey||'')}" placeholder="sk-ant-…" autocomplete="off" spellcheck="false"><button class="btn ghost sm" data-act="key-show" aria-label="${state.showKey?'Hide':'Show'} the key">${ico('eye')}</button>${sec.apiKey?`<button class="btn ghost sm" data-act="key-clear">Change</button>`:''}</span></label>
     <label class="field"><span>Model for negotiating and inspections</span><select class="input" id="sec-model" data-sec="model">${[['claude-sonnet-5-5','Sonnet 5.5 (recommended)'],['claude-opus-5-5','Opus 5.5 (sharpest, about 2× cost)'],['claude-haiku-5-5','Haiku 5.5 (cheapest)']].map(([v,l])=>`<option value="${v}" ${(sec.model||'claude-sonnet-5-5')===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
-    <div class="row"><button class="btn sm" data-act="ai-test">Test ${n}</button>${busyHTML('ai-test',false)}<span class="xs muted">Get a key from the API keys page of your Anthropic Console. It’s saved in this browser${cloudOn()?' and in your cloud save':''}, and only ever sent to Anthropic.</span></div></section>`;
+    ${keyNote()}
+    <div class="row"><button class="btn sm ${aiOn()&&!(state.conn.aiCheck&&state.conn.aiCheck.ok)?'primary':''}" data-act="ai-test" ${aiOn()?'':'disabled'}>${ico('check')}Test key</button>${busyHTML('ai-test',false)}<span class="xs muted">Get a key from the API keys page of your Anthropic Console. It’s saved in this browser${cloudOn()?' and in your cloud save':''}, and only ever sent to Anthropic.</span></div></section>`;
   const code=(document.getElementById('bridge-src')||{textContent:''}).textContent.trim().replace('PASTE-SECRET-HERE',bridgeKey());
   const accts=acctList().length?acctList():[{id:'g1',url:''}];const sendId=(sendAcct()||{}).id;
   const acctRows=accts.map((x,i)=>{const info=acctInfo(x.id);const on=!!(info&&info.email);
@@ -4731,7 +4751,7 @@ async function aiJSONRetry(key,label,prompt,opts){
 function practiceErr(msg){state.prErr=msg;render()}
 async function prepareCall(){
   if(!aiOn()){practiceErr(aiErr({code:'no_ai'}));return}
-  const persona=state.practicePersona||'tough';const stage=state.drafts['pr-stage']||'offer_sent';
+  const persona=state.practicePersona||'tough';const stage=state.drafts['pr-stage']||'first';
   const sel=state.drafts['pr-deal']!==undefined?state.drafts['pr-deal']:((document.getElementById('pr-deal')||{}).value||'case');
   state.prErr='';const before=state.activity.length;let k=null;
   try{
@@ -5187,7 +5207,9 @@ A['pr-del']=el=>{delete state.practice[el.dataset.id];if(state.practiceId===el.d
 
 /* settings */
 A.stab=el=>{go('settings',el.dataset.v)};
-A['ai-test']=async()=>{const r=await runAI('ai-test','Checking…',(ai,signal)=>ai.json('Reply with only this JSON: {"ok":true}',{signal,modelTier:'quick'}));if(r&&r.ok)toast(negName()+' is ready.')};
+A['ai-test']=()=>testKey();
+A['key-show']=()=>{state.showKey=!state.showKey;render()};
+A['key-clear']=()=>{setSecret('apiKey','');delete state.conn.aiCheck;saveConn();state.showKey=true;render();setTimeout(()=>{const el=document.getElementById('sec-apiKey');if(el)el.focus()},60)};
 A['acct-add']=()=>{const a=acctList();a.push({id:uid('g'),url:''});saveAccts(a);render()};
 A['acct-del']=el=>{const id=el.dataset.id;saveAccts(acctList().filter(x=>x.id!==id));if(state.conn.accounts)delete state.conn.accounts[id];if(state.settings.conn.sendAccount===id)state.settings.conn.sendAccount=((connectedAccts()[0])||{}).id||null;saveConn();saveSettings();toast('Account removed.')};
 A['acct-send']=el=>{state.settings.conn.sendAccount=el.dataset.id;saveSettings();toast(`${negName()} now sends from ${acctInfo(el.dataset.id).email}`)};
@@ -5263,7 +5285,7 @@ document.addEventListener('change',e=>{
   if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();saveDeal(d,true)}return}
   if(t.dataset.compsCsv&&t.files&&t.files[0]){const id=t.dataset.compsCsv;const fr=new FileReader();fr.onload=()=>importCompsCSV(id,String(fr.result||''));fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
-  if(t.dataset.sec){setSecret(t.dataset.sec,t.value.trim());render();return}
+  if(t.dataset.sec){const v=t.value.trim().replace(/\s+/g,'');setSecret(t.dataset.sec,t.dataset.sec==='apiKey'?v:t.value.trim());if(t.dataset.sec==='apiKey'){delete state.conn.aiCheck;saveConn();render();if(v)testKey()}else if(t.dataset.sec==='model'){delete state.conn.aiCheck;saveConn();render()}else render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpCsv&&t.files&&t.files[0]){const c=state.campaigns[t.dataset.cpCsv];const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));if(!items.length){toast('That file has no addresses. Use Redfin’s Download All.',5200);return}const n=await cpAddItems(c,items);toast(`Added ${n} listing${n===1?'':'s'}${n<items.length?` (${items.length-n} were already here)`:''}.`)};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpAgent){const c=cpCur();const it=c&&c.items.find(i=>i.k===t.dataset.cpAgent);if(it){const v=t.value.trim().toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v)){toast('That doesn’t look like an email.');return}it.agent=Object.assign(it.agent||{},{email:v,src:it.agent&&it.agent.src||'you'});cpPrice(c).then(()=>saveCampaign(c))}return}

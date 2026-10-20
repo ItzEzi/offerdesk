@@ -148,7 +148,7 @@ async function aiJSONRetry(key,label,prompt,opts){
 function practiceErr(msg){state.prErr=msg;render()}
 async function prepareCall(){
   if(!aiOn()){practiceErr(aiErr({code:'no_ai'}));return}
-  const persona=state.practicePersona||'tough';const stage=state.drafts['pr-stage']||'offer_sent';
+  const persona=state.practicePersona||'tough';const stage=state.drafts['pr-stage']||'first';
   const sel=state.drafts['pr-deal']!==undefined?state.drafts['pr-deal']:((document.getElementById('pr-deal')||{}).value||'case');
   state.prErr='';const before=state.activity.length;let k=null;
   try{

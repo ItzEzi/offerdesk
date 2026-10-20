@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261020-1654: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261020-1713: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261020-1654';
+const APP_V='20261020-1713';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -515,8 +515,8 @@ async function apiText(input,opts){
   if(!text)throw {code:'empty_completion'};
   return {text,truncated:j.stop_reason==='max_tokens'};
 }
-async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';
-  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m}}
+async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';const st=res.status;
+  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m,status:st}}
 /* a call where Claude may search the web and open pages (server tools); continues paused turns */
 const WEB_TOOLS=(n)=>[{type:'web_search_20250305',name:'web_search',max_uses:n||6},{type:'web_fetch_20250910',name:'web_fetch',max_uses:n||6,max_content_tokens:12000}];
 async function apiTools(prompt,opts){
@@ -553,13 +553,15 @@ function aiErr(e){
   if(c==='cancelled')return null;
   if(c==='no_ai')return `${n} needs your Anthropic API key. Add it in Connect → ${n}’s brain.`;
   if(c==='bad_key')return `Anthropic rejected your API key${e&&e.message?` (“${String(e.message).slice(0,140)}”)`:''}. In Connect → ${n}’s brain, paste a fresh key from console.anthropic.com → API keys, then press Test.`;
-  if(c==='no_credit')return 'Your Anthropic account is out of credits. Add credits in the Anthropic Console.';
+  if(c==='no_credit')return 'Your Anthropic account has no credits. The API is pay-as-you-go: add credits at console.anthropic.com → Billing, then try again.';
   if(c==='bad_model')return 'That model isn’t available on your API key. Pick another in Connect.';
-  if(c==='network')return 'Couldn’t reach Anthropic. Check your internet connection.';
+  if(c==='network')return 'Couldn’t reach Anthropic. If your internet works, the usual cause is an Anthropic account with no credits or a key that was turned off: check console.anthropic.com → Billing and API keys.';
   if(c==='rate_limited')return 'Anthropic says slow down for a minute. Try again shortly.';
   if(c==='invalid_json')return `${n}’s answer came back garbled. Try again.`;
   if(c==='image_rejected')return 'One of the photos couldn’t be read. Remove it and try again.';
-  return (e&&e.message)?'Claude error: '+e.message:'Couldn’t reach Claude. Try again.';
+  if(c==='empty_completion')return 'Claude sent back an empty answer. Try again.';
+  if(c==='upstream_error')return `Anthropic’s servers had a problem${e.status?' (HTTP '+e.status+')':''}. Try again in a minute.`;
+  return (e&&e.message)?`Claude error${e.status?' (HTTP '+e.status+')':''}: ${e.message}`:`Couldn’t reach Claude${c?' ('+c+')':''}. Try again.`;
 }
 async function runAI(key,label,fn,quiet){
   if(state.busy[key])return null;
@@ -785,6 +787,23 @@ const QUICK=[
   {id:'checkin',label:'Send a check-in',c:'blue',ins:'Send a short, friendly check-in asking where things stand. No new price.'},
   {id:'feedback',label:'Ask for seller feedback',c:'blue',ins:'Ask what the seller thought of our offer and what would need to be true for them to accept: price, timing, or terms.'}
 ];
+
+/* ---- is the key actually working? (a real 1-word call to each model OfferDesk uses) ---- */
+async function testKey(){
+  if(!aiOn())return;const key='ai-test';if(state.busy[key])return;state.busy[key]={label:'Asking Anthropic if your key works…'};render();
+  const sec=secrets();const models=[...new Set([sec.model||'claude-sonnet-5-5','claude-haiku-5-5'])];const res={};let ok=true,msg='';
+  for(const m of models){try{await apiText('Reply with the single word OK.',{model:m,maxTokens:5});res[m]='ok'}catch(e){ok=false;res[m]=e&&e.code||'error';if(!msg)msg=aiErr(e)||'';if(e&&['bad_key','no_credit','network'].includes(e.code))break}}
+  state.conn.aiCheck={ok,at:nowISO(),msg,models:res,key:String(sec.apiKey||'').slice(-6)};delete state.busy[key];saveConn();render();
+  toast(ok?`Your key works. ${negName()} is ready.`:msg,ok?3200:7000);
+}
+function keyState(){const c=state.conn.aiCheck;if(!aiOn())return 'none';if(!c||c.key!==String(secrets().apiKey||'').slice(-6))return 'untested';return c.ok?'ok':'bad'}
+function keyPill(){const k=keyState();return k==='ok'?'<span class="pill green">Working</span>':k==='bad'?'<span class="pill red">Not working</span>':k==='untested'?'<span class="pill orange">Saved, not tested</span>':'<span class="pill orange">Not set up</span>'}
+function keyNote(){const k=keyState();const c=state.conn.aiCheck||{};
+  if(k==='ok')return `<div class="note green small">Tested ${ago(c.at)}: Anthropic accepted the key${Object.keys(c.models||{}).length>1?' for every model OfferDesk uses':''}.</div>`;
+  if(k==='bad')return `<div class="note red small"><b>Tested ${ago(c.at)}: not working.</b> ${esc(c.msg||'')}${c.models?`<br><span class="xs">${Object.entries(c.models).map(([m,v])=>`${esc(m.replace('claude-','').replace(/-/g,' '))}: ${v==='ok'?'works':esc(v)}`).join(' · ')}</span>`:''}</div>`;
+  if(k==='untested')return `<div class="note amber small">The key is saved but hasn’t been checked with Anthropic yet. Press <b>Test key</b>.</div>`;
+  return '';
+}
 
 /* ================= photos (IndexedDB) ================= */
 const photoObjURL={};

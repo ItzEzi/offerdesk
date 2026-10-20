@@ -221,7 +221,9 @@ A['pr-del']=el=>{delete state.practice[el.dataset.id];if(state.practiceId===el.d
 
 /* settings */
 A.stab=el=>{go('settings',el.dataset.v)};
-A['ai-test']=async()=>{const r=await runAI('ai-test','Checking…',(ai,signal)=>ai.json('Reply with only this JSON: {"ok":true}',{signal,modelTier:'quick'}));if(r&&r.ok)toast(negName()+' is ready.')};
+A['ai-test']=()=>testKey();
+A['key-show']=()=>{state.showKey=!state.showKey;render()};
+A['key-clear']=()=>{setSecret('apiKey','');delete state.conn.aiCheck;saveConn();state.showKey=true;render();setTimeout(()=>{const el=document.getElementById('sec-apiKey');if(el)el.focus()},60)};
 A['acct-add']=()=>{const a=acctList();a.push({id:uid('g'),url:''});saveAccts(a);render()};
 A['acct-del']=el=>{const id=el.dataset.id;saveAccts(acctList().filter(x=>x.id!==id));if(state.conn.accounts)delete state.conn.accounts[id];if(state.settings.conn.sendAccount===id)state.settings.conn.sendAccount=((connectedAccts()[0])||{}).id||null;saveConn();saveSettings();toast('Account removed.')};
 A['acct-send']=el=>{state.settings.conn.sendAccount=el.dataset.id;saveSettings();toast(`${negName()} now sends from ${acctInfo(el.dataset.id).email}`)};
@@ -297,7 +299,7 @@ document.addEventListener('change',e=>{
   if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();saveDeal(d,true)}return}
   if(t.dataset.compsCsv&&t.files&&t.files[0]){const id=t.dataset.compsCsv;const fr=new FileReader();fr.onload=()=>importCompsCSV(id,String(fr.result||''));fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
-  if(t.dataset.sec){setSecret(t.dataset.sec,t.value.trim());render();return}
+  if(t.dataset.sec){const v=t.value.trim().replace(/\s+/g,'');setSecret(t.dataset.sec,t.dataset.sec==='apiKey'?v:t.value.trim());if(t.dataset.sec==='apiKey'){delete state.conn.aiCheck;saveConn();render();if(v)testKey()}else if(t.dataset.sec==='model'){delete state.conn.aiCheck;saveConn();render()}else render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpCsv&&t.files&&t.files[0]){const c=state.campaigns[t.dataset.cpCsv];const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));if(!items.length){toast('That file has no addresses. Use Redfin’s Download All.',5200);return}const n=await cpAddItems(c,items);toast(`Added ${n} listing${n===1?'':'s'}${n<items.length?` (${items.length-n} were already here)`:''}.`)};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpAgent){const c=cpCur();const it=c&&c.items.find(i=>i.k===t.dataset.cpAgent);if(it){const v=t.value.trim().toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v)){toast('That doesn’t look like an email.');return}it.agent=Object.assign(it.agent||{},{email:v,src:it.agent&&it.agent.src||'you'});cpPrice(c).then(()=>saveCampaign(c))}return}

@@ -29,7 +29,7 @@ function topbarHTML(){
   const k=counts();const n=esc(negName());
   const items=[['dashboard','Dashboard','dashboard',k.reply+k.draft],['listings','Listings','listings',0],['markets','Markets','map',0],['campaigns','Campaigns','send',cpList().filter(c=>c.items.some(i=>i.status==='needs')).length],['leads','Inbox Leads','leads',k.ws+k.newMail],['practice','Practice','practice',0],['stats','Stats','stats',0],['settings','Connect','settings',(aiOn()&&gmailOn())?0:1]];
   const live=state.settings.auto.enabled&&aiOn();
-  const st=!aiOn()?['warn','needs a key']:live?['live','autopilot on']:['on','ready'];
+  const st=!aiOn()?['warn','needs a key']:keyState()==='bad'?['warn','key not working']:live?['live','autopilot on']:['on','ready'];
   const cur=state.view==='deal'||state.view==='report'?'listings':state.view;
   const unseen=unseenCount();
   return `<div class="wrap">
