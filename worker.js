@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261019-2103: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261020-1639: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261019-2103';
+const APP_V='20261020-1639';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -552,7 +552,7 @@ function aiErr(e){
   const c=e&&e.code;const n=negName();
   if(c==='cancelled')return null;
   if(c==='no_ai')return `${n} needs your Anthropic API key. Add it in Connect → ${n}’s brain.`;
-  if(c==='bad_key')return 'Anthropic rejected your API key. Check it in Connect.';
+  if(c==='bad_key')return `Anthropic rejected your API key${e&&e.message?` (“${String(e.message).slice(0,140)}”)`:''}. In Connect → ${n}’s brain, paste a fresh key from console.anthropic.com → API keys, then press Test.`;
   if(c==='no_credit')return 'Your Anthropic account is out of credits. Add credits in the Anthropic Console.';
   if(c==='bad_model')return 'That model isn’t available on your API key. Pick another in Connect.';
   if(c==='network')return 'Couldn’t reach Anthropic. Check your internet connection.';
