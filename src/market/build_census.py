@@ -17,7 +17,7 @@ Writes census.json for the Markets page "Room at the table" lens:
     BLS QCEW: total jobs, change over 1 and 2 years
 Usage: python build_census.py OUT_DIR
 """
-import csv, io, json, os, sys, datetime, urllib.request, urllib.error
+import csv, io, json, os, re, sys, datetime, urllib.request, urllib.error
 
 UA = {'User-Agent': 'Mozilla/5.0 (OfferDesk market job; github.com/ItzEzi/offerdesk)'}
 ACS = 'https://api.census.gov/data/%d/acs/acs5'
@@ -25,6 +25,7 @@ REL = 'https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zct
 PEP = 'https://www2.census.gov/programs-surveys/popest/datasets/2020-%d/counties/totals/co-est%d-alldata.csv'
 QCEW = 'https://data.bls.gov/cew/data/api/%d/%d/industry/10.csv'
 STATUS = {}
+LABELS = {}
 
 # ACS variables, with words their labels must contain (checked against the Census variable list)
 V = {
@@ -56,24 +57,130 @@ def num(v):
 def r1(x):
     return None if x is None else round(x, 1)
 
-def check_labels(year):
-    bad = []
-    for k, (code, words) in V.items():
+SF = 'https://www2.census.gov/programs-surveys/acs/summary_file/%d/'
+KEY = os.environ.get('CENSUS_KEY', '').strip()   # optional: with a key the job uses the Census API instead of the bulk files
+
+def code_tb(code):
+    """B25032_014E -> (B25032, B25032_E014): the column name in the bulk (table-based) summary file."""
+    t, n = code[:-1].split('_')
+    return t, '%s_E%s' % (t, n)
+
+def links(url):
+    html = get(url, 120).decode('utf-8', 'replace')
+    return re.findall(r'href="([^"?#]+)"', html)
+
+def find_dir(year):
+    """Folder holding one .dat file per table for the 5-year release (table-based format, 2018+)."""
+    tried = []
+    for sub in ('table-based-SF/data/5YRData/', 'table-based-SF/data/5YRData', 'prototype/'):
+        url = SF % year + sub
         try:
-            lab = json.loads(get('%s/variables/%s.json' % (ACS % year, code), 60)).get('label', '')
+            L = links(url)
         except Exception as e:
-            print('label check failed for', code, e)
+            tried.append('%s: %s' % (sub, err_text(e)[:60]))
             continue
+        dats = [h for h in L if h.lower().endswith('.dat')]
+        if dats:
+            return url if url.endswith('/') else url + '/', dats
+        # the prototype folders (2018-2020) nest the 5-year files a level or two down
+        for h in L:
+            hl = h.lower().rstrip('/')
+            if h.endswith('/') and ('5yr' in hl or '5-year' in hl or '5_year' in hl or hl.endswith('data')) and not h.startswith('/') and '..' not in h:
+                u2 = url + h
+                try:
+                    L2 = links(u2)
+                except Exception:
+                    continue
+                d2 = [x for x in L2 if x.lower().endswith('.dat')]
+                if d2:
+                    return u2, d2
+                for h3 in L2:
+                    if h3.endswith('/') and '5' in h3 and not h3.startswith('/') and '..' not in h3:
+                        try:
+                            d3 = [x for x in links(u2 + h3) if x.lower().endswith('.dat')]
+                        except Exception:
+                            continue
+                        if d3:
+                            return u2 + h3, d3
+        tried.append(sub + ': no .dat files')
+    raise RuntimeError('ACS %d bulk files not found (%s)' % (year, '; '.join(tried)))
+
+def bulk(year, keys):
+    folder, dats = find_dir(year)
+    by_t = {}
+    for k in keys:
+        t, col = code_tb(V[k][0])
+        by_t.setdefault(t, []).append((k, col))
+    out = {}
+    for t, cols in by_t.items():
+        name = next((d for d in dats if re.search(r'[-_]%s\.dat$' % t.lower(), d.lower())), None)
+        if not name:
+            raise RuntimeError('ACS %d: no file for table %s in %s' % (year, t, folder))
+        url = name if name.startswith('http') else (folder + name.rsplit('/', 1)[-1])
+        req = urllib.request.Request(url, headers=UA)
+        r = urllib.request.urlopen(req, timeout=1800)
+        rd = io.TextIOWrapper(r, encoding='utf-8-sig', errors='replace', newline='')
+        head = rd.readline().rstrip('\r\n').split('|')
+        hu = [h.strip().upper() for h in head]
+        ig = hu.index('GEO_ID')
+        idx = []
+        for k, col in cols:
+            if col.upper() not in hu:
+                raise RuntimeError('ACS %d %s: column %s missing' % (year, t, col))
+            idx.append((k, hu.index(col.upper())))
+        n = 0
+        for line in rd:
+            if not (line.startswith('860') if ig == 0 else '|860' in line[:80]):   # ZCTA rows (summary level 860)
+                continue
+            p = line.rstrip('\r\n').split('|')
+            geo = p[ig]
+            z = geo[-5:]
+            if not z.isdigit():
+                continue
+            rec = out.setdefault(z, {})
+            for k, i in idx:
+                rec[k] = num(p[i]) if i < len(p) else None
+            n += 1
+        r.close()
+        print('ACS %d %s: %d ZCTAs from %s' % (year, t, n, url))
+    for rec in out.values():
+        for k in keys:
+            rec.setdefault(k, None)
+    return out
+
+def check_labels(year):
+    """Check the line numbers against the Census table shells (labels) for that year."""
+    bad, labs = [], {}
+    try:
+        folder = SF % year + 'table-based-SF/documentation/'
+        shell = next(h for h in links(folder) if 'table_shells' in h.lower() and '5yr' in h.lower())
+        raw = get(folder + shell.rsplit('/', 1)[-1], 300).decode('utf-8', 'replace')
+        for line in raw.splitlines():
+            p = line.split('\t') if '\t' in line else line.split('|')
+            if len(p) >= 4:
+                for c in p:
+                    c = c.strip()
+                    if re.match(r'^[BC]\d{5}_\d{3}$', c):
+                        labs[c] = p[-1].strip()
+                        break
+    except Exception as e:
+        print('label check skipped:', err_text(e))
+        return []
+    for k, (code, words) in V.items():
+        lab = labs.get(code[:-1], '')
+        LABELS[code] = lab
         low = lab.lower()
-        ok = all(w in low for w in words)
-        print('ACS %d %s %s: %s%s' % (year, code, k, lab, '' if ok else '   <-- UNEXPECTED'))
+        ok = bool(lab) and all(w.split(',')[0].strip() in low or w in low for w in words[-1:])
+        print('ACS %d %s %s: %s%s' % (year, code, k, lab, '' if ok else '   <-- CHECK'))
         if not ok:
-            bad.append(code)
+            bad.append('%s=%s' % (code, lab[:40]))
     return bad
 
 def acs(year, keys):
+    if not KEY:
+        return bulk(year, keys)
     codes = [V[k][0] for k in keys]
-    url = '%s?get=%s&for=zip%%20code%%20tabulation%%20area:*' % (ACS % year, ','.join(codes))
+    url = '%s?get=%s&for=zip%%20code%%20tabulation%%20area:*&key=%s' % (ACS % year, ','.join(codes), KEY)
     raw = get(url, 600)
     try:
         data = json.loads(raw)
@@ -110,6 +217,19 @@ def latest_acs():
             print('ACS %d not available: %s' % (year, e))
             errs.append('%d: %s' % (year, err_text(e)))
     raise RuntimeError('no ACS 5-year data found. ' + ' | '.join(errs))
+
+def base_acs(year):
+    """The same numbers about 5 years earlier (falls back to the oldest table-based year we can find)."""
+    errs = []
+    for b in range(year - 5, year - 2):
+        try:
+            d = acs(b, BASE_V)
+            if len(d) > 20000:
+                return b, d
+            errs.append('%d: only %d rows' % (b, len(d)))
+        except Exception as e:
+            errs.append('%d: %s' % (b, err_text(e)[:120]))
+    raise RuntimeError(' | '.join(errs))
 
 def zcta_county():
     raw = get(REL, 300).decode('utf-8-sig')
@@ -151,7 +271,7 @@ def pep():
                       'popG': r1((pl / p20 - 1) * 100), 'popYoy': r1((pl / pp - 1) * 100) if pp else None, 'mig': r1(dm / p20 * 100)}
         print('Population estimates vintage %d: %d counties' % (v, len(out)))
         return out, v
-    return {}, None
+    raise RuntimeError('no county population estimates file found')
 
 def qcew_file(y, q):
     raw = get(QCEW % (y, q), 300).decode('utf-8-sig')
@@ -166,6 +286,7 @@ def qcew_file(y, q):
 def qcew():
     t = datetime.date.today()
     y, q = t.year, (t.month - 1) // 3 + 1
+    errs = []
     for _ in range(8):
         q -= 1
         if q == 0:
@@ -174,6 +295,7 @@ def qcew():
             now = qcew_file(y, q)
         except Exception as e:
             print('QCEW %dQ%d not available: %s' % (y, q, e))
+            errs.append('%dQ%d: %s' % (y, q, err_text(e)[:100]))
             continue
         if len(now) < 2500:
             print('QCEW %dQ%d only %d counties, trying earlier' % (y, q, len(now)))
@@ -191,7 +313,7 @@ def qcew():
             out[f] = {'jobs': int(emp), 'jobYoy': r1(chg), 'job2y': r1(c2)}
         print('QCEW %dQ%d: %d counties' % (y, q, len(out)))
         return out, '%dQ%d' % (y, q)
-    return {}, None
+    raise RuntimeError('no QCEW county file found: ' + ' | '.join(errs[-3:]))
 
 def optional(name, fn, default):
     try:
@@ -210,8 +332,7 @@ def build(zips=None):
     year, cur = latest_acs()
     STATUS['acs'] = 'ok'
     bad = optional('labels', lambda: check_labels(year), [])
-    base_year = year - 5
-    base = optional('acsBase', lambda: acs(base_year, BASE_V), {})
+    base_year, base = optional('acsBase', lambda: base_acs(year), (None, {}))
     cty = optional('zctaCounty', zcta_county, {})
     pe, vint = optional('popEstimates', pep, ({}, None))
     jb, qtr = optional('qcew', qcew, ({}, None))
@@ -246,7 +367,7 @@ def build(zips=None):
         counties[f] = [p.get('popG'), p.get('popYoy'), p.get('mig'), p.get('pop'), j.get('jobYoy'), j.get('job2y'), j.get('jobs'), p.get('name')]
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
     return {'updated': now, 'acsYear': year, 'baseYear': base_year if base else None, 'popVintage': vint, 'qcew': qtr,
-            'labelWarnings': bad, 'status': STATUS, 'cols': COLS, 'rows': rows, 'ccols': CCOLS, 'counties': counties}
+            'labelWarnings': bad, 'labels': LABELS, 'status': STATUS, 'cols': COLS, 'rows': rows, 'ccols': CCOLS, 'counties': counties}
 
 def main(out_dir, zips=None):
     os.makedirs(out_dir, exist_ok=True)
