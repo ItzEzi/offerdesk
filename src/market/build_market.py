@@ -299,7 +299,7 @@ def optional(name, fn, default):
         return default
 
 DCOLS = ['z', 'st', 'city', 'county', 'lat', 'lng', 'mi', 'price', 'ppsf', 'dom', 'mos', 'sold', 'active', 'priceYoy', 'ppsfYoy',
-         'stl', 'off2w', 'pdPct', 'cancel', 'delist', 'relist', 'zori', 'zoriYoy', 'fmr3', 'above', 'ppsf2y', 'end']
+         'stl', 'off2w', 'pdPct', 'cancel', 'delist', 'relist', 'zori', 'zoriYoy', 'fmr3', 'above', 'ppsf2y', 'newl', 'end']
 
 def build_discover(data, metro, latest, now, period_end):
     """One national table (every ZIP, single-family) for the Markets page."""
@@ -323,7 +323,7 @@ def build_discover(data, metro, latest, now, period_end):
         out.append([z, st, g[0] if g else '', g[2] if g else '', g[3] if g else None, g[4] if g else None, mix[mname],
                     L['price'], L['ppsf'], L['dom'], L['mos'], L['sold'], L['active'], L['priceYoy'], L['ppsfYoy'],
                     L['stl'], L['off2w'], L.get('pdPct'), rnd(c.get('cancel'), 1), rnd(d.get('delist'), 1), rnd(d.get('relist'), 1),
-                    rz[0], rz[1], fm.get(z), L.get('above'), L.get('ppsf2y'), L['end']])
+                    rz[0], rz[1], fm.get(z), L.get('above'), L.get('ppsf2y'), L.get('newl'), L['end']])
     minv = {}
     for nm in mlist:
         k = re.sub(r'\s+metro area$', '', nm)
