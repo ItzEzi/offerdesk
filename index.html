@@ -707,6 +707,9 @@ details.card>summary{cursor:pointer}
 .rs-cands{margin:0;padding-left:18px;font-size:13px;display:grid;gap:3px}
 #rs-cands summary{cursor:pointer;font-weight:700;margin-top:12px}
 .rs-step>.btn,.rs-step>a.btn{justify-self:start}
+.rc-tick{font-size:11px;fill:var(--muted)}
+.rc-grid{stroke:var(--line);stroke-width:1}
+@media (max-width:640px){.rc-tick{font-size:17px}}
 
 </style>
 </head>
@@ -1242,7 +1245,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261020-2331';
+const APP_V='20261020-2347';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -4277,14 +4280,15 @@ function mkCompute(){
   const metros=Object.entries(g).map(([k,zs])=>{
     zs.sort((a,b)=>b.ls-a.ls);
     const med=f=>median(zs.map(f));
-    return {key:k,label:mkLabel(k),st:mkMetroState(k,zs),zips:zs,n:zs.length,score:mScore(zs,o=>o.ls),stats:mScore(zs,o=>o.score),roomScore:hasRoom?mScore(zs,o=>o.rm&&o.rm.room):null,sold:zs.reduce((s,o)=>s+(o.sold||0),0),
-      price:med(o=>o.price),dom:med(o=>o.dom),yoy:med(o=>o.priceYoy),cuts:med(o=>o.pdPct),cancel:med(o=>o.cancel),yld:med(mkYield),inv:D.investors[k]||null,rm:hasRoom?roomMetro(zs):null};
-  }).filter(m=>lens!=='room'||(m.key[0]!=='~'&&m.sold>=minMetro)).sort((a,b)=>b.score-a.score||b.sold-a.sold);
+    const rm=hasRoom?roomMetro(zs):null;
+    return {key:k,label:mkLabel(k),st:mkMetroState(k,zs),zips:zs,n:zs.length,score:lens==='room'?(rm&&rm.room):mScore(zs,o=>o.ls),stats:mScore(zs,o=>o.score),roomScore:rm&&rm.room,sold:zs.reduce((s,o)=>s+(o.sold||0),0),
+      price:med(o=>o.price),dom:med(o=>o.dom),yoy:med(o=>o.priceYoy),cuts:med(o=>o.pdPct),cancel:med(o=>o.cancel),yld:med(mkYield),inv:D.investors[k]||null,rm};
+  }).filter(m=>m.score!=null&&(lens!=='room'||(m.key[0]!=='~'&&m.sold>=minMetro))).sort((a,b)=>b.score-a.score||b.sold-a.sold);
   metros.forEach((m,i)=>m.rank=i+1);
   MKC={key,res:{zips:lz,metros,strat:st,lens,w,hasRoom,byKey:Object.fromEntries(metros.map(m=>[m.key,m]))}};return MKC.res;
 }
 /* room scores are a balance of three things, so they run lower than strategy scores: grade them on their own scale */
-const mkGrade=s=>{const r=MKC.res&&MKC.res.lens==='room';return s==null?'':s>=(r?66:80)?'green':s>=(r?56:65)?'blue':s>=(r?46:50)?'amber':'red'};
+const mkGrade=s=>{const r=MKC.res&&MKC.res.lens==='room';return s==null?'':s>=(r?80:80)?'green':s>=(r?75:65)?'blue':s>=(r?70:50)?'amber':'red'};
 const mkPill=s=>s==null?'<span class="muted">—</span>':`<span class="scorepill ${mkGrade(s)}">${s}</span>`;
 const sgn=(v,d=1)=>v==null||!isFinite(v)?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(d)+'%';
 const pctv=(v,d=0)=>v==null||!isFinite(v)?'—':(+v).toFixed(d)+'%';
@@ -4357,9 +4361,9 @@ function mkMetrosCard(R){
 }
 function mkRoomMetrosCard(R){
   const n=state.mk.show||25;const list=R.metros.slice(0,n);
-  const rows=list.map(m=>{const x=m.rm||{};return `<tr data-act="mk-metro" data-k="${esc(m.key)}" class="${state.mk.metro===m.key?'sel':''}"><td class="tnum muted">${m.rank}</td><td><b>${esc(m.label)}</b><div class="xs muted">${m.n} ZIP${m.n>1?'s':''} fit · ${numFmt(m.sold)} sales${x.pop?` · ${numFmt(Math.round(x.pop/1000))}K people`:''}</div></td><td class="c">${mkPill(m.score)}</td><td class="c">${mkPill(p100(x.food))}</td><td class="c"><span class="tag ${compCls(x.eaters)}">${compWord(x.eaters)}</span></td><td class="c">${mkPill(p100(x.future))}</td><td class="r tnum">${moneyK(m.price)}</td><td class="r tnum">${x.sfr!=null?pctv(x.sfr):'—'}${x.inflow!=null?`<div class="xs muted">${sg1(x.inflow)} pts</div>`:''}</td><td class="r tnum">${x.job!=null?sgn(x.job):'—'}</td><td class="r tnum">${x.popG!=null?sgn(x.popG):'—'}</td><td class="c">${starBtn('metro',m.key)}</td></tr>`}).join('');
-  return `<section class="card mk-metros" id="mk-metros"><div class="card-head"><span class="ci purple">${ico('stats')}</span><div><h2>Most room at the table</h2><p>Good ${esc(MK_STRATS[R.strat].toLowerCase())} numbers where fewer investors are already working</p></div></div>
-  ${R.metros.length?`<div class="tbl-wrap" data-keep-scroll id="mk-mtbl"><table class="tbl mk-tbl"><thead><tr><th>#</th><th>Market</th><th class="c">Room</th><th class="c">Deals</th><th class="c">Competition</th><th class="c">Future</th><th class="r">Median</th><th class="r" title="Share of single-family homes rented out, and the change over 5 years">Rented out</th><th class="r" title="County jobs, 2 years">Jobs</th><th class="r" title="County population since 2020">People</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+  const rows=list.map(m=>{const x=m.rm||{};return `<tr data-act="mk-metro" data-k="${esc(m.key)}" class="${state.mk.metro===m.key?'sel':''}"><td class="tnum muted">${m.rank}</td><td><b>${esc(m.label)}</b><div class="xs muted">${m.n} ZIP${m.n>1?'s':''} fit · ${numFmt(m.sold)} sales${x.pop?` · ${numFmt(Math.round(x.pop/1000))}K people`:''}</div></td><td class="c">${mkPill(m.score)}</td><td class="r tnum"><b>${leftN(x.left)}</b><div class="xs muted">of ~${leftN(x.newMo)} new</div></td><td class="r tnum">${x.share!=null?Math.round(x.share*100)+'%':'—'}</td><td class="r tnum">${leftN(x.cut)}</td><td class="c">${mkPill(p100(x.exit))}</td><td class="c">${mkPill(p100(x.future))}</td><td class="r tnum">${moneyK(m.price)}</td><td class="r tnum">${x.job!=null?sgn(x.job):'—'}</td><td class="r tnum">${x.popG!=null?sgn(x.popG):'—'}</td><td class="c">${starBtn('metro',m.key)}</td></tr>`}).join('');
+  return `<section class="card mk-metros" id="mk-metros"><div class="card-head"><span class="ci purple">${ico('stats')}</span><div><h2>Most room at the table</h2><p>Where the most listings in your price range are still there after the other investors and buyers have eaten: counts are a month, in the ZIPs that fit your box</p></div></div>
+  ${R.metros.length?`<div class="tbl-wrap" data-keep-scroll id="mk-mtbl"><table class="tbl mk-tbl"><thead><tr><th>#</th><th>Market</th><th class="c">Room</th><th class="r" title="Listings a month NOT under contract within 2 weeks">Left over a month</th><th class="r" title="Share of new listings still available after 2 weeks">Share left</th><th class="r" title="Active listings with a price cut right now">Price cuts now</th><th class="c" title="Renovated houses still sell: days on market, months of supply, sale-to-list">Resale</th><th class="c">Future</th><th class="r">Median</th><th class="r" title="County jobs, 2 years">Jobs</th><th class="r" title="County population since 2020">People</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
   ${R.metros.length>n?`<button class="btn sm ghost" data-act="mk-more" style="margin-top:8px">Show ${Math.min(25,R.metros.length-n)} more</button>`:''}`:`<div class="note">Nothing fits. Widen the price range, lower the minimum sales, or clear the state filter.</div>`}</section>`;
 }
 function mkBars(subs,w){
@@ -4369,17 +4373,17 @@ function mkMetroCard(m,R){
   const wk=DISC.weekly&&DISC.weekly[m.key];const l=wk&&wk.l;
   const avgSubs={};Object.keys(R.w).forEach(k=>{avgSubs[k]=avgN(...m.zips.slice(0,5).map(o=>o.subs[k]))});const room=R.lens==='room'&&m.rm;
   const z=state.mk.zip&&DISC.byZip[state.mk.zip]&&DISC.byZip[state.mk.zip].mk===m.key?DISC.byZip[state.mk.zip]:null;
-  const rows=m.zips.slice(0,60).map(o=>`<tr data-act="mk-zip" data-k="${o.z}" class="${z&&z.z===o.z?'sel':''}"><td><b class="tnum">${o.z}</b><div class="xs muted">${esc(o.city||'')}${o.county?' · '+esc(o.county):''}</div></td><td class="c">${mkPill(o.ls)}</td>${room?`<td class="c"><span class="tag ${compCls(o.rm&&o.rm.eaters)}">${compWord(o.rm&&o.rm.eaters)}</span></td><td class="r tnum">${o.sfr!=null?pctv(o.sfr):'—'}</td>`:''}<td class="r tnum">${moneyK(o.price)}</td><td class="r tnum">${o.ppsf?'$'+o.ppsf:'—'}</td><td class="r tnum">${o.dom??'—'}</td><td class="r tnum">${o.sold??'—'}</td><td class="r tnum">${sgn(o.priceYoy)}</td><td class="r tnum">${pctv(o.pdPct)}</td><td class="r tnum">${mkRent(o)?money(mkRent(o)):'—'}</td><td class="r tnum">${mkYield(o)!=null?pct(mkYield(o),1):'—'}</td><td class="c">${starBtn('zip',o.z)}</td></tr>`).join('');
+  const rows=m.zips.slice(0,60).map(o=>`<tr data-act="mk-zip" data-k="${o.z}" class="${z&&z.z===o.z?'sel':''}"><td><b class="tnum">${o.z}</b><div class="xs muted">${esc(o.city||'')}${o.county?' · '+esc(o.county):''}</div></td><td class="c">${mkPill(o.ls)}</td>${room?`<td class="r tnum">${leftN(o.rm&&o.rm.left)}</td><td class="r tnum">${o.rm&&o.rm.share!=null?Math.round(o.rm.share*100)+'%':'—'}</td>`:''}<td class="r tnum">${moneyK(o.price)}</td><td class="r tnum">${o.ppsf?'$'+o.ppsf:'—'}</td><td class="r tnum">${o.dom??'—'}</td><td class="r tnum">${o.sold??'—'}</td><td class="r tnum">${sgn(o.priceYoy)}</td><td class="r tnum">${pctv(o.pdPct)}</td><td class="r tnum">${mkRent(o)?money(mkRent(o)):'—'}</td><td class="r tnum">${mkYield(o)!=null?pct(mkYield(o),1):'—'}</td><td class="c">${starBtn('zip',o.z)}</td></tr>`).join('');
   return `<section class="card" id="mk-metro"><div class="card-head"><span class="ci teal">${ico('building')}</span><div><h2>${esc(m.label)} <span class="muted" style="font-weight:600">#${m.rank}</span></h2><p>${m.n} ZIPs fit your box · ${numFmt(m.sold)} single-family sales in 3 months</p></div><div class="ch-r">${mkPill(m.score)}${starBtn('metro',m.key)}<button class="btn sm" data-act="mk-campaign" data-k="${esc(m.key)}">${ico('send')}Start a campaign here</button></div></div>
-  ${room?`<div class="split"><div>${roomBars(m.rm)}<p class="xs muted">Weighted by sales across the ZIPs that fit. Hover a bar for what it measures.</p>
-    <p class="small"><span class="tag ${compCls(m.rm.eaters)}">${compWord(m.rm.eaters)} competition</span> ${m.stats!=null?`<span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${m.stats}/100</span>`:''}</p></div>
+  ${room?`<div class="split"><div>${roomBars(m.rm)}<p class="xs muted">Totals across the ZIPs that fit your box. Hover a bar for what it measures.</p>
+    <p class="small">${leftTag(m.rm)} ${m.stats!=null?`<span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${m.stats}/100</span>`:''}</p></div>
     <div class="mk-facts">${roomFacts(m.rm)}</div></div><h3 class="mk-h3">The numbers</h3>`:''}
   <div class="split"><div>${mkBars(avgSubs,R.w)}<p class="xs muted">Average of its top 5 ZIPs. Hover a bar for what it measures.</p></div>
   <div class="mk-facts">${[['Median sale price',moneyK(m.price)],['Median days on market',m.dom!=null?Math.round(m.dom)+' days':'—'],['Price change, 1 year',sgn(m.yoy)],['Listings with a price cut',pctv(m.cuts)],['Pending sales that cancel',pctv(m.cancel)],['Rent yield (gross)',m.yld!=null?pct(m.yld,1):'—'],['Investor share of purchases',m.inv?`${pctv(m.inv.share,1)} (${m.inv.yoy!=null?sgn(m.inv.yoy,0)+' yr':''}, ${esc(m.inv.q||'')})`:'— (Redfin covers the ~40 largest metros)']].map(([a,b])=>`<div><span class="small muted">${a}</span><b class="tnum">${b}</b></div>`).join('')}
   ${l?`<div class="mk-wk"><span class="small muted">Whole metro, last 4 weeks (to ${esc(wk.periodEnd||'')})</span><b class="small">Pending sales ${l.pendYoy!=null?sgn(l.pendYoy,0):'—'} · new listings ${l.newYoy!=null?sgn(l.newYoy,0):'—'} · active ${l.activeYoy!=null?sgn(l.activeYoy,0):'—'} vs a year ago · ${l.mos??'—'} months of supply</b></div>`:''}</div></div>
   ${z?mkZipDetail(z,R):''}
   <h3 class="mk-h3">ZIPs that fit, best first</h3>
-  <div class="tbl-wrap" data-keep-scroll id="mk-ztbl"><table class="tbl mk-tbl"><thead><tr><th>ZIP</th><th class="c">${room?'Room':'Score'}</th>${room?'<th class="c">Competition</th><th class="r">Rented out</th>':''}<th class="r">Median</th><th class="r">$/sqft</th><th class="r">Days</th><th class="r">Sold</th><th class="r">YoY</th><th class="r">Cuts</th><th class="r">Rent (est.)</th><th class="r">Yield</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="tbl-wrap" data-keep-scroll id="mk-ztbl"><table class="tbl mk-tbl"><thead><tr><th>ZIP</th><th class="c">${room?'Room':'Score'}</th>${room?'<th class="r">Left over a month</th><th class="r">Share left</th>':''}<th class="r">Median</th><th class="r">$/sqft</th><th class="r">Days</th><th class="r">Sold</th><th class="r">YoY</th><th class="r">Cuts</th><th class="r">Rent (est.)</th><th class="r">Yield</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
   ${m.zips.length>60?`<p class="xs muted">Showing the best 60 of ${m.zips.length}.</p>`:''}</section>`;
 }
 function mkZipDetail(o,R){
@@ -4389,7 +4393,7 @@ function mkZipDetail(o,R){
   return `<div class="mk-zip" id="mk-zip"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${o.z} · ${esc(o.city||'')}, ${esc(stName(o.st))}${o.county?` <span class="muted" style="font-weight:600">${esc(o.county)} County</span>`:''}</h3>
     <p class="small muted">${moneyK(o.price)} median · $${o.ppsf??'—'}/sqft · ${o.dom??'—'} days · ${o.sold??'—'} sold, ${o.active??'—'} active · sale-to-list ${pctv(o.stl,1)} · ${o.mos??'—'} months of supply${o.cancel!=null?` · ${pctv(o.cancel)} of pendings cancel`:''}</p>
     ${rentLine?`<p class="small">${rentLine}</p>`:''}${(()=>{const m=R.byKey[o.mk];return m&&m.price&&o.price<m.price*.6?`<p class="small" style="color:var(--t-amber)">Median is ${Math.round(o.price/m.price*100)}% of the metro’s typical fitting ZIP. Cheap ZIPs can hide tough blocks and weak rents: check it street by street before buying.</p>`:''})()}</div><div class="row" style="flex-wrap:nowrap">${mkPill(o.ls)}${starBtn('zip',o.z)}<button class="btn ghost sm" data-act="mk-zip" data-k="" aria-label="Close">${ico('close')}</button></div></div>
-  ${R.lens==='room'&&o.rm?`<div class="split" style="margin-top:8px"><div>${roomBars(o.rm)}<p class="small"><span class="tag ${compCls(o.rm.eaters)}">${compWord(o.rm.eaters)} competition</span>${o.score!=null?` <span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${o.score}/100</span>`:''}</p></div><div class="mk-facts">${roomFacts({sfr:o.sfr,inflow:inflowOf(o),heat:o.rm.heat,pop:null,yb:o.yb,own75:o.own75,job:jobOf(o),popG:o.cPopG,mig:o.cMig,inc:incGOf(o),p2y:o.ppsf2y},true)}${o.cName?`<div><span class="small muted">County</span><b>${esc(o.cName)}</b></div>`:''}</div></div>`:''}
+  ${R.lens==='room'&&o.rm?`<div class="split" style="margin-top:8px"><div>${roomBars(o.rm)}<p class="small">${leftTag(o.rm)}${o.score!=null?` <span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${o.score}/100</span>`:''}</p></div><div class="mk-facts">${roomFacts({...o.rm,sfr:o.sfr,pop:null,yb:o.yb,job:jobOf(o),popG:o.cPopG,mig:o.cMig,inc:incGOf(o),p2y:o.ppsf2y},true)}${o.cName?`<div><span class="small muted">County</span><b>${esc(o.cName)}</b></div>`:''}</div></div>`:''}
   <div class="split" style="margin-top:8px"><div>${mkBars(o.subs||{},R.w)}</div><div class="mk-sparks">${s?[['Median sale price',s.price,'blue'],['$/sqft',s.ppsf,'blue'],['Days on market',s.dom,'amber']].map(([a,v,c])=>`<div><span class="xs muted">${a}, 2 years</span>${spark(v,c)}</div>`).join(''):'<span class="xs muted">Loading 2-year trend…</span>'}
     <div class="row" style="gap:8px;margin-top:6px"><a class="btn sm" href="https://www.redfin.com/zipcode/${o.z}" target="_blank" rel="noopener">${ico('link')}Homes on Redfin</a><a class="btn sm" href="https://www.zillow.com/homes/${o.z}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a></div></div></div></div>`;
 }
@@ -4425,7 +4429,7 @@ function drawMarketMap(){
   const tip=document.getElementById('mk-tip');
   const hit=e=>{const r=cv.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;let best=null,bd=(zoom?14:9)**2;for(const p of MKMAP.pts){const d=(p[0]-x)**2+(p[1]-y)**2;if(d<bd){bd=d;best=p}}return best};
   cv.onmousemove=e=>{const p=hit(e);if(!p){tip.hidden=true;cv.style.cursor='';return}const o=p[2];cv.style.cursor='pointer';tip.hidden=false;
-    tip.innerHTML=`<b>${o.z} · ${esc(o.city||'')}, ${esc(stName(o.st))}</b><span>${R.lens==='room'?`Room ${o.ls} · ${compWord(o.rm&&o.rm.eaters).toLowerCase()} competition`:`Score ${o.ls}`} · ${moneyK(o.price)} · ${o.dom??'—'} days · ${o.sold??'—'} sold</span><span class="muted">${esc(mkLabel(o.mk))}</span>`;
+    tip.innerHTML=`<b>${o.z} · ${esc(o.city||'')}, ${esc(stName(o.st))}</b><span>${R.lens==='room'?`Room ${o.ls} · ~${leftN(o.rm&&o.rm.left)} left over a month`:`Score ${o.ls}`} · ${moneyK(o.price)} · ${o.dom??'—'} days · ${o.sold??'—'} sold</span><span class="muted">${esc(mkLabel(o.mk))}</span>`;
     const tx=Math.min(p[0]+12,W-tip.offsetWidth-4),ty=p[1]+12+tip.offsetHeight>H?p[1]-tip.offsetHeight-10:p[1]+12;tip.style.left=Math.max(4,tx)+'px';tip.style.top=Math.max(4,ty)+'px'};
   cv.onmouseleave=()=>{tip.hidden=true};
   cv.onclick=e=>{const p=hit(e);if(!p)return;tip.hidden=true;const o=p[2];state.mk.metro=o.mk;state.mk.zip=o.z;render();setTimeout(()=>{const el=document.getElementById('mk-zip')||document.getElementById('mk-metro');if(el)el.scrollIntoView({block:'start',behavior:'smooth'})},90)};
@@ -4442,7 +4446,7 @@ function mkCandidates(R){
 function promptMarkets(R,cands){
   const M=mkSet();const st=R.strat;const D=DISC.data;
   const room=R.lens==='room';
-  const comp=m=>{const x=m.rm;if(!x)return '';return ` Competition data: ${compWord(x.eaters).toLowerCase()} (${p100(x.eaters)}/100); ${x.sfr!=null?`${x.sfr.toFixed(0)}% of single-family homes are rented out${x.inflow!=null?` (${sg1(x.inflow)} pts in about 5 years)`:''}`:'rental share unknown'}; metro population ${x.pop?numFmt(x.pop):'?'}; deals ${p100(x.food)}/100; future ${p100(x.future)}/100 (county jobs ${x.job!=null?sgn(x.job):'?'} over 2 years, population ${x.popG!=null?sgn(x.popG):'?'} since 2020, net domestic migration ${x.mig!=null?sgn(x.mig):'?'}, household income ${x.inc!=null?sgn(x.inc,0):'?'} over 5 years, $/sqft ${x.p2y!=null?sgn(x.p2y):'?'} over 2 years).`};
+  const comp=m=>{const x=m.rm;if(!x)return '';return ` Food left on the table: about ${leftN(x.newMo)} new listings a month in the ZIPs that fit, ${x.off!=null?Math.round(x.off):'?'}% go under contract within 2 weeks, so about ${leftN(x.left)} a month are still available after 2 weeks (${x.share!=null?Math.round(x.share*100):'?'}%); about ${leftN(x.cut)} have a price cut right now. Resale ${p100(x.exit)}/100. Investor signs: ${x.sfr!=null?`${x.sfr.toFixed(0)}% of single-family homes rented out`:'rental share unknown'}, metro population ${x.pop?numFmt(x.pop):'?'}. Future ${p100(x.future)}/100 (county jobs ${x.job!=null?sgn(x.job):'?'} over 2 years, population ${x.popG!=null?sgn(x.popG):'?'} since 2020, net domestic migration ${x.mig!=null?sgn(x.mig):'?'}, household income ${x.inc!=null?sgn(x.inc,0):'?'} over 5 years, $/sqft ${x.p2y!=null?sgn(x.p2y):'?'} over 2 years).`};
   const line=m=>`- ${m.label} (rank #${m.rank}, ${room?'room-at-the-table':''} score ${m.score}${room&&m.stats!=null?`, ${MK_STRATS[st].toLowerCase()} numbers ${m.stats}`:''}): ${m.n} ZIPs fit, ${m.sold} single-family sales in 3 months, median ${money(m.price)}, ${m.dom!=null?Math.round(m.dom):'?'} days on market, price ${sgn(m.yoy)} a year, ${pctv(m.cuts)} of listings cut price, ${pctv(m.cancel)} of pendings cancel, gross rent yield ${m.yld!=null?pct(m.yld,1):'?'}${m.inv?`, investors ${pctv(m.inv.share,1)} of purchases`:''}. ${comp(m)} Best ZIPs: ${m.zips.slice(0,4).map(o=>`${o.z} ${o.city||''} (score ${o.ls}, ${moneyK(o.price)}, ${o.dom??'?'}d, ${o.sold??'?'} sold, rent ${mkRent(o)?money(mkRent(o)):'?'})`).join('; ')}.`;
   return `You are ${negName()}, the acquisitions analyst for a real estate investor. He hasn't picked a market yet and wants the best place to start. Strategy: ${MK_STRATS[st]}. Buy box: ZIPs with a median single-family price of ${money(+M.minPrice||0)}–${M.maxPrice?money(+M.maxPrice):'any'}.${M.states?` He is only looking at: ${M.states}.`:''}
 ${M.notes?`What he told you about himself: """${String(M.notes).slice(0,1500)}"""`:''}
@@ -4450,7 +4454,7 @@ ${M.notes?`What he told you about himself: """${String(M.notes).slice(0,1500)}""
 OfferDesk's data (Redfin ${D.periodEnd}, single-family, rolling 3 months; rents from HUD 3-bed fair market rent or Zillow's typical rent):
 ${cands.map(line).join('\n')}
 
-${room?`What he wants most: a market with plenty of deals and a good future but FEW other investors competing for them ("lots of food, few people at the table"). He knows the big famous investor metros are crowded. For each market, use web search to check how crowded it really is: how many "we buy houses" / wholesaler / flipper companies advertise there, how active the local investor club (REIA) and BiggerPockets threads are, whether turnkey sellers market it to out-of-state investors, institutional single-family landlords buying there, and recent articles naming it a top investor market. Give each a competition verdict with the evidence.
+${room?`What he wants most: plenty of food LEFT on the table after the other investors eat. A busy market is fine if a good share of deals still goes unclaimed; a quiet market with little food is not. For each market, use web search to check how crowded it really is: how many "we buy houses" / wholesaler / flipper companies advertise there, how active the local investor club (REIA) and BiggerPockets threads are, whether turnkey sellers market it to out-of-state investors, institutional single-family landlords buying there, and recent articles naming it a top investor market. Give each a competition verdict with the evidence.
 
 `:''}Use web search for current facts that change the answer for this strategy in these markets, for example: landlord-tenant law and eviction timelines, property tax rates, insurance costs and flood or storm risk, rules on wholesaling and assigning contracts (licensing, disclosures), big employers arriving or leaving, and any recent news that moves prices. Name the source for each fact. Skip generic advice that applies everywhere.
 
@@ -4486,15 +4490,17 @@ function mkMemoCard(R){
   ${busyHTML('mk-memo')}${body}</section>`;
 }
 
-/* ================= Room at the table: good numbers, few investors, a good future ================= */
-/* Food = deals (the strategy score, plus old houses, older owners, stuck homes).
-   Eaters = investors already there (rented single-family share and how fast it rose, how hot listings sell,
-   metro size, Redfin's investor share). Future = jobs, people moving in, incomes, prices and rents. */
+/* ================= Room at the table: how much food is LEFT after the other eaters ================= */
+/* A metro is a table and its listings are the food. What matters is not how many investors sit there, but how much
+   they leave: listings in your price range that nobody grabbed in the first two weeks, every month (and the ones
+   that had to cut their price). Then: can you still sell the finished house (exit), and is the area growing (future)?
+   Investor signs (houses already rented out, metro size) are shown for background only. */
 const CENS={rows:0,meta:null};
-const ROOM_W={food:30,room:45,future:25};
+const ROOM_W={left:35,share:20,exit:20,future:25};
 const ROOM_SUB={
-  food:['Food (deals)','The strategy score (sales, speed, exit, trend, motivated sellers) plus old houses, older owners and stuck homes.'],
-  room:['Few eaters','The opposite of competition: fewer houses already owned by investors, slower growth in investor ownership, listings that don’t get snapped up, a smaller and less famous metro.'],
+  left:['Food left over','Listings a month in your price range that are NOT under contract within 2 weeks: the ones the other investors and buyers didn’t grab. Full marks at 150+ a month for a metro (20+ for a ZIP).'],
+  share:['Share left over','Of all new listings, the share still available after 2 weeks. Higher = the eaters leave more on the table.'],
+  exit:['Resale','Renovated houses still sell: days on market, months of supply, sale-to-list.'],
   future:['Future','County jobs over 2 years, population and people moving in since 2020, income growth, $/sqft over 2 years, rent growth.']
 };
 function joinCensus(c,byZip){
@@ -4504,109 +4510,118 @@ function joinCensus(c,byZip){
     for(let i=1;i<C.length;i++){const k=C[i];o[k==='pop'?'zpop':k==='pop0'?'zpop0':k]=r[i]}
     const cr=o.cty&&cs[o.cty];
     if(cr){o.cPopG=cr[ci.popG];o.cPopYoy=cr[ci.popYoy];o.cMig=cr[ci.mig];o.cPop=cr[ci.pop];o.cJobYoy=cr[ci.jobYoy];o.cJob2y=cr[ci.job2y];o.cName=cr[ci.name]}}
-  CENS.rows=n;CENS.mpop=null;CENS.meta={acsYear:c.acsYear,baseYear:c.baseYear,popVintage:c.popVintage,qcew:c.qcew};
+  CENS.rows=n;CENS.mpop=null;CENS.moff=null;CENS.meta={acsYear:c.acsYear,baseYear:c.baseYear,popVintage:c.popVintage,qcew:c.qcew};
 }
 const roomOn=()=>CENS.rows>1000;
 function mkLens(){return mkSet().lens==='room'&&roomOn()?'room':'stats'}
-/* percentile of v among the ZIPs that fit the box (0 = lowest) */
-function prFn(vals){
-  const s=vals.filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);const n=s.length;if(n<25)return ()=>null;
-  return v=>{if(v==null||!isFinite(v))return null;let lo=0,hi=n;while(lo<hi){const m=(lo+hi)>>1;if(s[m]<v)lo=m+1;else hi=m}let e=lo;while(e<n&&s[e]===v)e++;return (lo+e)/2/n};
-}
 function wavg(pairs,minCov=.4){let s=0,t=0,all=0;for(const [v,w] of pairs){all+=w;if(v!=null&&isFinite(v)){s+=v*w;t+=w}}return t&&t/all>=minCov?s/t:null}
 const gPct=(a,b)=>a!=null&&b?(a/b-1)*100:null;
 const inflowOf=o=>o.sfr!=null&&o.sfr0!=null?o.sfr-o.sfr0:null;
 const incGOf=o=>gPct(o.inc,o.inc0);
 const jobOf=o=>o.cJob2y!=null?o.cJob2y:o.cJobYoy!=null?o.cJobYoy*2:null;
+const logLin=(v,a,b)=>v==null||!isFinite(v)?null:v<=0?0:lin(Math.log(v),Math.log(a),Math.log(b));
 function metroPops(D){const m={};for(const o of D.rows)if(o.zpop)m[o.mk]=(m[o.mk]||0)+o.zpop;return m}
+/* typical "under contract within 2 weeks" share per metro, for small ZIPs Redfin leaves blank */
+function metroOff(D){const g={};for(const o of D.rows)if(o.off2w!=null)(g[o.mk]=g[o.mk]||[]).push(o.off2w);const m={};for(const k in g)m[k]=median(g[k]);m['']=median(D.rows.map(o=>o.off2w));return m}
+/* the food for one ZIP: new listings a month, and how many of them are still there after 2 weeks */
+function zipFood(o,D){
+  const moff=CENS.moff||(CENS.moff=metroOff(D));
+  const newMo=o.newl!=null?o.newl/3:o.sold!=null?o.sold/3*1.15:null;
+  const off=o.off2w!=null?o.off2w:(moff[o.mk]!=null?moff[o.mk]:moff['']);
+  const left=newMo!=null&&off!=null?newMo*(1-off/100):null;
+  const cut=o.active!=null&&o.pdPct!=null?o.active*o.pdPct/100:null;
+  return {newMo,off,left,cut,estOff:o.off2w==null};
+}
+const exitOf=o=>wavg([[lin(o.dom,90,25),1],[o.mos==null?null:o.mos<=4?1:1-lin(o.mos,4,8),1],[lin(o.stl,92,99),1]],.34);
+const futureOf=o=>wavg([[lin(jobOf(o),-2,6),25],[lin(o.cPopG,-4,8),15],[lin(o.cMig,-4,6),15],[lin(incGOf(o),8,40),15],[lin(o.ppsf2y,-5,15),20],[lin(o.zoriYoy,-1,5),10]]);
+function roomScore(L,S,E,F,mos,p2y,full){
+  if(L==null)return null;
+  let r=ROOM_W.left*logLin(L,full?10:1,full?150:20)+ROOM_W.share*(S==null?.5:lin(S,.4,.85))+ROOM_W.exit*(E??.5)+ROOM_W.future*(F??.5);
+  /* rotten food: too many unsold houses, or prices falling hard */
+  if(mos!=null&&mos>8)r*=.85;
+  if(p2y!=null&&p2y<-8)r*=.85;
+  return Math.round(r);
+}
 function roomCompute(zips,D){
   if(!roomOn()||!zips.length)return false;
-  const P={};const col=(k,f)=>{P[k]=prFn(zips.map(f))};
-  col('sfr',o=>o.sfr);col('inflow',inflowOf);col('stl',o=>o.stl);col('above',o=>o.above);col('off2w',o=>o.off2w);col('dom',o=>o.dom);
-  col('old',o=>o.yb!=null?-o.yb:null);col('aged',o=>o.own75);col('stuck',o=>o.ovac);
-  const mpop=CENS.mpop||(CENS.mpop=metroPops(D));
+  CENS.mpop=CENS.mpop||metroPops(D);
   for(const o of zips){
-    const fund=o.score!=null?o.score/100:null;
-    const ps=P.stuck(o.ovac);/* some stuck homes = motivated owners; a lot = a rough area */
-    const food=wavg([[fund,60],[P.old(o.yb!=null?-o.yb:null),15],[P.aged(o.own75),15],[ps==null?null:Math.min(ps,o.ovac>15?.4:1),10]],.6);
-    const pd=P.dom(o.dom);const heat=wavg([[P.stl(o.stl),1],[P.above(o.above),1],[P.off2w(o.off2w),1],[pd!=null?1-pd:null,1]]);
-    const inv=D.investors[o.metro];const mp=o.mk[0]==='~'?null:mpop[o.mk];
-    const eaters=wavg([[P.sfr(o.sfr),25],[P.inflow(inflowOf(o)),25],[heat,25],[mp?lin(Math.log(mp),Math.log(120e3),Math.log(4e6)):(o.mk[0]==='~'?0:null),15],[inv&&inv.share!=null?lin(inv.share,10,30):null,10]],.5);
-    const future=wavg([[lin(jobOf(o),-2,6),25],[lin(o.cPopG,-4,8),15],[lin(o.cMig,-4,6),15],[lin(incGOf(o),8,40),15],[lin(o.ppsf2y,-5,15),20],[lin(o.zoriYoy,-1,5),10]]);
-    let room=null;
-    if(food!=null&&eaters!=null){room=(ROOM_W.food*food+ROOM_W.room*(1-eaters)+ROOM_W.future*(future??.5));
-      /* you still have to sell the finished house */
-      if((o.dom!=null&&o.dom>100)||(o.stl!=null&&o.stl<91))room*=.85;
-      if(o.ppsf2y!=null&&o.ppsf2y<-8)room*=.85;
-      room=Math.round(room)}
-    o.rm={food,eaters,future,heat,room};
+    const f=zipFood(o,D);const exit=exitOf(o);const future=futureOf(o);
+    const share=f.newMo?f.left/f.newMo:null;
+    o.rm={...f,share,exit,future,room:roomScore(f.left,share,exit,future,o.mos,o.ppsf2y,false)};
   }
   return true;
 }
 function roomMetro(zs){
   const w=o=>Math.max(1,o.sold||1);const W=zs.reduce((s,o)=>s+w(o),0);
   const avg=f=>{let s=0,t=0;for(const o of zs){const v=f(o);if(v!=null&&isFinite(v)){s+=v*w(o);t+=w(o)}}return t/W>=.3?s/t:null};
-  return {food:avg(o=>o.rm&&o.rm.food),eaters:avg(o=>o.rm&&o.rm.eaters),future:avg(o=>o.rm&&o.rm.future),heat:avg(o=>o.rm&&o.rm.heat),
-    sfr:avg(o=>o.sfr),inflow:avg(inflowOf),yb:avg(o=>o.yb),own75:avg(o=>o.own75),ovac:avg(o=>o.ovac),inc:avg(incGOf),popG:avg(o=>o.cPopG),mig:avg(o=>o.cMig),job:avg(jobOf),
-    p2y:avg(o=>o.ppsf2y),rentG:avg(o=>o.zoriYoy),pop:CENS.mpop&&zs[0]&&zs[0].mk[0]!=='~'?CENS.mpop[zs[0].mk]:null};
+  const sum=f=>{let s=0,n=0;for(const o of zs){const v=f(o);if(v!=null&&isFinite(v)){s+=v;n++}}return n?s:null};
+  const left=sum(o=>o.rm&&o.rm.left),newMo=sum(o=>o.rm&&o.rm.newMo),cut=sum(o=>o.rm&&o.rm.cut);
+  const share=left!=null&&newMo?left/newMo:null;const exit=avg(o=>o.rm&&o.rm.exit),future=avg(o=>o.rm&&o.rm.future);
+  const mos=avg(o=>o.mos),p2y=avg(o=>o.ppsf2y);
+  return {left,newMo,cut,share,exit,future,mos,p2y,room:roomScore(left,share,exit,future,mos,p2y,true),
+    sfr:avg(o=>o.sfr),inflow:avg(inflowOf),yb:avg(o=>o.yb),own75:avg(o=>o.own75),inc:avg(incGOf),popG:avg(o=>o.cPopG),mig:avg(o=>o.cMig),job:avg(jobOf),
+    full:true,rentG:avg(o=>o.zoriYoy),dom:avg(o=>o.dom),off:avg(o=>o.rm&&o.rm.off),pop:CENS.mpop&&zs[0]&&zs[0].mk[0]!=='~'?CENS.mpop[zs[0].mk]:null};
 }
-const compWord=e=>e==null?'—':e<.3?'Low':e<.45?'Moderate':e<.6?'Busy':'Crowded';
-const compCls=e=>e==null?'':e<.3?'green':e<.45?'blue':e<.6?'amber':'red';
 const p100=v=>v==null?null:Math.round(v*100);
+const leftN=v=>v==null?'—':v>=10?numFmt(Math.round(v)):v.toFixed(1);
+const leftTag=x=>x&&x.left!=null?`<span class="tag ${x.share>=.7?'green':x.share>=.55?'blue':'amber'}">~${leftN(x.left)} left a month</span>`:'';
 function roomBars(rm){
-  return `<div class="mk-bars">${['room','food','future'].map(k=>{const v=k==='room'?(rm.eaters==null?null:1-rm.eaters):rm[k];return `<div class="mk-bar" title="${esc(ROOM_SUB[k][1])}"><span class="lab">${ROOM_SUB[k][0]} <span class="muted">· ${ROOM_W[k]}%</span></span><span class="track"><i style="width:${v==null?0:Math.round(v*100)}%"></i></span><b class="tnum">${v==null?'n/a':Math.round(v*100)}</b></div>`}).join('')}</div>`;
+  const v={left:logLin(rm.left,rm.full?10:1,rm.full?150:20),share:rm.share==null?null:lin(rm.share,.4,.85),exit:rm.exit,future:rm.future};
+  return `<div class="mk-bars">${['left','share','exit','future'].map(k=>`<div class="mk-bar" title="${esc(ROOM_SUB[k][1])}"><span class="lab">${ROOM_SUB[k][0]} <span class="muted">· ${ROOM_W[k]}%</span></span><span class="track"><i style="width:${v[k]==null?0:Math.round(v[k]*100)}%"></i></span><b class="tnum">${v[k]==null?'n/a':Math.round(v[k]*100)}</b></div>`).join('')}</div>`;
 }
 const sg1=v=>v==null||!isFinite(v)?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(1);
 function roomFacts(x,isZip){
   const rows=[
-    ['Houses already rented out',x.sfr!=null?`${pctv(x.sfr)} of single-family homes${x.inflow!=null?` · ${sg1(x.inflow)} pts in ${CENS.meta&&CENS.meta.baseYear?CENS.meta.acsYear-CENS.meta.baseYear:5} yrs`:''}`:'—','Rented single-family homes are mostly investor-owned. High or rising means investors are already here.'],
-    ['How hot listings sell',x.heat!=null?`${compWord(x.heat)} (${p100(x.heat)}/100)`:'—','Sale-to-list, share sold over asking, share under contract in 2 weeks, days on market, against other ZIPs in your box.'],
-    ['Metro size',x.pop?`${numFmt(x.pop)} people`:isZip?'—':'Outside metro areas','Bigger, famous metros draw out-of-state investors and funds.'],
-    ['Typical house built',x.yb?String(Math.round(x.yb)):'—','Older houses need more work: more fixer-uppers.'],
-    ['Owners aged 75+',x.own75!=null?pctv(x.own75,1):'—','Estates and downsizing ahead: future off-market sellers.'],
+    ['New listings a month',x.newMo!=null?`~${leftN(x.newMo)}`:'—','Redfin, single-family, in the ZIPs that fit your box (3-month average).'],
+    ['Grabbed within 2 weeks',x.off!=null?`${Math.round(x.off)}%${x.estOff?' (metro typical)':''}`:'—','Share of listings under contract within 2 weeks: what the eaters take fast.'],
+    ['Left over a month',x.left!=null?`~${leftN(x.left)}${x.share!=null?` (${Math.round(x.share*100)}%)`:''}`:'—','Listings still available after 2 weeks: the food left on the table for you.'],
+    ['With a price cut right now',x.cut!=null?`~${leftN(x.cut)}`:'—','Active listings that already cut their price: sellers who didn’t get their number.'],
     ['Jobs (county), 2 years',x.job!=null?sgn(x.job):'—','BLS covered employment.'],
     ['Population since 2020',x.popG!=null?`${sgn(x.popG)}${x.mig!=null?` · people moving in ${sgn(x.mig)}`:''}`:'—','Census population estimates; moving in = net domestic migration.'],
     ['Household income, 5 yrs',x.inc!=null?sgn(x.inc,0):'—','Census ACS, not adjusted for inflation.'],
-    ['$/sqft, 2 years',x.p2y!=null?sgn(x.p2y):'—','Redfin single-family.']];
+    ['$/sqft, 2 years',x.p2y!=null?sgn(x.p2y):'—','Redfin single-family.'],
+    ['Investor signs (background)',x.sfr!=null?`${pctv(x.sfr)} of houses rented out${x.pop?` · ${numFmt(Math.round(x.pop/1000))}K people`:''}`:'—','Rented single-family houses are mostly investor-owned. Shown for background; it doesn’t change the score.'],
+    ['Typical house built',x.yb?String(Math.round(x.yb)):'—','Older houses need more work: more fixer-uppers.']];
   return rows.map(([a,b,t])=>`<div title="${esc(t)}"><span class="small muted">${a}</span><b class="tnum">${b}</b></div>`).join('');
 }
-/* scatter: competition (x) vs food + future (y), one dot per metro */
+/* chart: share left over (x) vs food left over each month (y, log), one dot per metro */
 function mkRoomChart(R){
-  const ms=R.metros.filter(m=>m.key[0]!=='~'&&m.rm&&m.rm.eaters!=null&&m.rm.food!=null).sort((a,b)=>b.sold-a.sold).slice(0,160);
+  const ms=R.metros.filter(m=>m.key[0]!=='~'&&m.rm&&m.rm.left>0&&m.rm.share!=null).sort((a,b)=>b.sold-a.sold).slice(0,160);
   if(ms.length<5)return '';
-  const narrow=window.innerWidth<640;const W=narrow?560:1000,H=narrow?520:440,L=narrow?40:46,Rr=narrow?10:14,T=16,B=narrow?50:44;const iw=W-L-Rr,ih=H-T-B;
-  const opp=m=>.6*m.rm.food+.4*(m.rm.future??.5);
-  const xs=ms.map(m=>m.rm.eaters),ys=ms.map(opp);
-  const x0=Math.max(0,Math.min(...xs)-.03),x1=Math.min(1,Math.max(...xs)+.03),y0=Math.max(0,Math.min(...ys)-.03),y1=Math.min(1,Math.max(...ys)+.03);
+  const narrow=window.innerWidth<640;const W=narrow?560:1000,H=narrow?520:440,L=narrow?48:56,Rr=narrow?10:14,T=16,B=narrow?50:44;const iw=W-L-Rr,ih=H-T-B;
+  const xs=ms.map(m=>m.rm.share),ys=ms.map(m=>Math.log10(m.rm.left));
+  const x0=Math.max(0,Math.min(...xs)-.03),x1=Math.min(1,Math.max(...xs)+.03),y0=Math.min(...ys)-.08,y1=Math.max(...ys)+.08;
   const X=v=>L+(v-x0)/(x1-x0)*iw,Y=v=>T+(1-(v-y0)/(y1-y0))*ih;
   const mx=median(xs),my=median(ys);const maxS=Math.max(...ms.map(m=>m.sold));
   const rad=m=>3+9*Math.sqrt(m.sold/maxS);
   const top=[...ms].sort((a,b)=>b.score-a.score).slice(0,8);const topSet=new Set(top.map(m=>m.key));
-  const sel=state.mk.metro;
-  const dots=[...ms].sort((a,b)=>topSet.has(a.key)-topSet.has(b.key)||b.sold-a.sold).map(m=>{const cx=X(m.rm.eaters),cy=Y(opp(m));const on=sel===m.key;
-    return `<circle class="rc-dot${topSet.has(m.key)?' top':''}${on?' sel':''}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rad(m).toFixed(1)}" style="fill:${mkColor(m.score,isDark())}" data-act="mk-metro" data-k="${esc(m.key)}"><title>${esc(m.label)}: room ${m.score} · competition ${compWord(m.rm.eaters).toLowerCase()} · ${numFmt(m.sold)} sales</title></circle>`}).join('');
-  /* place labels so they don't run into each other: try right, left, above, below */
+  const sel=state.mk.metro;const P=m=>[X(m.rm.share),Y(Math.log10(m.rm.left))];
+  const dots=[...ms].sort((a,b)=>topSet.has(a.key)-topSet.has(b.key)||b.sold-a.sold).map(m=>{const [cx,cy]=P(m);const on=sel===m.key;
+    return `<circle class="rc-dot${topSet.has(m.key)?' top':''}${on?' sel':''}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rad(m).toFixed(1)}" style="fill:${mkColor(m.score,isDark())}" data-act="mk-metro" data-k="${esc(m.key)}"><title>${esc(m.label)}: room ${m.score} · ~${leftN(m.rm.left)} listings left over a month (${Math.round(m.rm.share*100)}%)</title></circle>`}).join('');
   const fs=narrow?19:11.5,placed=[];
-  const labels=top.map(m=>{const cx=X(m.rm.eaters),cy=Y(opp(m));const r=rad(m);const t=m.label.split(',')[0].split('-')[0];const tw=t.length*fs*.64+6;
+  const labels=top.map(m=>{const [cx,cy]=P(m);const r=rad(m);const t=m.label.split(',')[0].split('-')[0];const tw=t.length*fs*.64+6;
     const tries=[[cx+r+4,cy+fs*.35,'start'],[cx-r-4,cy+fs*.35,'end'],[cx-tw/2,cy-r-5,'start'],[cx-tw/2,cy+r+fs,'start'],[cx+r+4,cy-fs*.6,'start'],[cx+r+4,cy+fs*1.2,'start']];
     const box=([x,y,a])=>{const x0=a==='end'?x-tw:x;return [x0,y-fs*.85,x0+tw,y+fs*.2]};
-    const dotsAround=top.filter(o=>o!==m).map(o=>{const ox=X(o.rm.eaters),oy=Y(opp(o)),rr=rad(o)+3;return [ox-rr,oy-rr,ox+rr,oy+rr]});
+    const dotsAround=top.filter(o=>o!==m).map(o=>{const [ox,oy]=P(o),rr=rad(o)+3;return [ox-rr,oy-rr,ox+rr,oy+rr]});
     const pad=fs*.5;const hit=b=>b[0]<L||b[2]>W-2||b[1]<T||[...placed,...dotsAround].some(q=>b[0]-pad<q[2]&&b[2]+pad>q[0]&&b[1]<q[3]&&b[3]>q[1]);
     const pick=tries.find(c=>!hit(box(c)))||tries[0];placed.push(box(pick));
     return `<text class="rc-lab" x="${pick[0].toFixed(1)}" y="${pick[1].toFixed(1)}" text-anchor="${pick[2]}">${esc(t)}</text>`}).join('');
   const qx=X(mx),qy=Y(my);
-  return `<section class="card" id="mk-room"><div class="card-head"><span class="ci green">${ico('target')}</span><div><h2>Food vs. eaters</h2><p>Each dot is a metro (biggest ${ms.length} by sales). Up = more deals and a better future. Left = fewer investors already there. Bigger dot = more sales.</p></div></div>
-  <div class="rc-wrap"><svg class="rc" viewBox="0 0 ${W} ${H}" role="img" aria-label="Scatter chart of metros: competition against deals and future">
-    <rect class="rc-q" x="${L}" y="${T}" width="${(qx-L).toFixed(1)}" height="${(qy-T).toFixed(1)}"/>
-    <text class="rc-qlab" x="${L+8}" y="${T+16}">More food, fewer eaters</text>
-    <text class="rc-qlab dim" x="${L+iw-8}" y="${T+16}" text-anchor="end">Good deals, crowded table</text>
-    <text class="rc-qlab dim" x="${L+8}" y="${T+ih-8}">Quiet, thin pickings</text>
+  const ticks=[10,20,50,100,200,500,1000,2000].filter(v=>Math.log10(v)>=y0&&Math.log10(v)<=y1).map(v=>`<text class="rc-tick" x="${L-6}" y="${(Y(Math.log10(v))+4).toFixed(1)}" text-anchor="end">${v>=1000?v/1000+'K':v}</text><line class="rc-grid" x1="${L}" x2="${L+iw}" y1="${Y(Math.log10(v)).toFixed(1)}" y2="${Y(Math.log10(v)).toFixed(1)}"/>`).join('');
+  return `<section class="card" id="mk-room"><div class="card-head"><span class="ci green">${ico('target')}</span><div><h2>Food left on the table</h2><p>Each dot is a metro (biggest ${ms.length} by sales). Up = more listings a month that nobody grabbed in 2 weeks. Right = the eaters leave a bigger share. Bigger dot = more sales.</p></div></div>
+  <div class="rc-wrap"><svg class="rc" viewBox="0 0 ${W} ${H}" role="img" aria-label="Scatter chart of metros: share of listings left over against listings left over each month">
+    ${ticks}
+    <rect class="rc-q" x="${qx.toFixed(1)}" y="${T}" width="${(L+iw-qx).toFixed(1)}" height="${(qy-T).toFixed(1)}"/>
+    <text class="rc-qlab" x="${L+iw-8}" y="${T+16}" text-anchor="end">Lots of food left</text>
+    <text class="rc-qlab dim" x="${L+8}" y="${T+16}">Big table, hungry eaters</text>
+    <text class="rc-qlab dim" x="${L+iw-8}" y="${T+ih-8}" text-anchor="end">Small table, few eaters</text>
     <line class="rc-mid" x1="${qx.toFixed(1)}" x2="${qx.toFixed(1)}" y1="${T}" y2="${T+ih}"/><line class="rc-mid" x1="${L}" x2="${L+iw}" y1="${qy.toFixed(1)}" y2="${qy.toFixed(1)}"/>
     <line class="rc-axis" x1="${L}" x2="${L+iw}" y1="${T+ih}" y2="${T+ih}"/><line class="rc-axis" x1="${L}" x2="${L}" y1="${T}" y2="${T+ih}"/>
-    <text class="rc-ax" x="${L+iw/2}" y="${H-12}" text-anchor="middle">${narrow?'← fewer investors · more investors →':'Competition: fewer investors  ←  →  more investors'}</text>
-    <text class="rc-ax" transform="translate(14 ${T+ih/2}) rotate(-90)" text-anchor="middle">Deals + future</text>
+    <text class="rc-ax" x="${L+iw/2}" y="${H-12}" text-anchor="middle">${narrow?'Share left over after 2 weeks →':'Share of new listings still available after 2 weeks  →  more left over'}</text>
+    <text class="rc-ax" transform="translate(14 ${T+ih/2}) rotate(-90)" text-anchor="middle">Listings left over a month</text>
     ${dots}${labels}</svg></div>
-  <p class="xs muted">The 8 best for room at the table are labeled. Click a dot to open that metro. Lines mark the middle of the pack.</p></section>`;
+  <p class="xs muted">The 8 best for room at the table are labeled. Click a dot to open that metro. Lines mark the middle of the pack. Counts are for ZIPs that fit your box.</p></section>`;
 }
 
 /* ================= Bulk campaigns: many listings, one paced send queue ================= */

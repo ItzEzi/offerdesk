@@ -693,3 +693,6 @@ details.card>summary{cursor:pointer}
 .rs-cands{margin:0;padding-left:18px;font-size:13px;display:grid;gap:3px}
 #rs-cands summary{cursor:pointer;font-weight:700;margin-top:12px}
 .rs-step>.btn,.rs-step>a.btn{justify-self:start}
+.rc-tick{font-size:11px;fill:var(--muted)}
+.rc-grid{stroke:var(--line);stroke-width:1}
+@media (max-width:640px){.rc-tick{font-size:17px}}
