@@ -74,7 +74,11 @@ def check_labels(year):
 def acs(year, keys):
     codes = [V[k][0] for k in keys]
     url = '%s?get=%s&for=zip%%20code%%20tabulation%%20area:*' % (ACS % year, ','.join(codes))
-    data = json.loads(get(url, 600))
+    raw = get(url, 600)
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise RuntimeError('not JSON: ' + raw[:200].decode('utf-8', 'replace'))
     head = data[0]
     iz = head.index('zip code tabulation area')
     idx = {k: head.index(V[k][0]) for k in keys}
@@ -84,16 +88,28 @@ def acs(year, keys):
     print('ACS %d: %d ZCTAs' % (year, len(out)))
     return out
 
+def err_text(e):
+    t = str(e)
+    if isinstance(e, urllib.error.HTTPError):
+        try:
+            t += ' ' + e.read()[:200].decode('utf-8', 'replace')
+        except Exception:
+            pass
+    return t.replace('\n', ' ')[:240]
+
 def latest_acs():
     y = datetime.date.today().year
+    errs = []
     for year in range(y - 1, y - 5, -1):
         try:
             d = acs(year, list(V))
             if len(d) > 20000:
                 return year, d
+            errs.append('%d: only %d rows' % (year, len(d)))
         except Exception as e:
             print('ACS %d not available: %s' % (year, e))
-    raise RuntimeError('no ACS 5-year data found')
+            errs.append('%d: %s' % (year, err_text(e)))
+    raise RuntimeError('no ACS 5-year data found. ' + ' | '.join(errs))
 
 def zcta_county():
     raw = get(REL, 300).decode('utf-8-sig')
@@ -184,7 +200,7 @@ def optional(name, fn, default):
         return res
     except Exception as e:
         print(name, 'skipped:', e)
-        STATUS[name] = 'failed: %s' % str(e)[:160]
+        STATUS[name] = 'failed: %s' % err_text(e)
         return default
 
 COLS = ['z', 'sfr', 'sfr0', 'yb', 'own65', 'own75', 'ovac', 'inc', 'inc0', 'pop', 'pop0', 'cty']
@@ -223,9 +239,7 @@ def build(zips=None):
                      cty.get(z)])
     used = {r[-1] for r in rows if r[-1]}
     counties = {}
-    for f in used | set(pe) | set(jb):
-        if f not in used:
-            continue
+    for f in used:
         p, j = pe.get(f, {}), jb.get(f, {})
         if not p and not j:
             continue

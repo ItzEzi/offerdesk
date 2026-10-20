@@ -389,7 +389,7 @@ def main():
                   'popVintage': c['popVintage'], 'qcew': c['qcew'], 'status': c['status']}
     except Exception as e:
         print('census data skipped:', e)
-        census = {'failed': str(e)[:200]}
+        census = {'failed': str(e)[:900]}
     with open(os.path.join(OUT, 'index.json'), 'w') as f:
         json.dump({'updated': now, 'redfinUpdated': upd, 'periodEnd': period_end, 'metroWeekEnd': wk, 'propertyType': PTYPE, 'source': 'Redfin Data Center',
                    'zipCount': sum(v['count'] for v in files.values()), 'files': files,
