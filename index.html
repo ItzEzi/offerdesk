@@ -661,6 +661,37 @@ details.card>summary{cursor:pointer}
 .tag.score{white-space:normal;max-width:100%}
 @media (max-width:560px){.wrapseg button{flex-basis:45%;border-top:1px solid var(--line-strong);margin-top:-1px}}
 
+/* dictation: mic inside text boxes */
+.dict-wrap{position:relative;display:block;flex:1 1 auto;min-width:0;width:100%}
+.dict-wrap>textarea{width:100%;padding-right:44px}
+.dict-wrap.one>textarea{padding-right:36px}
+.dict-btn{position:absolute;right:6px;bottom:6px;width:32px;height:32px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;transition:background .15s,color .15s,border-color .15s}
+.dict-btn svg{width:16px;height:16px}
+.dict-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+.dict-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.dict-btn.on{background:var(--s-red);border-color:transparent;color:#fff;animation:dictpulse 1.4s ease-in-out infinite}
+.dict-wrap.one .dict-btn{width:26px;height:26px;bottom:50%;transform:translateY(50%);right:2px}
+.dict-wrap.one .dict-btn svg{width:14px;height:14px}
+@keyframes dictpulse{0%,100%{box-shadow:0 0 0 0 rgba(217,58,58,.45)}50%{box-shadow:0 0 0 6px rgba(217,58,58,0)}}
+@media (prefers-reduced-motion:reduce){.dict-btn.on{animation:none}}
+/* Markets: rank-by lens + food vs eaters chart */
+.mk-lens{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.mk-lens .seg button svg{width:14px;height:14px;margin-right:4px;vertical-align:-2px}
+.rc-wrap{width:100%;overflow:hidden}
+.rc{width:100%;height:auto;display:block;max-width:1100px;margin:0 auto}
+.rc-q{fill:var(--b-green);opacity:.7}
+.rc-qlab{font-size:12px;font-weight:700;fill:var(--t-green)}
+.rc-qlab.dim{fill:var(--muted);font-weight:600}
+.rc-mid{stroke:var(--line-strong);stroke-dasharray:4 4}
+.rc-axis{stroke:var(--line-strong)}
+.rc-ax{font-size:11.5px;fill:var(--muted)}
+.rc-dot{stroke:var(--surface);stroke-width:1.5;cursor:pointer;opacity:.82}
+.rc-dot.top{opacity:1;stroke:var(--ink);stroke-width:1.2}
+.rc-dot.sel{stroke:var(--ink);stroke-width:3;opacity:1}
+.rc-dot:hover{opacity:1;stroke:var(--ink)}
+.rc-lab{font-size:11.5px;font-weight:700;fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round;pointer-events:none}
+@media (max-width:640px){.rc-lab{font-size:19px}.rc-qlab{font-size:18px}.rc-ax{font-size:18px}.rc-dot{stroke-width:2}}
+
 </style>
 </head>
 <body>
@@ -1195,7 +1226,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261020-1713';
+const APP_V='20261020-2117';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1222,7 +1253,7 @@ const DEFAULTS={
   voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true,silenceSec:'7'},
   dnc:[],
   lender:{purchasePct:90,rehabPct:100,points:2,rate:11,termMonths:12,maxLtv:70,dscrRate:7.5,price:'auto'},
-  markets:{strategy:'',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
+  markets:{strategy:'',lens:'',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}
@@ -1248,6 +1279,8 @@ const ICONS={
   kanban:'<rect x="3" y="3" width="5" height="18" rx="1.5"/><rect x="10" y="3" width="5" height="12" rx="1.5"/><rect x="17" y="3" width="4" height="8" rx="1.5"/>',
   leads:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1.5 2.5h5L16 13h5"/>',
   practice:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  stop:'<rect x="7" y="7" width="10" height="10" rx="2"/>',
   stats:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   settings:'<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',
   bell:'<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
@@ -2768,6 +2801,7 @@ function doRender(){
   $('#alertbar').innerHTML=alertHTML();
   $('#main').innerHTML=state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`;
   $('#modal-root').innerHTML=modalHTML();
+  try{dictDecorate()}catch(e){console.warn(e)}
   for(const [id,[t,l]] of Object.entries(scrolls)){const el=document.getElementById(id);if(el){el.scrollTop=t;el.scrollLeft=l}}
   for(const [id,o] of Object.entries(opens)){const el=document.getElementById(id);if(el)el.open=o}
   window.scrollTo(0,y);
@@ -3047,7 +3081,7 @@ function stripHTML(d){
   const a=d.analysis;const aud=a&&a.audience?`${a.audience}${a.audienceConfidence?' ('+a.audienceConfidence+')':''}`:null;
   return `<div class="strip3"><div class="sbox"><span class="lab">Marketing audience</span><span class="v">${ico('user')}${aud?esc(aud.replace(/^./,m=>m.toUpperCase())):'<span class="muted">Run an inspection</span>'}</span></div>
   <div class="sbox"><span class="lab">Deal motivation</span><span class="v" style="color:var(--t-orange)">${ico('flame')}${a&&a.motivation?esc(a.motivation.replace(/^./,m=>m.toUpperCase())):'<span class="muted">Run an inspection</span>'}</span></div>
-  <div class="sbox"><span class="lab">Your instructions to ${esc(negName())}</span><textarea id="d-instr" data-fd="instructions" rows="1" placeholder="e.g. Don’t go above 150K, seller is an estate">${esc(d.instructions||'')}</textarea></div></div>`;
+  <div class="sbox"><span class="lab">Your instructions to ${esc(negName())}</span><textarea data-dict id="d-instr" data-fd="instructions" rows="1" placeholder="e.g. Don’t go above 150K, seller is an estate">${esc(d.instructions||'')}</textarea></div></div>`;
 }
 function conversationCard(d,c){
   const th=(d.thread||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));const n=negName();const agent=((d.agent&&d.agent.name)||counterpart(d)).replace(/\s*\(example\)/i,'');
@@ -3060,7 +3094,7 @@ function conversationCard(d,c){
   <details ${th.length?'':'open'}><summary>${ico('plus')} Log a message, reply or call note</summary><div style="display:grid;gap:10px;margin-top:10px">
     <div class="seg" role="group" aria-label="Kind">${[['in','Their reply'],['out','Something I sent'],['note','Call note']].map(([v,l])=>`<button data-act="log-kind" data-k="${v}" aria-pressed="${k===v}">${l}</button>`).join('')}</div>
     <div class="grid-fields">${k!=='note'?`<label class="field"><span>Channel</span><select class="input" id="log-ch" data-draft>${[['email','Email'],['sms','Text'],['call','Call']].map(([v,l])=>`<option value="${v}" ${(state.drafts['log-ch']||'email')===v?'selected':''}>${l}</option>`).join('')}</select></label>`:''}<label class="field"><span>Number named (optional)</span><input class="input tnum" id="log-price" data-draft value="${esc(state.drafts['log-price']||'')}" placeholder="e.g. 199,990" inputmode="numeric"></label></div>
-    <textarea class="input" id="log-text" data-draft rows="4" placeholder="${k==='in'?'Paste their email or text':k==='out'?'What you sent':'What was said'}">${esc(state.drafts['log-text']||'')}</textarea>
+    <textarea data-dict class="input" id="log-text" data-draft rows="4" placeholder="${k==='in'?'Paste their email or text':k==='out'?'What you sent':'What was said'}">${esc(state.drafts['log-text']||'')}</textarea>
     <div class="row">${k==='in'?`<button class="btn primary" data-act="log" data-ask="1">${ico('spark')}Log it and ask ${esc(n)}</button>`:''}<button class="btn" data-act="log" data-ask="0">Just log it</button></div></div></details></section>`;
 }
 function autopilotCard(d,c){
@@ -3176,7 +3210,7 @@ function detailsCard(d,c){
   ${f('pd-mlsid','mlsId','MLS ID',d.mlsId)}${f('pd-zipdom','zipAvgDom','ZIP avg days on market',d.zipAvgDom,'num',d.zipDomAuto?'placeholder="'+d.zipDomAuto+' (Redfin)"':'')}
   <label class="field"><span>Listed on</span><input class="input" type="date" id="pd-listed" data-fd="listedDate" data-t="date" value="${esc(d.listedDate?isoDay(d.listedDate):'')}"></label>${f('pd-url','listingUrl','Listing link',d.listingUrl)}</div>
   <label class="field"><span>Listing description</span><textarea class="input" id="pd-desc" data-fd="description" rows="3">${esc(d.description)}</textarea></label>
-  <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>
+  <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea data-dict class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>
   ${isWs&&d.wsClaims?`<div class="note"><b>What the wholesaler claimed:</b> ${[['Asking',d.wsClaims.asking],['ARV',d.wsClaims.arv],['Repairs',d.wsClaims.rehab],['Rent',d.wsClaims.rent]].filter(x=>x[1]!=null).map(([l,v])=>l+' '+money(v)).join(' · ')}${d.wsClaims.terms?' · Terms: '+esc(d.wsClaims.terms):''}${d.wsClaims.deadline?' · Deadline: '+esc(d.wsClaims.deadline):''}${d.wsClaims.access?' · Access: '+esc(d.wsClaims.access):''}${(d.wsClaims.redFlags||[]).length?`<br><b>Check:</b> ${d.wsClaims.redFlags.map(esc).join(' · ')}`:''}</div>`:''}
   ${['contract','closed'].includes(d.stage)?`<div><b>Contract checklist</b>${items.map(([k,l])=>`<label class="check"><input type="checkbox" id="ck-${k}" data-fd="checklist.${k}" data-t="bool" ${ck[k]?'checked':''}><span>${esc(l)}</span></label>`).join('')}</div>`:''}
   <div class="row"><button class="btn danger" data-act="delete-deal">${ico('trash')}Delete deal</button></div></section>`;
@@ -3195,13 +3229,13 @@ function mayaPanel(d,c){
   if(tab==='chat'){
     body=`<div class="chatlog" id="chatlog" data-stick="1">${chat.length?chat.map(m=>`<div class="bub ${m.role==='user'?'me':''}"><span class="who">${m.role==='user'?'You':n}</span>${esc(m.content)}</div>`).join(''):`<div class="bub"><span class="who">${n}</span>Ask me anything about this deal, or tap an action. I’ll draft the message and you approve it${d.autopilot&&state.settings.auto.enabled?' (on autopilot I send safe ones myself)':''}.</div>`}${state.busy['chat:'+d.id]?`<div class="bub"><span class="who">${n}</span><span class="muted">thinking…</span></div>`:''}</div>
     <div class="qchips">${QUICK.map(q=>`<button class="qchip ${q.c}" data-act="quick" data-q="${q.id}" ${busyAny?'disabled':''}>${esc(q.label)}</button>`).join('')}</div>
-    <div class="chat-in"><textarea class="input" id="maya-msg" data-draft rows="2" placeholder="Chat with ${n} about this property…">${esc(state.drafts['maya-msg']||'')}</textarea><button class="send-btn" data-act="maya-send" aria-label="Send to ${n}" ${busyAny?'disabled':''}>${ico('send')}</button></div>`;
+    <div class="chat-in"><textarea data-dict class="input" id="maya-msg" data-draft rows="2" placeholder="Chat with ${n} about this property…">${esc(state.drafts['maya-msg']||'')}</textarea><button class="send-btn" data-act="maya-send" aria-label="Send to ${n}" ${busyAny?'disabled':''}>${ico('send')}</button></div>`;
   }else{
     const isSms=tab==='sms';
     const can=isSms?canText(d):canEmail(d);
     body=`<div style="padding:12px 16px;display:grid;gap:10px">${isSms?`<p class="small muted">${smsOn()?'Texts go out from your Twilio number.':gvOn()?(d.gvThreadId?'Replies go out through Google Voice.':'Google Voice can only reply after they text you first.'):'Texting isn’t automatic yet: copy the text and send it from your phone, or connect Twilio in Connect.'}</p>`:`<p class="small muted">${gmailOn()?`Sends from ${esc(sendEmail())}${ownThread(d)?', in the same thread':''}.`:'Connect Gmail to send from here.'}</p>`}
       ${isSms?'':`<input class="input" id="cmp-subj" data-draft placeholder="Subject" value="${esc(state.drafts['cmp-subj']||('Re: '+streetOf(d.address)))}">`}
-      <textarea class="input" id="${isSms?'cmp-sms':'cmp-body'}" data-draft rows="${isSms?3:6}" placeholder="Write your own ${isSms?'text':'email'} to ${esc(counterpart(d))}">${esc(state.drafts[isSms?'cmp-sms':'cmp-body']||'')}</textarea>
+      <textarea class="input" data-dict id="${isSms?'cmp-sms':'cmp-body'}" data-draft rows="${isSms?3:6}" placeholder="Write your own ${isSms?'text':'email'} to ${esc(counterpart(d))}">${esc(state.drafts[isSms?'cmp-sms':'cmp-body']||'')}</textarea>
       <div class="row"><button class="btn primary sm" data-act="compose-send" data-ch="${isSms?'sms':'email'}" ${can?'':'disabled'}>${ico('send')}Send ${isSms?'text':'email'}</button><button class="btn sm" data-act="compose-log" data-ch="${isSms?'sms':'email'}">I sent it myself</button>${busyHTML('send:'+d.id,false)}</div></div>`;
   }
   const next=nextStepHTML(d,c);
@@ -3702,6 +3736,61 @@ function marketMods(d,c){const m=marketFor(d);if(!m||!m.Z)return [];const l=m.Z.
   if(c.ready&&d.sqft&&l.ppsf&&c.A/d.sqft>l.ppsf*1.45)out.push(['ARV far above the ZIP’s $/sqft',-6]);
   return out}
 
+/* ================= Dictation: talk, and it types into the box ================= */
+/* Any <textarea data-dict> gets a mic button. Words appear as you speak; you still press Send. */
+const DICT={id:null,rec:null,want:false,base:'',final:'',interim:'',ends:[],quietT:0};
+const DICT_QUIET=25;/* stop listening after this many seconds with no speech */
+function dictDecorate(){
+  if(DICT.want&&!document.getElementById(DICT.id))dictStop();
+  document.querySelectorAll('textarea[data-dict]').forEach(t=>{
+    if(t.parentElement&&t.parentElement.classList.contains('dict-wrap'))return;
+    const w=document.createElement('span');w.className='dict-wrap'+(t.rows<=1?' one':'');t.parentNode.insertBefore(w,t);w.appendChild(t);
+    const b=document.createElement('button');b.type='button';b.className='dict-btn';b.dataset.act='dict';b.dataset.k=t.id;w.appendChild(b);
+  });
+  dictBits();
+}
+function dictBits(){
+  document.querySelectorAll('.dict-btn').forEach(b=>{const on=DICT.want&&b.dataset.k===DICT.id;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));
+    const lab=on?'Stop talking':'Talk instead of typing';b.setAttribute('aria-label',lab);b.title=on?'Listening… tap to stop':'Talk, and it types for you';b.innerHTML=ico(on?'stop':'mic')});
+}
+function dictToggle(id){
+  if(DICT.want&&DICT.id===id){dictStop();return}
+  dictStop();
+  if(!SR()){toast('Talking needs Chrome, Edge or Safari. You can still type.',5200);return}
+  if(typeof VOICE!=='undefined'&&VOICE.listening)voiceStopListening();
+  const box=document.getElementById(id);if(!box)return;
+  Object.assign(DICT,{id,want:true,base:box.value.replace(/\s+$/,''),final:'',interim:'',ends:[]});
+  dictStart();dictBits();dictQuiet();
+  try{box.focus({preventScroll:true});box.setSelectionRange(box.value.length,box.value.length)}catch(e){}
+}
+function dictStart(){
+  const R=SR();if(!R||!DICT.want)return;
+  if(DICT.rec){try{DICT.rec.onend=null;DICT.rec.abort()}catch(e){}}
+  const r=new R();r.lang='en-US';r.interimResults=true;r.continuous=true;r.maxAlternatives=1;
+  r.onresult=e=>{if(!DICT.want||DICT.rec!==r)return;let int='';let got=false;
+    for(let i=e.resultIndex;i<e.results.length;i++){const x=e.results[i];if(x.isFinal){DICT.final=(DICT.final+' '+x[0].transcript).trim();got=true}else int+=x[0].transcript}
+    DICT.interim=int.trim();dictWrite(got);dictQuiet()};
+  r.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){dictStop();toast('Allow the microphone for this site in your browser, then tap the mic again.',6000)}else if(e.error==='audio-capture'){dictStop();toast('No microphone found.',4200)}};
+  r.onend=()=>{if(DICT.rec===r)DICT.rec=null;if(!DICT.want)return;const now=Date.now();DICT.ends=DICT.ends.filter(t=>now-t<6000).concat(now);setTimeout(()=>{if(DICT.want&&!DICT.rec)dictStart()},DICT.ends.length>5?1200:150)};
+  try{r.start();DICT.rec=r}catch(e){dictStop();toast('Couldn’t start the microphone.',4200)}
+}
+function dictText(){const said=[DICT.final,DICT.interim].filter(Boolean).join(' ');return said?(DICT.base?DICT.base+(/[\n]$/.test(DICT.base)?'':' '):'')+said:DICT.base}
+function dictWrite(save){
+  const box=document.getElementById(DICT.id);if(!box)return;
+  box.value=dictText();box.scrollTop=box.scrollHeight;
+  box.dispatchEvent(new Event('input',{bubbles:true}));
+  if(save&&!box.hasAttribute('data-draft'))box.dispatchEvent(new Event('change',{bubbles:true}));
+}
+function dictQuiet(){clearTimeout(DICT.quietT);DICT.quietT=setTimeout(()=>{if(DICT.want)dictStop()},DICT_QUIET*1000)}
+function dictStop(){
+  if(!DICT.want&&!DICT.rec)return;
+  const had=DICT.interim;DICT.want=false;clearTimeout(DICT.quietT);
+  if(DICT.rec){try{DICT.rec.onend=null;DICT.rec.abort()}catch(e){}DICT.rec=null}
+  if(had){DICT.final=(DICT.final+' '+had).trim();DICT.interim=''}
+  if(had||DICT.final)dictWrite(true);
+  dictBits();
+}
+
 /* ================= voice practice (your mic in, ElevenLabs voice out) ================= */
 const VOICE={rec:null,listening:false,speaking:false,audio:null,interim:'',final:'',voices:null,err:''};
 const DEFAULT_VOICE='JBFqnCBsd6RMkjVDRZzb';
@@ -4022,7 +4111,7 @@ function setRehab(){
   const book=rehabBook();const R=state.settings.rehab||{};const n=esc(negName());const bm=(state.settings.ai||{}).bigModel||'claude-opus-5-5';
   return `<section class="card"><div class="card-head"><span class="ci orange">${ico('hammer')}</span><div><h2>Your repair prices</h2><p>${n} counts quantities from the photos and prices them with these numbers</p></div><div class="ch-r"><button class="btn ghost sm" data-act="rehab-reset">Reset to defaults</button></div></div>
   <div class="tbl-wrap"><table class="tbl" style="min-width:540px"><thead><tr><th>Item</th><th>Unit</th><th class="r">Your price</th></tr></thead><tbody>${book.map(b=>`<tr style="cursor:default"><td>${esc(b.label)}</td><td class="small muted">${esc(b.unit)}</td><td class="r"><input class="input tnum" id="rb-${b.key}" data-fs="rehab.costs.${b.key}" data-t="num" value="${b.cost}" style="width:110px;text-align:right" inputmode="decimal">${b.cost!==b.def?`<div class="xs muted">default ${money(b.def)}</div>`:''}</td></tr>`).join('')}</tbody></table></div>
-  <label class="field"><span>Notes for ${n} on pricing (optional)</span><textarea class="input" id="rb-notes" data-fs="rehab.notes" data-t="text" rows="3" placeholder="e.g. My GC charges $28/sqft for a full cosmetic. Always budget a new water heater on houses built before 2010.">${esc(R.notes||'')}</textarea></label>
+  <label class="field"><span>Notes for ${n} on pricing (optional)</span><textarea data-dict class="input" id="rb-notes" data-fs="rehab.notes" data-t="text" rows="3" placeholder="e.g. My GC charges $28/sqft for a full cosmetic. Always budget a new water heater on houses built before 2010.">${esc(R.notes||'')}</textarea></label>
   <p class="small muted">The defaults are typical US mid-range contractor prices. Putting in your own contractor’s numbers is the single biggest accuracy boost for ${n}’s rehab estimates.</p></section>
   <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>Model for the big calls</h2><p>Photo inspections, deal research, and the re-check when an agent answers</p></div></div>
   <div class="seg" role="group" aria-label="Model for big calls">${[['claude-opus-5-5','Opus 5.5 (sharpest)'],['same','Same as everything else']].map(([v,l])=>`<button data-act="big-model" data-v="${v}" aria-pressed="${bm===v}">${l}</button>`).join('')}</div>
@@ -4064,7 +4153,7 @@ function modalHTML(){
     body=linkModalHTML();
   }else if(m.type==='ask'){
     body=`<div class="row" style="justify-content:space-between"><h2>Ask ${esc(negName())} about your leads</h2><button class="btn ghost sm" data-act="modal-close" aria-label="Close">${ico('close')}</button></div>
-    <textarea class="input" id="ask-q" data-draft rows="3" placeholder="e.g. Which of these work as a flip at my numbers? Which wholesaler sends the best deals?">${esc(state.drafts['ask-q']||'')}</textarea>
+    <textarea data-dict class="input" id="ask-q" data-draft rows="3" placeholder="e.g. Which of these work as a flip at my numbers? Which wholesaler sends the best deals?">${esc(state.drafts['ask-q']||'')}</textarea>
     <div class="row"><button class="btn primary" data-act="ask-go">${ico('spark')}Ask</button>${busyHTML('ask',false)}</div>${m.answer?`<div class="note purple" style="white-space:pre-wrap">${esc(m.answer)}</div>`:''}`;
   }
   return `<div class="modal-scrim" data-act="modal-close"></div><div class="modal-box" role="dialog" aria-modal="true">${body}</div>`;
@@ -4104,11 +4193,13 @@ async function loadDiscover(){
   DISC.loading=(async()=>{
     const idx=await marketIndex();const f=idx&&idx.discover&&idx.discover.file;
     if(!f){DISC.err=idx?'The market data job hasn’t published the national table yet. It runs every Wednesday.':'Couldn’t reach the market data. Check your connection and reload.';return null}
-    const [j,wk]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||''))]);
+    const cf=idx.census&&idx.census.file;
+    const [j,wk,cz]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?mktFetch(cf+'?v='+encodeURIComponent(idx.updated||'')):null]);
     if(!j||!Array.isArray(j.rows)){DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}
     const C=j.cols;const rows=[];const byZip={};
     for(const r of j.rows){const o={};for(let i=0;i<C.length;i++)o[C[i]]=r[i];o.metro=j.metros[o.mi]||'';o.mk=o.metro||'~'+o.st;byZip[o.z]=o;if(o.price)rows.push(o)}
     DISC.data={...j,rows};DISC.byZip=byZip;DISC.weekly=wk&&wk.metros||{};
+    try{joinCensus(cz,byZip)}catch(e){console.warn('census',e)}
     return DISC.data;
   })().catch(()=>{DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}).finally(()=>{DISC.loading=null;render()});
   return DISC.loading;
@@ -4137,7 +4228,9 @@ function mkMetroState(k,zs){if(k[0]==='~')return k.slice(1);const m=k.match(/,\s
 let MKC={key:'',res:null};
 function mkCompute(){
   const D=DISC.data;if(!D)return null;const M=mkSet();const st=mkStrat();const w=MK_W[st];const states=mkStates();
-  const key=[st,M.minPrice,M.maxPrice,M.minSold,[...states].join(','),D.updated].join('|');
+  const lens=mkLens();
+  const minMetro=lens==='room'?(M.minMetroSold==null||M.minMetroSold===''?300:+M.minMetroSold||0):0;
+  const key=[st,lens,M.minPrice,M.maxPrice,M.minSold,minMetro,[...states].join(','),D.updated,CENS.rows].join('|');
   if(MKC.key===key)return MKC.res;
   const zips=[];
   for(const o of D.rows){
@@ -4145,17 +4238,23 @@ function mkCompute(){
     o.pass=pass;o.score=null;if(!pass)continue;
     o.subs=mkSubs(o,D.investors[o.metro]);o.score=mkScore(o.subs,w);if(o.score!=null)zips.push(o);
   }
-  const g={};for(const o of zips)(g[o.mk]=g[o.mk]||[]).push(o);
+  const hasRoom=roomCompute(zips,D);
+  for(const o of D.rows)o.ls=null;
+  for(const o of zips)o.ls=lens==='room'?(o.rm?o.rm.room:null):o.score;
+  const lz=zips.filter(o=>o.ls!=null);
+  const g={};for(const o of lz)(g[o.mk]=g[o.mk]||[]).push(o);
+  const mScore=(zs,f)=>{const v=zs.map(f).filter(x=>x!=null).sort((a,b)=>b-a);if(!v.length)return null;const top=v.slice(0,5);return Math.round(top.reduce((s,x)=>s+x,0)/top.length*.55+median(v)*.3+Math.min(1,v.length/12)*15)};
   const metros=Object.entries(g).map(([k,zs])=>{
-    zs.sort((a,b)=>b.score-a.score);const top=zs.slice(0,5);const avgTop=top.reduce((s,o)=>s+o.score,0)/top.length;const depth=Math.min(1,zs.length/12);
+    zs.sort((a,b)=>b.ls-a.ls);
     const med=f=>median(zs.map(f));
-    return {key:k,label:mkLabel(k),st:mkMetroState(k,zs),zips:zs,n:zs.length,score:Math.round(avgTop*.55+median(zs.map(o=>o.score))*.3+depth*15),sold:zs.reduce((s,o)=>s+(o.sold||0),0),
-      price:med(o=>o.price),dom:med(o=>o.dom),yoy:med(o=>o.priceYoy),cuts:med(o=>o.pdPct),cancel:med(o=>o.cancel),yld:med(mkYield),inv:D.investors[k]||null};
-  }).sort((a,b)=>b.score-a.score||b.sold-a.sold);
+    return {key:k,label:mkLabel(k),st:mkMetroState(k,zs),zips:zs,n:zs.length,score:mScore(zs,o=>o.ls),stats:mScore(zs,o=>o.score),roomScore:hasRoom?mScore(zs,o=>o.rm&&o.rm.room):null,sold:zs.reduce((s,o)=>s+(o.sold||0),0),
+      price:med(o=>o.price),dom:med(o=>o.dom),yoy:med(o=>o.priceYoy),cuts:med(o=>o.pdPct),cancel:med(o=>o.cancel),yld:med(mkYield),inv:D.investors[k]||null,rm:hasRoom?roomMetro(zs):null};
+  }).filter(m=>lens!=='room'||(m.key[0]!=='~'&&m.sold>=minMetro)).sort((a,b)=>b.score-a.score||b.sold-a.sold);
   metros.forEach((m,i)=>m.rank=i+1);
-  MKC={key,res:{zips,metros,strat:st,w,byKey:Object.fromEntries(metros.map(m=>[m.key,m]))}};return MKC.res;
+  MKC={key,res:{zips:lz,metros,strat:st,lens,w,hasRoom,byKey:Object.fromEntries(metros.map(m=>[m.key,m]))}};return MKC.res;
 }
-const mkGrade=s=>s==null?'':s>=80?'green':s>=65?'blue':s>=50?'amber':'red';
+/* room scores are a balance of three things, so they run lower than strategy scores: grade them on their own scale */
+const mkGrade=s=>{const r=MKC.res&&MKC.res.lens==='room';return s==null?'':s>=(r?66:80)?'green':s>=(r?56:65)?'blue':s>=(r?46:50)?'amber':'red'};
 const mkPill=s=>s==null?'<span class="muted">—</span>':`<span class="scorepill ${mkGrade(s)}">${s}</span>`;
 const sgn=(v,d=1)=>v==null||!isFinite(v)?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(d)+'%';
 const pctv=(v,d=0)=>v==null||!isFinite(v)?'—':(+v).toFixed(d)+'%';
@@ -4182,43 +4281,55 @@ const starBtn=(type,key)=>{const on=isTarget(type,key);return `<button class="st
 function viewMarkets(){
   const D=DISC.data;const M=mkSet();const st=mkStrat();const R=D?mkCompute():null;const src=D&&D.sources||{};
   const meta=D?`<span>${ico('trend')}Redfin, 3 months to ${esc(D.periodEnd||'')}</span><span>${ico('home')}Rents: HUD ${esc(src.safmr||'—')} + Zillow ${esc(src.zori||'—')}</span><span>${ico('refresh')}Updated weekly</span>`:'';
-  const head=hero('g-markets','Market Discovery','Every US ZIP ranked for how you invest. Set your strategy and budget, then dig into the best metros.',meta,
+  const head=hero('g-markets','Market Discovery',R&&R.lens==='room'?'Where the deals are and the investors aren’t yet. Good numbers, less competition, a good future.':'Every US ZIP ranked for how you invest. Set your strategy and budget, then dig into the best metros.',meta,
     R?`<div class="h-stat"><b>${numFmt(R.zips.length)}</b><span>ZIPs fit your box</span></div><div class="h-stat"><b>${numFmt(R.metros.length)}</b><span>markets</span></div>`:'');
   if(!D)return `<div class="wrap page">${head}<section class="card">${DISC.err?`<div class="note amber">${esc(DISC.err)}</div><button class="btn sm" data-act="mk-reload">${ico('refresh')}Try again</button>`:`<div class="busy"><div class="spin"></div><span>Loading market data for every US ZIP…</span></div>`}</section></div>`;
-  return `<div class="wrap page">${head}${mkControls(st,M)}${mkTargetsCard(R)}
+  return `<div class="wrap page">${head}${mkControls(st,M,R)}${R.lens==='room'?mkRoomChart(R):''}${mkTargetsCard(R)}
   <div class="mk-grid">${mkMapCard(R)}${mkMetrosCard(R)}</div>
   ${state.mk.metro&&R.byKey[state.mk.metro]?mkMetroCard(R.byKey[state.mk.metro],R):state.mk.metro?`<section class="card" id="mk-metro"><div class="note">No ZIPs in ${esc(mkLabel(state.mk.metro))} fit your filters right now. Widen the price range or lower the minimum sales.</div><button class="btn sm" data-act="mk-us">Back to all markets</button></section>`:''}
   ${mkMemoCard(R)}
-  <p class="xs muted" style="padding:0 4px">Sources: Redfin Data Center (single-family, rolling 3 months; metro weekly; investor purchases), Zillow Observed Rent Index, HUD Small Area Fair Market Rents, GeoNames (CC BY 4.0). Scores are a starting point for research, not a verdict.</p></div>`;
+  <p class="xs muted" style="padding:0 4px">Sources: Redfin Data Center (single-family, rolling 3 months; metro weekly; investor purchases), Zillow Observed Rent Index, HUD Small Area Fair Market Rents, GeoNames (CC BY 4.0)${CENS.meta?`, Census ACS 5-year ${CENS.meta.acsYear}${CENS.meta.baseYear?` vs ${CENS.meta.baseYear}`:''}${CENS.meta.popVintage?`, Census population estimates ${CENS.meta.popVintage}`:''}${CENS.meta.qcew?`, BLS county jobs ${esc(CENS.meta.qcew)}`:''}`:''}. Scores are a starting point for research, not a verdict.</p></div>`;
 }
-function mkControls(st,M){
-  const w=MK_W[st];
-  return `<section class="card" id="mk-controls"><div class="mk-ctl">
+function mkControls(st,M,R){
+  const w=MK_W[st];const lens=R?R.lens:'stats';
+  return `<section class="card" id="mk-controls"><div class="mk-lens"><span class="small muted">Rank by</span><div class="seg wrapseg" role="group" aria-label="Rank by">
+    <button data-act="mk-lens" data-v="stats" aria-pressed="${lens==='stats'}">Best numbers</button><button data-act="mk-lens" data-v="room" aria-pressed="${lens==='room'}" ${roomOn()?'':'disabled title="Competition data isn’t published yet"'}>${ico('target')}Room at the table</button></div>
+    ${lens==='room'?`<span class="xs muted">Deals ${ROOM_W.food}% · few investors ${ROOM_W.room}% · future ${ROOM_W.future}%${st==='wholesale'?'. For wholesaling, fewer investors also means fewer buyers for your contracts.':''}</span>`:roomOn()?'':`<span class="xs muted">Competition data arrives with the next market update.</span>`}</div>
+  <div class="mk-ctl">
     <div class="field"><span>Strategy</span><div class="seg" role="group" aria-label="Strategy">${Object.entries(MK_STRATS).map(([k,l])=>`<button data-act="mk-strat" data-v="${k}" aria-pressed="${st===k}">${l}</button>`).join('')}</div></div>
     <label class="field"><span>Median price from</span><input class="input tnum" id="mk-min" data-fs="markets.minPrice" data-t="num" value="${M.minPrice??''}" inputmode="numeric" placeholder="0"></label>
     <label class="field"><span>to</span><input class="input tnum" id="mk-max" data-fs="markets.maxPrice" data-t="num" value="${M.maxPrice??''}" inputmode="numeric" placeholder="any"></label>
     <label class="field"><span>Min. homes sold (3 mo)</span><input class="input tnum" id="mk-sold" data-fs="markets.minSold" data-t="num" value="${M.minSold??''}" inputmode="numeric"></label>
+    ${lens==='room'?`<label class="field"><span>Min. metro sales (3 mo)</span><input class="input tnum" id="mk-msold" data-fs="markets.minMetroSold" data-t="num" value="${M.minMetroSold??300}" inputmode="numeric" title="Enough deals to build a business on. Smaller metros are hidden."></label>`:''}
     <label class="field mk-states"><span>Only these states</span><input class="input" id="mk-states" data-fs="markets.states" data-t="text" value="${esc(M.states||'')}" placeholder="All states, or e.g. TX, OH, IN" autocomplete="off"></label>
   </div>
-  <p class="small muted" style="margin-top:10px"><b>${MK_STRATS[st]} score weighs:</b> ${Object.entries(w).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${MK_SUB[k][0].toLowerCase()} ${v}%`).join(' · ')}</p></section>`;
+  <p class="small muted" style="margin-top:10px"><b>${lens==='room'?`Deals use the ${MK_STRATS[st].toLowerCase()} score, which weighs:`:`${MK_STRATS[st]} score weighs:`}</b> ${Object.entries(w).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${MK_SUB[k][0].toLowerCase()} ${v}%`).join(' · ')}</p></section>`;
 }
 function mkTargetsCard(R){
   const T=mkTargets();if(!T.length)return '';
   const deals=Object.values(state.deals).filter(d=>!d.example&&dealTarget(d)).length;
   return `<section class="card" id="mk-targets"><div class="card-head"><span class="ci green">${ico('target')}</span><div><h2>Your target markets</h2><p>${deals?`${deals} of your deals are in these markets. `:''}Deals here get a “Target market” tag.</p></div></div>
-  <div class="mk-tchips">${T.map(t=>{const sc=t.type==='metro'?(R.byKey[t.key]||{}).score:(DISC.byZip[t.key]||{}).score;return `<span class="mk-tchip"><button class="linkbtn" data-act="${t.type==='metro'?'mk-metro':'mk-zip'}" data-k="${esc(t.key)}">${esc(t.label)}</button>${sc!=null?mkPill(sc):''}<button class="iconx" data-act="mk-star" data-type="${t.type}" data-k="${esc(t.key)}" aria-label="Remove ${esc(t.label)}">${ico('close')}</button></span>`}).join('')}</div></section>`;
+  <div class="mk-tchips">${T.map(t=>{const sc=t.type==='metro'?(R.byKey[t.key]||{}).score:(DISC.byZip[t.key]||{}).ls;return `<span class="mk-tchip"><button class="linkbtn" data-act="${t.type==='metro'?'mk-metro':'mk-zip'}" data-k="${esc(t.key)}">${esc(t.label)}</button>${sc!=null?mkPill(sc):''}<button class="iconx" data-act="mk-star" data-type="${t.type}" data-k="${esc(t.key)}" aria-label="Remove ${esc(t.label)}">${ico('close')}</button></span>`}).join('')}</div></section>`;
 }
 function mkMapCard(R){
   const sel=state.mk.metro?R.byKey[state.mk.metro]:null;
   return `<section class="card mk-mapcard" id="mk-map"><div class="card-head"><span class="ci blue">${ico('pin')}</span><div><h2>${sel?esc(sel.label):'Where the fit is'}</h2><p>${sel?`${sel.n} ZIPs fit · click a dot for details`:'Each dot is a ZIP that fits your box, shaded by score'}</p></div>${sel?`<div class="ch-r"><button class="btn sm" data-act="mk-us">${ico('back')}Whole US</button></div>`:''}</div>
   <div class="mk-mapwrap"><canvas id="mk-canvas" role="img" aria-label="Map of ZIP scores${sel?' in '+esc(sel.label):' across the US'}"></canvas><div class="mk-tip" id="mk-tip" hidden></div></div>
-  <div class="mk-legend"><span class="xs muted">Score: 30 or less</span><span class="mk-ramp" aria-hidden="true"></span><span class="xs muted">90+</span><span class="spacer"></span><span class="mk-nofit"><i></i>doesn’t fit your box</span></div></section>`;
+  <div class="mk-legend"><span class="xs muted">${R.lens==='room'?'Room':'Score'}: 30 or less</span><span class="mk-ramp" aria-hidden="true"></span><span class="xs muted">90+</span><span class="spacer"></span><span class="mk-nofit"><i></i>doesn’t fit your box</span></div></section>`;
 }
 function mkMetrosCard(R){
+  if(R.lens==='room')return mkRoomMetrosCard(R);
   const n=state.mk.show||25;const list=R.metros.slice(0,n);
   const rows=list.map(m=>`<tr data-act="mk-metro" data-k="${esc(m.key)}" class="${state.mk.metro===m.key?'sel':''}"><td class="tnum muted">${m.rank}</td><td><b>${esc(m.label)}</b><div class="xs muted">${m.n} ZIP${m.n>1?'s':''} fit · ${numFmt(m.sold)} sales</div></td><td class="c">${mkPill(m.score)}</td><td class="r tnum">${moneyK(m.price)}</td><td class="r tnum">${m.dom!=null?Math.round(m.dom)+'d':'—'}</td><td class="r tnum">${sgn(m.yoy)}</td><td class="r tnum">${pctv(m.cuts)}</td><td class="r tnum">${m.yld!=null?pct(m.yld,1):'—'}</td><td class="r tnum">${m.inv?pctv(m.inv.share):'—'}</td><td class="c">${starBtn('metro',m.key)}</td></tr>`).join('');
   return `<section class="card mk-metros" id="mk-metros"><div class="card-head"><span class="ci purple">${ico('stats')}</span><div><h2>Best markets for ${esc(MK_STRATS[R.strat].toLowerCase())}</h2><p>Score blends its best 5 ZIPs, its typical ZIP, and how many ZIPs fit</p></div></div>
   ${R.metros.length?`<div class="tbl-wrap" data-keep-scroll id="mk-mtbl"><table class="tbl mk-tbl"><thead><tr><th>#</th><th>Market</th><th class="c">Score</th><th class="r">Median</th><th class="r">Days</th><th class="r">Price YoY</th><th class="r">Price cuts</th><th class="r">Rent yield</th><th class="r">Investors</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+  ${R.metros.length>n?`<button class="btn sm ghost" data-act="mk-more" style="margin-top:8px">Show ${Math.min(25,R.metros.length-n)} more</button>`:''}`:`<div class="note">Nothing fits. Widen the price range, lower the minimum sales, or clear the state filter.</div>`}</section>`;
+}
+function mkRoomMetrosCard(R){
+  const n=state.mk.show||25;const list=R.metros.slice(0,n);
+  const rows=list.map(m=>{const x=m.rm||{};return `<tr data-act="mk-metro" data-k="${esc(m.key)}" class="${state.mk.metro===m.key?'sel':''}"><td class="tnum muted">${m.rank}</td><td><b>${esc(m.label)}</b><div class="xs muted">${m.n} ZIP${m.n>1?'s':''} fit · ${numFmt(m.sold)} sales${x.pop?` · ${numFmt(Math.round(x.pop/1000))}K people`:''}</div></td><td class="c">${mkPill(m.score)}</td><td class="c">${mkPill(p100(x.food))}</td><td class="c"><span class="tag ${compCls(x.eaters)}">${compWord(x.eaters)}</span></td><td class="c">${mkPill(p100(x.future))}</td><td class="r tnum">${moneyK(m.price)}</td><td class="r tnum">${x.sfr!=null?pctv(x.sfr):'—'}${x.inflow!=null?`<div class="xs muted">${sg1(x.inflow)} pts</div>`:''}</td><td class="r tnum">${x.job!=null?sgn(x.job):'—'}</td><td class="r tnum">${x.popG!=null?sgn(x.popG):'—'}</td><td class="c">${starBtn('metro',m.key)}</td></tr>`}).join('');
+  return `<section class="card mk-metros" id="mk-metros"><div class="card-head"><span class="ci purple">${ico('stats')}</span><div><h2>Most room at the table</h2><p>Good ${esc(MK_STRATS[R.strat].toLowerCase())} numbers where fewer investors are already working</p></div></div>
+  ${R.metros.length?`<div class="tbl-wrap" data-keep-scroll id="mk-mtbl"><table class="tbl mk-tbl"><thead><tr><th>#</th><th>Market</th><th class="c">Room</th><th class="c">Deals</th><th class="c">Competition</th><th class="c">Future</th><th class="r">Median</th><th class="r" title="Share of single-family homes rented out, and the change over 5 years">Rented out</th><th class="r" title="County jobs, 2 years">Jobs</th><th class="r" title="County population since 2020">People</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
   ${R.metros.length>n?`<button class="btn sm ghost" data-act="mk-more" style="margin-top:8px">Show ${Math.min(25,R.metros.length-n)} more</button>`:''}`:`<div class="note">Nothing fits. Widen the price range, lower the minimum sales, or clear the state filter.</div>`}</section>`;
 }
 function mkBars(subs,w){
@@ -4226,16 +4337,19 @@ function mkBars(subs,w){
 }
 function mkMetroCard(m,R){
   const wk=DISC.weekly&&DISC.weekly[m.key];const l=wk&&wk.l;
-  const avgSubs={};Object.keys(R.w).forEach(k=>{avgSubs[k]=avgN(...m.zips.slice(0,5).map(o=>o.subs[k]))});
+  const avgSubs={};Object.keys(R.w).forEach(k=>{avgSubs[k]=avgN(...m.zips.slice(0,5).map(o=>o.subs[k]))});const room=R.lens==='room'&&m.rm;
   const z=state.mk.zip&&DISC.byZip[state.mk.zip]&&DISC.byZip[state.mk.zip].mk===m.key?DISC.byZip[state.mk.zip]:null;
-  const rows=m.zips.slice(0,60).map(o=>`<tr data-act="mk-zip" data-k="${o.z}" class="${z&&z.z===o.z?'sel':''}"><td><b class="tnum">${o.z}</b><div class="xs muted">${esc(o.city||'')}${o.county?' · '+esc(o.county):''}</div></td><td class="c">${mkPill(o.score)}</td><td class="r tnum">${moneyK(o.price)}</td><td class="r tnum">${o.ppsf?'$'+o.ppsf:'—'}</td><td class="r tnum">${o.dom??'—'}</td><td class="r tnum">${o.sold??'—'}</td><td class="r tnum">${sgn(o.priceYoy)}</td><td class="r tnum">${pctv(o.pdPct)}</td><td class="r tnum">${mkRent(o)?money(mkRent(o)):'—'}</td><td class="r tnum">${mkYield(o)!=null?pct(mkYield(o),1):'—'}</td><td class="c">${starBtn('zip',o.z)}</td></tr>`).join('');
+  const rows=m.zips.slice(0,60).map(o=>`<tr data-act="mk-zip" data-k="${o.z}" class="${z&&z.z===o.z?'sel':''}"><td><b class="tnum">${o.z}</b><div class="xs muted">${esc(o.city||'')}${o.county?' · '+esc(o.county):''}</div></td><td class="c">${mkPill(o.ls)}</td>${room?`<td class="c"><span class="tag ${compCls(o.rm&&o.rm.eaters)}">${compWord(o.rm&&o.rm.eaters)}</span></td><td class="r tnum">${o.sfr!=null?pctv(o.sfr):'—'}</td>`:''}<td class="r tnum">${moneyK(o.price)}</td><td class="r tnum">${o.ppsf?'$'+o.ppsf:'—'}</td><td class="r tnum">${o.dom??'—'}</td><td class="r tnum">${o.sold??'—'}</td><td class="r tnum">${sgn(o.priceYoy)}</td><td class="r tnum">${pctv(o.pdPct)}</td><td class="r tnum">${mkRent(o)?money(mkRent(o)):'—'}</td><td class="r tnum">${mkYield(o)!=null?pct(mkYield(o),1):'—'}</td><td class="c">${starBtn('zip',o.z)}</td></tr>`).join('');
   return `<section class="card" id="mk-metro"><div class="card-head"><span class="ci teal">${ico('building')}</span><div><h2>${esc(m.label)} <span class="muted" style="font-weight:600">#${m.rank}</span></h2><p>${m.n} ZIPs fit your box · ${numFmt(m.sold)} single-family sales in 3 months</p></div><div class="ch-r">${mkPill(m.score)}${starBtn('metro',m.key)}<button class="btn sm" data-act="mk-campaign" data-k="${esc(m.key)}">${ico('send')}Start a campaign here</button></div></div>
+  ${room?`<div class="split"><div>${roomBars(m.rm)}<p class="xs muted">Weighted by sales across the ZIPs that fit. Hover a bar for what it measures.</p>
+    <p class="small"><span class="tag ${compCls(m.rm.eaters)}">${compWord(m.rm.eaters)} competition</span> ${m.stats!=null?`<span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${m.stats}/100</span>`:''}</p></div>
+    <div class="mk-facts">${roomFacts(m.rm)}</div></div><h3 class="mk-h3">The numbers</h3>`:''}
   <div class="split"><div>${mkBars(avgSubs,R.w)}<p class="xs muted">Average of its top 5 ZIPs. Hover a bar for what it measures.</p></div>
   <div class="mk-facts">${[['Median sale price',moneyK(m.price)],['Median days on market',m.dom!=null?Math.round(m.dom)+' days':'—'],['Price change, 1 year',sgn(m.yoy)],['Listings with a price cut',pctv(m.cuts)],['Pending sales that cancel',pctv(m.cancel)],['Rent yield (gross)',m.yld!=null?pct(m.yld,1):'—'],['Investor share of purchases',m.inv?`${pctv(m.inv.share,1)} (${m.inv.yoy!=null?sgn(m.inv.yoy,0)+' yr':''}, ${esc(m.inv.q||'')})`:'— (Redfin covers the ~40 largest metros)']].map(([a,b])=>`<div><span class="small muted">${a}</span><b class="tnum">${b}</b></div>`).join('')}
   ${l?`<div class="mk-wk"><span class="small muted">Whole metro, last 4 weeks (to ${esc(wk.periodEnd||'')})</span><b class="small">Pending sales ${l.pendYoy!=null?sgn(l.pendYoy,0):'—'} · new listings ${l.newYoy!=null?sgn(l.newYoy,0):'—'} · active ${l.activeYoy!=null?sgn(l.activeYoy,0):'—'} vs a year ago · ${l.mos??'—'} months of supply</b></div>`:''}</div></div>
   ${z?mkZipDetail(z,R):''}
   <h3 class="mk-h3">ZIPs that fit, best first</h3>
-  <div class="tbl-wrap" data-keep-scroll id="mk-ztbl"><table class="tbl mk-tbl"><thead><tr><th>ZIP</th><th class="c">Score</th><th class="r">Median</th><th class="r">$/sqft</th><th class="r">Days</th><th class="r">Sold</th><th class="r">YoY</th><th class="r">Cuts</th><th class="r">Rent (est.)</th><th class="r">Yield</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="tbl-wrap" data-keep-scroll id="mk-ztbl"><table class="tbl mk-tbl"><thead><tr><th>ZIP</th><th class="c">${room?'Room':'Score'}</th>${room?'<th class="c">Competition</th><th class="r">Rented out</th>':''}<th class="r">Median</th><th class="r">$/sqft</th><th class="r">Days</th><th class="r">Sold</th><th class="r">YoY</th><th class="r">Cuts</th><th class="r">Rent (est.)</th><th class="r">Yield</th><th class="c"><span class="sr">Target</span></th></tr></thead><tbody>${rows}</tbody></table></div>
   ${m.zips.length>60?`<p class="xs muted">Showing the best 60 of ${m.zips.length}.</p>`:''}</section>`;
 }
 function mkZipDetail(o,R){
@@ -4244,7 +4358,8 @@ function mkZipDetail(o,R){
   const rentLine=[o.fmr3?`HUD fair market rent, 3-bed: <b>${money(o.fmr3)}</b>/mo`:'',o.zori?`Zillow typical rent: <b>${money(o.zori)}</b>/mo${o.zoriYoy!=null?` (${sgn(o.zoriYoy)} a year)`:''}`:''].filter(Boolean).join(' · ');
   return `<div class="mk-zip" id="mk-zip"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${o.z} · ${esc(o.city||'')}, ${o.st}${o.county?` <span class="muted" style="font-weight:600">${esc(o.county)} County</span>`:''}</h3>
     <p class="small muted">${moneyK(o.price)} median · $${o.ppsf??'—'}/sqft · ${o.dom??'—'} days · ${o.sold??'—'} sold, ${o.active??'—'} active · sale-to-list ${pctv(o.stl,1)} · ${o.mos??'—'} months of supply${o.cancel!=null?` · ${pctv(o.cancel)} of pendings cancel`:''}</p>
-    ${rentLine?`<p class="small">${rentLine}</p>`:''}${(()=>{const m=R.byKey[o.mk];return m&&m.price&&o.price<m.price*.6?`<p class="small" style="color:var(--t-amber)">Median is ${Math.round(o.price/m.price*100)}% of the metro’s typical fitting ZIP. Cheap ZIPs can hide tough blocks and weak rents: check it street by street before buying.</p>`:''})()}</div><div class="row" style="flex-wrap:nowrap">${mkPill(o.score)}${starBtn('zip',o.z)}<button class="btn ghost sm" data-act="mk-zip" data-k="" aria-label="Close">${ico('close')}</button></div></div>
+    ${rentLine?`<p class="small">${rentLine}</p>`:''}${(()=>{const m=R.byKey[o.mk];return m&&m.price&&o.price<m.price*.6?`<p class="small" style="color:var(--t-amber)">Median is ${Math.round(o.price/m.price*100)}% of the metro’s typical fitting ZIP. Cheap ZIPs can hide tough blocks and weak rents: check it street by street before buying.</p>`:''})()}</div><div class="row" style="flex-wrap:nowrap">${mkPill(o.ls)}${starBtn('zip',o.z)}<button class="btn ghost sm" data-act="mk-zip" data-k="" aria-label="Close">${ico('close')}</button></div></div>
+  ${R.lens==='room'&&o.rm?`<div class="split" style="margin-top:8px"><div>${roomBars(o.rm)}<p class="small"><span class="tag ${compCls(o.rm.eaters)}">${compWord(o.rm.eaters)} competition</span>${o.score!=null?` <span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${o.score}/100</span>`:''}</p></div><div class="mk-facts">${roomFacts({sfr:o.sfr,inflow:inflowOf(o),heat:o.rm.heat,pop:null,yb:o.yb,own75:o.own75,job:jobOf(o),popG:o.cPopG,mig:o.cMig,inc:incGOf(o),p2y:o.ppsf2y},true)}${o.cName?`<div><span class="small muted">County</span><b>${esc(o.cName)}</b></div>`:''}</div></div>`:''}
   <div class="split" style="margin-top:8px"><div>${mkBars(o.subs||{},R.w)}</div><div class="mk-sparks">${s?[['Median sale price',s.price,'blue'],['$/sqft',s.ppsf,'blue'],['Days on market',s.dom,'amber']].map(([a,v,c])=>`<div><span class="xs muted">${a}, 2 years</span>${spark(v,c)}</div>`).join(''):'<span class="xs muted">Loading 2-year trend…</span>'}
     <div class="row" style="gap:8px;margin-top:6px"><a class="btn sm" href="https://www.redfin.com/zipcode/${o.z}" target="_blank" rel="noopener">${ico('link')}Homes on Redfin</a><a class="btn sm" href="https://www.zillow.com/homes/${o.z}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a></div></div></div></div>`;
 }
@@ -4269,9 +4384,9 @@ function drawMarketMap(){
   const zoom=!!sel;const rNo=zoom?2.6:1.05,rYes=zoom?Math.max(4,Math.min(7,W/120)):Math.max(1.7,W/420);
   const P=o=>{const [x,y]=mkXY(o.lat,o.lng);return [ox+(x-bx[0])*sc,oy+(y-bx[1])*sc]};
   g.globalAlpha=zoom?.7:.55;g.fillStyle=faint;
-  for(const o of pool){if(o.pass&&o.score!=null)continue;const [x,y]=P(o);if(x<-5||y<-5||x>W+5||y>H+5)continue;g.fillRect(x-rNo/2,y-rNo/2,rNo,rNo)}
-  g.globalAlpha=1;const yes=pool.filter(o=>o.pass&&o.score!=null).sort((a,b)=>a.score-b.score);MKMAP.pts=[];
-  for(const o of yes){const [x,y]=P(o);if(x<-8||y<-8||x>W+8||y>H+8)continue;g.beginPath();g.arc(x,y,rYes,0,7);g.fillStyle=mkColor(o.score,dark);g.fill();if(zoom){g.lineWidth=1.5;g.strokeStyle=ring;g.stroke()}MKMAP.pts.push([x,y,o])}
+  for(const o of pool){if(o.pass&&o.ls!=null)continue;const [x,y]=P(o);if(x<-5||y<-5||x>W+5||y>H+5)continue;g.fillRect(x-rNo/2,y-rNo/2,rNo,rNo)}
+  g.globalAlpha=1;const yes=pool.filter(o=>o.pass&&o.ls!=null).sort((a,b)=>a.ls-b.ls);MKMAP.pts=[];
+  for(const o of yes){const [x,y]=P(o);if(x<-8||y<-8||x>W+8||y>H+8)continue;g.beginPath();g.arc(x,y,rYes,0,7);g.fillStyle=mkColor(o.ls,dark);g.fill();if(zoom){g.lineWidth=1.5;g.strokeStyle=ring;g.stroke()}MKMAP.pts.push([x,y,o])}
   if(state.mk.zip){const o=DISC.byZip[state.mk.zip];if(o&&o.lat!=null){const [x,y]=P(o);g.beginPath();g.arc(x,y,rYes+5,0,7);g.lineWidth=2.5;g.strokeStyle=cs.getPropertyValue('--ink').trim()||'#111';g.stroke()}}
   if(zoom){const top=yes.slice(-6);g.font='700 11px '+getComputedStyle(document.body).fontFamily;g.lineJoin='round';
     for(const o of top){const [x,y]=P(o);const t=o.z+(o.city?' '+o.city:'');const tw=g.measureText(t).width;const tx=x+tw+rYes+6>W?x-rYes-4-tw:x+rYes+4;g.lineWidth=3.5;g.strokeStyle=ring;g.strokeText(t,tx,y+4);g.fillStyle=cs.getPropertyValue('--ink').trim()||'#111';g.fillText(t,tx,y+4)}}
@@ -4280,7 +4395,7 @@ function drawMarketMap(){
   const tip=document.getElementById('mk-tip');
   const hit=e=>{const r=cv.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;let best=null,bd=(zoom?14:9)**2;for(const p of MKMAP.pts){const d=(p[0]-x)**2+(p[1]-y)**2;if(d<bd){bd=d;best=p}}return best};
   cv.onmousemove=e=>{const p=hit(e);if(!p){tip.hidden=true;cv.style.cursor='';return}const o=p[2];cv.style.cursor='pointer';tip.hidden=false;
-    tip.innerHTML=`<b>${o.z} · ${esc(o.city||'')}, ${o.st}</b><span>Score ${o.score} · ${moneyK(o.price)} · ${o.dom??'—'} days · ${o.sold??'—'} sold</span><span class="muted">${esc(mkLabel(o.mk))}</span>`;
+    tip.innerHTML=`<b>${o.z} · ${esc(o.city||'')}, ${o.st}</b><span>${R.lens==='room'?`Room ${o.ls} · ${compWord(o.rm&&o.rm.eaters).toLowerCase()} competition`:`Score ${o.ls}`} · ${moneyK(o.price)} · ${o.dom??'—'} days · ${o.sold??'—'} sold</span><span class="muted">${esc(mkLabel(o.mk))}</span>`;
     const tx=Math.min(p[0]+12,W-tip.offsetWidth-4),ty=p[1]+12+tip.offsetHeight>H?p[1]-tip.offsetHeight-10:p[1]+12;tip.style.left=Math.max(4,tx)+'px';tip.style.top=Math.max(4,ty)+'px'};
   cv.onmouseleave=()=>{tip.hidden=true};
   cv.onclick=e=>{const p=hit(e);if(!p)return;tip.hidden=true;const o=p[2];state.mk.metro=o.mk;state.mk.zip=o.z;render();setTimeout(()=>{const el=document.getElementById('mk-zip')||document.getElementById('mk-metro');if(el)el.scrollIntoView({block:'start',behavior:'smooth'})},90)};
@@ -4296,43 +4411,172 @@ function mkCandidates(R){
 }
 function promptMarkets(R,cands){
   const M=mkSet();const st=R.strat;const D=DISC.data;
-  const line=m=>`- ${m.label} (rank #${m.rank}, score ${m.score}): ${m.n} ZIPs fit, ${m.sold} single-family sales in 3 months, median ${money(m.price)}, ${m.dom!=null?Math.round(m.dom):'?'} days on market, price ${sgn(m.yoy)} a year, ${pctv(m.cuts)} of listings cut price, ${pctv(m.cancel)} of pendings cancel, gross rent yield ${m.yld!=null?pct(m.yld,1):'?'}${m.inv?`, investors ${pctv(m.inv.share,1)} of purchases`:''}. Best ZIPs: ${m.zips.slice(0,4).map(o=>`${o.z} ${o.city||''} (score ${o.score}, ${moneyK(o.price)}, ${o.dom??'?'}d, ${o.sold??'?'} sold, rent ${mkRent(o)?money(mkRent(o)):'?'})`).join('; ')}.`;
+  const room=R.lens==='room';
+  const comp=m=>{const x=m.rm;if(!x)return '';return ` Competition data: ${compWord(x.eaters).toLowerCase()} (${p100(x.eaters)}/100); ${x.sfr!=null?`${x.sfr.toFixed(0)}% of single-family homes are rented out${x.inflow!=null?` (${sg1(x.inflow)} pts in about 5 years)`:''}`:'rental share unknown'}; metro population ${x.pop?numFmt(x.pop):'?'}; deals ${p100(x.food)}/100; future ${p100(x.future)}/100 (county jobs ${x.job!=null?sgn(x.job):'?'} over 2 years, population ${x.popG!=null?sgn(x.popG):'?'} since 2020, net domestic migration ${x.mig!=null?sgn(x.mig):'?'}, household income ${x.inc!=null?sgn(x.inc,0):'?'} over 5 years, $/sqft ${x.p2y!=null?sgn(x.p2y):'?'} over 2 years).`};
+  const line=m=>`- ${m.label} (rank #${m.rank}, ${room?'room-at-the-table':''} score ${m.score}${room&&m.stats!=null?`, ${MK_STRATS[st].toLowerCase()} numbers ${m.stats}`:''}): ${m.n} ZIPs fit, ${m.sold} single-family sales in 3 months, median ${money(m.price)}, ${m.dom!=null?Math.round(m.dom):'?'} days on market, price ${sgn(m.yoy)} a year, ${pctv(m.cuts)} of listings cut price, ${pctv(m.cancel)} of pendings cancel, gross rent yield ${m.yld!=null?pct(m.yld,1):'?'}${m.inv?`, investors ${pctv(m.inv.share,1)} of purchases`:''}. ${comp(m)} Best ZIPs: ${m.zips.slice(0,4).map(o=>`${o.z} ${o.city||''} (score ${o.ls}, ${moneyK(o.price)}, ${o.dom??'?'}d, ${o.sold??'?'} sold, rent ${mkRent(o)?money(mkRent(o)):'?'})`).join('; ')}.`;
   return `You are ${negName()}, the acquisitions analyst for a real estate investor. He hasn't picked a market yet and wants the best place to start. Strategy: ${MK_STRATS[st]}. Buy box: ZIPs with a median single-family price of ${money(+M.minPrice||0)}–${M.maxPrice?money(+M.maxPrice):'any'}.${M.states?` He is only looking at: ${M.states}.`:''}
 ${M.notes?`What he told you about himself: """${String(M.notes).slice(0,1500)}"""`:''}
 
 OfferDesk's data (Redfin ${D.periodEnd}, single-family, rolling 3 months; rents from HUD 3-bed fair market rent or Zillow's typical rent):
 ${cands.map(line).join('\n')}
 
-Use web search for current facts that change the answer for this strategy in these markets, for example: landlord-tenant law and eviction timelines, property tax rates, insurance costs and flood or storm risk, rules on wholesaling and assigning contracts (licensing, disclosures), big employers arriving or leaving, and any recent news that moves prices. Name the source for each fact. Skip generic advice that applies everywhere.
+${room?`What he wants most: a market with plenty of deals and a good future but FEW other investors competing for them ("lots of food, few people at the table"). He knows the big famous investor metros are crowded. For each market, use web search to check how crowded it really is: how many "we buy houses" / wholesaler / flipper companies advertise there, how active the local investor club (REIA) and BiggerPockets threads are, whether turnkey sellers market it to out-of-state investors, institutional single-family landlords buying there, and recent articles naming it a top investor market. Give each a competition verdict with the evidence.
+
+`:''}Use web search for current facts that change the answer for this strategy in these markets, for example: landlord-tenant law and eviction timelines, property tax rates, insurance costs and flood or storm risk, rules on wholesaling and assigning contracts (licensing, disclosures), big employers arriving or leaving, and any recent news that moves prices. Name the source for each fact. Skip generic advice that applies everywhere.
 
 Rank the markets for him. Pick 1–3 to start with and say plainly if any should be avoided. Be concrete and short.
 Reply with only JSON:
-{"summary":"2-3 sentences","picks":[{"market":"name exactly as listed","verdict":"start here|strong backup|maybe|avoid","why":["short reason with a number"],"risks":["short"],"checkFirst":["what to verify before buying there"],"startZips":["ZIP"]}],"nextSteps":["concrete step"]}`;
+{"summary":"2-3 sentences","picks":[{"market":"name exactly as listed","verdict":"start here|strong backup|maybe|avoid",${room?'"competition":"low|moderate|busy|crowded","competitionWhy":"one sentence with the evidence you found",':''}"why":["short reason with a number"],"risks":["short"],"checkFirst":["what to verify before buying there"],"startZips":["ZIP"]}],"nextSteps":["concrete step"]}`;
 }
 async function mkMemo(){
   const R=mkCompute();if(!R)return;if(!aiOn()){toast(aiErr({code:'no_ai'}),5200);return}
   const cands=mkCandidates(R);if(!cands.length){toast('Nothing fits your filters yet.');return}
   const res=await runAI('mk-memo',`${negName()} is comparing ${cands.length} markets and checking the news…`,(ai,signal)=>apiTools(promptMarkets(R,cands),{signal,model:bigModel(),maxTokens:9000}));
   if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){toast('Maya’s answer came back garbled. Try again.',5200);return}
-  mkSet().memo={at:Date.now(),strat:R.strat,summary:String(j.summary||''),picks:(Array.isArray(j.picks)?j.picks:[]).slice(0,8).map(p=>({market:String(p.market||''),verdict:String(p.verdict||''),why:[].concat(p.why||[]).map(String).slice(0,5),risks:[].concat(p.risks||[]).map(String).slice(0,5),checkFirst:[].concat(p.checkFirst||[]).map(String).slice(0,5),startZips:[].concat(p.startZips||[]).map(x=>String(x).replace(/\D/g,'').slice(0,5)).filter(x=>x.length===5).slice(0,6)})),
+  mkSet().memo={at:Date.now(),strat:R.strat,lens:R.lens,summary:String(j.summary||''),picks:(Array.isArray(j.picks)?j.picks:[]).slice(0,8).map(p=>({market:String(p.market||''),verdict:String(p.verdict||''),competition:String(p.competition||''),competitionWhy:String(p.competitionWhy||''),why:[].concat(p.why||[]).map(String).slice(0,5),risks:[].concat(p.risks||[]).map(String).slice(0,5),checkFirst:[].concat(p.checkFirst||[]).map(String).slice(0,5),startZips:[].concat(p.startZips||[]).map(x=>String(x).replace(/\D/g,'').slice(0,5)).filter(x=>x.length===5).slice(0,6)})),
     nextSteps:[].concat(j.nextSteps||[]).map(String).slice(0,6),sources:(res.sources||[]).slice(0,14),model:bigModel()||state.settings.model,cands:cands.map(m=>m.key)};
   saveSettings();logActivity(null,'info',`${negName()} compared ${cands.length} markets for ${MK_STRATS[R.strat].toLowerCase()}.`);
 }
 const MK_VERDICT={'start here':'green','strong backup':'blue','maybe':'amber','avoid':'red'};
+const MK_COMP={low:'green',moderate:'blue',busy:'amber',crowded:'red'};
 function mkMemoCard(R){
   const M=mkSet();const memo=M.memo;const n=esc(negName());const busy=state.busy['mk-memo'];const cands=mkCandidates(R);
   const keyOf=name=>{const m=R.metros.find(x=>x.label.toLowerCase()===String(name).toLowerCase())||R.metros.find(x=>String(name).toLowerCase().includes(x.label.toLowerCase().split(',')[0]));return m&&m.key};
-  const body=memo?`<p class="small muted">${new Date(memo.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})} · ${esc(MK_STRATS[memo.strat]||'')}${memo.model&&/opus/.test(memo.model)?' · Opus 5.5':''}${memo.strat!==R.strat?' · <b>made for a different strategy</b>':''}</p>
+  const body=memo?`<p class="small muted">${new Date(memo.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})} · ${esc(MK_STRATS[memo.strat]||'')}${memo.lens==='room'?' · room at the table':''}${memo.model&&/opus/.test(memo.model)?' · Opus 5.5':''}${memo.strat!==R.strat?' · <b>made for a different strategy</b>':''}</p>
     ${memo.summary?`<p>${esc(memo.summary)}</p>`:''}
-    <div class="mk-picks">${memo.picks.map(p=>{const k=keyOf(p.market);return `<div class="mk-pick"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:8px"><b>${k?`<button class="linkbtn" data-act="mk-metro" data-k="${esc(k)}">${esc(p.market)}</button>`:esc(p.market)}</b><span class="tag ${MK_VERDICT[p.verdict]||''}">${esc(p.verdict)}</span></div>
+    <div class="mk-picks">${memo.picks.map(p=>{const k=keyOf(p.market);return `<div class="mk-pick"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:8px"><b>${k?`<button class="linkbtn" data-act="mk-metro" data-k="${esc(k)}">${esc(p.market)}</button>`:esc(p.market)}</b><span class="row" style="gap:6px;flex-wrap:nowrap">${p.competition?`<span class="tag ${MK_COMP[p.competition]||''}">${esc(p.competition)} competition</span>`:''}<span class="tag ${MK_VERDICT[p.verdict]||''}">${esc(p.verdict)}</span></span></div>
+      ${p.competitionWhy?`<p class="xs">${esc(p.competitionWhy)}</p>`:''}
       ${p.why.length?`<ul>${p.why.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${p.risks.length?`<p class="xs"><b>Risks:</b> ${p.risks.map(esc).join(' · ')}</p>`:''}${p.checkFirst.length?`<p class="xs"><b>Check first:</b> ${p.checkFirst.map(esc).join(' · ')}</p>`:''}
       ${p.startZips.length?`<div class="row" style="gap:6px">${p.startZips.map(z=>DISC.byZip[z]?`<button class="qchip blue" data-act="mk-zip" data-k="${z}">${z}${DISC.byZip[z].city?' · '+esc(DISC.byZip[z].city):''}</button>`:`<span class="tag">${z}</span>`).join('')}</div>`:''}</div>`}).join('')}</div>
     ${memo.nextSteps.length?`<h3 class="mk-h3">Next steps</h3><ol class="small">${memo.nextSteps.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:''}
     ${memo.sources&&memo.sources.length?`<details id="mk-src"><summary>Sources (${memo.sources.length})</summary><ul class="xs">${memo.sources.map(s=>`<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title||s.url)}</a></li>`).join('')}</ul></details>`:''}`:'';
-  return `<section class="card" id="mk-memo"><div class="card-head"><span class="ci pink">${ico('spark')}</span><div><h2>${n}’s take</h2><p>${n} compares ${cands.length?cands.slice(0,3).map(m=>esc(m.label.split(',')[0])).join(', ')+(cands.length>3?` and ${cands.length-3} more`:''):'your top markets'} and checks laws, taxes, insurance and news</p></div>
+  return `<section class="card" id="mk-memo"><div class="card-head"><span class="ci pink">${ico('spark')}</span><div><h2>${n}’s take</h2><p>${n} compares ${cands.length?cands.slice(0,3).map(m=>esc(m.label.split(',')[0])).join(', ')+(cands.length>3?` and ${cands.length-3} more`:''):'your top markets'} and checks ${R.lens==='room'?'how crowded each really is, plus ':''}laws, taxes, insurance and news</p></div>
     <div class="ch-r">${aiOn()?`<button class="btn primary sm" data-act="mk-memo" ${busy?'disabled':''}>${ico('spark')}${memo?'Run again':'Compare markets'}</button>`:`<a class="btn sm" href="#settings/connections">Add your API key</a>`}</div></div>
-  <label class="field"><span>Anything ${n} should know (where you have buyers, cash, team, deal-breakers)</span><textarea class="input" id="mk-notes" data-fs="markets.notes" data-t="text" rows="2" placeholder="e.g. I invest remotely, I know cash buyers in one metro, budget up to $60K per deal">${esc(M.notes||'')}</textarea></label>
+  <label class="field"><span>Anything ${n} should know (where you have buyers, cash, team, deal-breakers)</span><textarea data-dict class="input" id="mk-notes" data-fs="markets.notes" data-t="text" rows="2" placeholder="e.g. I invest remotely, I know cash buyers in one metro, budget up to $60K per deal">${esc(M.notes||'')}</textarea></label>
   ${busyHTML('mk-memo')}${body}</section>`;
+}
+
+/* ================= Room at the table: good numbers, few investors, a good future ================= */
+/* Food = deals (the strategy score, plus old houses, older owners, stuck homes).
+   Eaters = investors already there (rented single-family share and how fast it rose, how hot listings sell,
+   metro size, Redfin's investor share). Future = jobs, people moving in, incomes, prices and rents. */
+const CENS={rows:0,meta:null};
+const ROOM_W={food:30,room:45,future:25};
+const ROOM_SUB={
+  food:['Food (deals)','The strategy score (sales, speed, exit, trend, motivated sellers) plus old houses, older owners and stuck homes.'],
+  room:['Few eaters','The opposite of competition: fewer houses already owned by investors, slower growth in investor ownership, listings that don’t get snapped up, a smaller and less famous metro.'],
+  future:['Future','County jobs over 2 years, population and people moving in since 2020, income growth, $/sqft over 2 years, rent growth.']
+};
+function joinCensus(c,byZip){
+  if(!c||!Array.isArray(c.rows)||!Array.isArray(c.cols))return;
+  const C=c.cols,ci={};(c.ccols||[]).forEach((k,i)=>ci[k]=i);const cs=c.counties||{};let n=0;
+  for(const r of c.rows){const o=byZip[r[0]];if(!o)continue;n++;
+    for(let i=1;i<C.length;i++){const k=C[i];o[k==='pop'?'zpop':k==='pop0'?'zpop0':k]=r[i]}
+    const cr=o.cty&&cs[o.cty];
+    if(cr){o.cPopG=cr[ci.popG];o.cPopYoy=cr[ci.popYoy];o.cMig=cr[ci.mig];o.cPop=cr[ci.pop];o.cJobYoy=cr[ci.jobYoy];o.cJob2y=cr[ci.job2y];o.cName=cr[ci.name]}}
+  CENS.rows=n;CENS.mpop=null;CENS.meta={acsYear:c.acsYear,baseYear:c.baseYear,popVintage:c.popVintage,qcew:c.qcew};
+}
+const roomOn=()=>CENS.rows>1000;
+function mkLens(){return mkSet().lens==='room'&&roomOn()?'room':'stats'}
+/* percentile of v among the ZIPs that fit the box (0 = lowest) */
+function prFn(vals){
+  const s=vals.filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);const n=s.length;if(n<25)return ()=>null;
+  return v=>{if(v==null||!isFinite(v))return null;let lo=0,hi=n;while(lo<hi){const m=(lo+hi)>>1;if(s[m]<v)lo=m+1;else hi=m}let e=lo;while(e<n&&s[e]===v)e++;return (lo+e)/2/n};
+}
+function wavg(pairs,minCov=.4){let s=0,t=0,all=0;for(const [v,w] of pairs){all+=w;if(v!=null&&isFinite(v)){s+=v*w;t+=w}}return t&&t/all>=minCov?s/t:null}
+const gPct=(a,b)=>a!=null&&b?(a/b-1)*100:null;
+const inflowOf=o=>o.sfr!=null&&o.sfr0!=null?o.sfr-o.sfr0:null;
+const incGOf=o=>gPct(o.inc,o.inc0);
+const jobOf=o=>o.cJob2y!=null?o.cJob2y:o.cJobYoy!=null?o.cJobYoy*2:null;
+function metroPops(D){const m={};for(const o of D.rows)if(o.zpop)m[o.mk]=(m[o.mk]||0)+o.zpop;return m}
+function roomCompute(zips,D){
+  if(!roomOn()||!zips.length)return false;
+  const P={};const col=(k,f)=>{P[k]=prFn(zips.map(f))};
+  col('sfr',o=>o.sfr);col('inflow',inflowOf);col('stl',o=>o.stl);col('above',o=>o.above);col('off2w',o=>o.off2w);col('dom',o=>o.dom);
+  col('old',o=>o.yb!=null?-o.yb:null);col('aged',o=>o.own75);col('stuck',o=>o.ovac);
+  const mpop=CENS.mpop||(CENS.mpop=metroPops(D));
+  for(const o of zips){
+    const fund=o.score!=null?o.score/100:null;
+    const ps=P.stuck(o.ovac);/* some stuck homes = motivated owners; a lot = a rough area */
+    const food=wavg([[fund,60],[P.old(o.yb!=null?-o.yb:null),15],[P.aged(o.own75),15],[ps==null?null:Math.min(ps,o.ovac>15?.4:1),10]],.6);
+    const pd=P.dom(o.dom);const heat=wavg([[P.stl(o.stl),1],[P.above(o.above),1],[P.off2w(o.off2w),1],[pd!=null?1-pd:null,1]]);
+    const inv=D.investors[o.metro];const mp=o.mk[0]==='~'?null:mpop[o.mk];
+    const eaters=wavg([[P.sfr(o.sfr),25],[P.inflow(inflowOf(o)),25],[heat,25],[mp?lin(Math.log(mp),Math.log(120e3),Math.log(4e6)):(o.mk[0]==='~'?0:null),15],[inv&&inv.share!=null?lin(inv.share,10,30):null,10]],.5);
+    const future=wavg([[lin(jobOf(o),-2,6),25],[lin(o.cPopG,-4,8),15],[lin(o.cMig,-4,6),15],[lin(incGOf(o),8,40),15],[lin(o.ppsf2y,-5,15),20],[lin(o.zoriYoy,-1,5),10]]);
+    let room=null;
+    if(food!=null&&eaters!=null){room=(ROOM_W.food*food+ROOM_W.room*(1-eaters)+ROOM_W.future*(future??.5));
+      /* you still have to sell the finished house */
+      if((o.dom!=null&&o.dom>100)||(o.stl!=null&&o.stl<91))room*=.85;
+      if(o.ppsf2y!=null&&o.ppsf2y<-8)room*=.85;
+      room=Math.round(room)}
+    o.rm={food,eaters,future,heat,room};
+  }
+  return true;
+}
+function roomMetro(zs){
+  const w=o=>Math.max(1,o.sold||1);const W=zs.reduce((s,o)=>s+w(o),0);
+  const avg=f=>{let s=0,t=0;for(const o of zs){const v=f(o);if(v!=null&&isFinite(v)){s+=v*w(o);t+=w(o)}}return t/W>=.3?s/t:null};
+  return {food:avg(o=>o.rm&&o.rm.food),eaters:avg(o=>o.rm&&o.rm.eaters),future:avg(o=>o.rm&&o.rm.future),heat:avg(o=>o.rm&&o.rm.heat),
+    sfr:avg(o=>o.sfr),inflow:avg(inflowOf),yb:avg(o=>o.yb),own75:avg(o=>o.own75),ovac:avg(o=>o.ovac),inc:avg(incGOf),popG:avg(o=>o.cPopG),mig:avg(o=>o.cMig),job:avg(jobOf),
+    p2y:avg(o=>o.ppsf2y),rentG:avg(o=>o.zoriYoy),pop:CENS.mpop&&zs[0]&&zs[0].mk[0]!=='~'?CENS.mpop[zs[0].mk]:null};
+}
+const compWord=e=>e==null?'—':e<.3?'Low':e<.45?'Moderate':e<.6?'Busy':'Crowded';
+const compCls=e=>e==null?'':e<.3?'green':e<.45?'blue':e<.6?'amber':'red';
+const p100=v=>v==null?null:Math.round(v*100);
+function roomBars(rm){
+  return `<div class="mk-bars">${['room','food','future'].map(k=>{const v=k==='room'?(rm.eaters==null?null:1-rm.eaters):rm[k];return `<div class="mk-bar" title="${esc(ROOM_SUB[k][1])}"><span class="lab">${ROOM_SUB[k][0]} <span class="muted">· ${ROOM_W[k]}%</span></span><span class="track"><i style="width:${v==null?0:Math.round(v*100)}%"></i></span><b class="tnum">${v==null?'n/a':Math.round(v*100)}</b></div>`}).join('')}</div>`;
+}
+const sg1=v=>v==null||!isFinite(v)?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(1);
+function roomFacts(x,isZip){
+  const rows=[
+    ['Houses already rented out',x.sfr!=null?`${pctv(x.sfr)} of single-family homes${x.inflow!=null?` · ${sg1(x.inflow)} pts in ${CENS.meta&&CENS.meta.baseYear?CENS.meta.acsYear-CENS.meta.baseYear:5} yrs`:''}`:'—','Rented single-family homes are mostly investor-owned. High or rising means investors are already here.'],
+    ['How hot listings sell',x.heat!=null?`${compWord(x.heat)} (${p100(x.heat)}/100)`:'—','Sale-to-list, share sold over asking, share under contract in 2 weeks, days on market, against other ZIPs in your box.'],
+    ['Metro size',x.pop?`${numFmt(x.pop)} people`:isZip?'—':'Outside metro areas','Bigger, famous metros draw out-of-state investors and funds.'],
+    ['Typical house built',x.yb?String(Math.round(x.yb)):'—','Older houses need more work: more fixer-uppers.'],
+    ['Owners aged 75+',x.own75!=null?pctv(x.own75,1):'—','Estates and downsizing ahead: future off-market sellers.'],
+    ['Jobs (county), 2 years',x.job!=null?sgn(x.job):'—','BLS covered employment.'],
+    ['Population since 2020',x.popG!=null?`${sgn(x.popG)}${x.mig!=null?` · people moving in ${sgn(x.mig)}`:''}`:'—','Census population estimates; moving in = net domestic migration.'],
+    ['Household income, 5 yrs',x.inc!=null?sgn(x.inc,0):'—','Census ACS, not adjusted for inflation.'],
+    ['$/sqft, 2 years',x.p2y!=null?sgn(x.p2y):'—','Redfin single-family.']];
+  return rows.map(([a,b,t])=>`<div title="${esc(t)}"><span class="small muted">${a}</span><b class="tnum">${b}</b></div>`).join('');
+}
+/* scatter: competition (x) vs food + future (y), one dot per metro */
+function mkRoomChart(R){
+  const ms=R.metros.filter(m=>m.key[0]!=='~'&&m.rm&&m.rm.eaters!=null&&m.rm.food!=null).sort((a,b)=>b.sold-a.sold).slice(0,160);
+  if(ms.length<5)return '';
+  const narrow=window.innerWidth<640;const W=narrow?560:1000,H=narrow?520:440,L=narrow?40:46,Rr=narrow?10:14,T=16,B=narrow?50:44;const iw=W-L-Rr,ih=H-T-B;
+  const opp=m=>.6*m.rm.food+.4*(m.rm.future??.5);
+  const xs=ms.map(m=>m.rm.eaters),ys=ms.map(opp);
+  const x0=Math.max(0,Math.min(...xs)-.03),x1=Math.min(1,Math.max(...xs)+.03),y0=Math.max(0,Math.min(...ys)-.03),y1=Math.min(1,Math.max(...ys)+.03);
+  const X=v=>L+(v-x0)/(x1-x0)*iw,Y=v=>T+(1-(v-y0)/(y1-y0))*ih;
+  const mx=median(xs),my=median(ys);const maxS=Math.max(...ms.map(m=>m.sold));
+  const rad=m=>3+9*Math.sqrt(m.sold/maxS);
+  const top=[...ms].sort((a,b)=>b.score-a.score).slice(0,8);const topSet=new Set(top.map(m=>m.key));
+  const sel=state.mk.metro;
+  const dots=[...ms].sort((a,b)=>topSet.has(a.key)-topSet.has(b.key)||b.sold-a.sold).map(m=>{const cx=X(m.rm.eaters),cy=Y(opp(m));const on=sel===m.key;
+    return `<circle class="rc-dot${topSet.has(m.key)?' top':''}${on?' sel':''}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rad(m).toFixed(1)}" style="fill:${mkColor(m.score,isDark())}" data-act="mk-metro" data-k="${esc(m.key)}"><title>${esc(m.label)}: room ${m.score} · competition ${compWord(m.rm.eaters).toLowerCase()} · ${numFmt(m.sold)} sales</title></circle>`}).join('');
+  /* place labels so they don't run into each other: try right, left, above, below */
+  const fs=narrow?19:11.5,placed=[];
+  const labels=top.map(m=>{const cx=X(m.rm.eaters),cy=Y(opp(m));const r=rad(m);const t=m.label.split(',')[0].split('-')[0];const tw=t.length*fs*.64+6;
+    const tries=[[cx+r+4,cy+fs*.35,'start'],[cx-r-4,cy+fs*.35,'end'],[cx-tw/2,cy-r-5,'start'],[cx-tw/2,cy+r+fs,'start'],[cx+r+4,cy-fs*.6,'start'],[cx+r+4,cy+fs*1.2,'start']];
+    const box=([x,y,a])=>{const x0=a==='end'?x-tw:x;return [x0,y-fs*.85,x0+tw,y+fs*.2]};
+    const dotsAround=top.filter(o=>o!==m).map(o=>{const ox=X(o.rm.eaters),oy=Y(opp(o)),rr=rad(o)+3;return [ox-rr,oy-rr,ox+rr,oy+rr]});
+    const pad=fs*.5;const hit=b=>b[0]<L||b[2]>W-2||b[1]<T||[...placed,...dotsAround].some(q=>b[0]-pad<q[2]&&b[2]+pad>q[0]&&b[1]<q[3]&&b[3]>q[1]);
+    const pick=tries.find(c=>!hit(box(c)))||tries[0];placed.push(box(pick));
+    return `<text class="rc-lab" x="${pick[0].toFixed(1)}" y="${pick[1].toFixed(1)}" text-anchor="${pick[2]}">${esc(t)}</text>`}).join('');
+  const qx=X(mx),qy=Y(my);
+  return `<section class="card" id="mk-room"><div class="card-head"><span class="ci green">${ico('target')}</span><div><h2>Food vs. eaters</h2><p>Each dot is a metro (biggest ${ms.length} by sales). Up = more deals and a better future. Left = fewer investors already there. Bigger dot = more sales.</p></div></div>
+  <div class="rc-wrap"><svg class="rc" viewBox="0 0 ${W} ${H}" role="img" aria-label="Scatter chart of metros: competition against deals and future">
+    <rect class="rc-q" x="${L}" y="${T}" width="${(qx-L).toFixed(1)}" height="${(qy-T).toFixed(1)}"/>
+    <text class="rc-qlab" x="${L+8}" y="${T+16}">More food, fewer eaters</text>
+    <text class="rc-qlab dim" x="${L+iw-8}" y="${T+16}" text-anchor="end">Good deals, crowded table</text>
+    <text class="rc-qlab dim" x="${L+8}" y="${T+ih-8}">Quiet, thin pickings</text>
+    <line class="rc-mid" x1="${qx.toFixed(1)}" x2="${qx.toFixed(1)}" y1="${T}" y2="${T+ih}"/><line class="rc-mid" x1="${L}" x2="${L+iw}" y1="${qy.toFixed(1)}" y2="${qy.toFixed(1)}"/>
+    <line class="rc-axis" x1="${L}" x2="${L+iw}" y1="${T+ih}" y2="${T+ih}"/><line class="rc-axis" x1="${L}" x2="${L}" y1="${T}" y2="${T+ih}"/>
+    <text class="rc-ax" x="${L+iw/2}" y="${H-12}" text-anchor="middle">${narrow?'← fewer investors · more investors →':'Competition: fewer investors  ←  →  more investors'}</text>
+    <text class="rc-ax" transform="translate(14 ${T+ih/2}) rotate(-90)" text-anchor="middle">Deals + future</text>
+    ${dots}${labels}</svg></div>
+  <p class="xs muted">The 8 best for room at the table are labeled. Click a dot to open that metro. Lines mark the middle of the pack.</p></section>`;
 }
 
 /* ================= Bulk campaigns: many listings, one paced send queue ================= */
@@ -4991,6 +5235,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('input,select,textarea'))return;
   const el=e.target.closest('[data-act]');if(!el)return;
   if(el.tagName==='A')return;
+  if(DICT.want&&el.dataset.act!=='dict')dictStop();/* any button (Send, Save…) takes what was said so far */
   const fn=A[el.dataset.act];if(fn){e.preventDefault();fn(el,e)}
 });
 const D=()=>(state.modal&&state.modal.id&&state.deals[state.modal.id])||cur();
@@ -5034,7 +5279,7 @@ A['modal-save']=()=>{const F=state.modal.form;if(!(F.address||'').trim()){toast(
 A['confirm-yes']=()=>{const m=state.modal;state.modal=null;if(m&&m.run)m.run();render()};
 A['confirm-yes2']=()=>{const m=state.modal;state.modal=null;if(m&&m.run2)m.run2();render()};
 A['ask-fab']=()=>{state.modal={type:'ask'};render()};
-A['ask-go']=async()=>{const q=(state.drafts['ask-q']||'').trim();if(!q)return;
+A['ask-go']=async()=>{dictStop();const q=(state.drafts['ask-q']||'').trim();if(!q)return;
   const leads=Object.values(state.deals).filter(d=>d.stage!=='dead').slice(0,40).map(d=>{const c=calc(d);return `- ${streetOf(d.address)}, ${d.city||''} | ${d.source} | asking ${money(curList(d))} | ARV ${money(d.arv)} | rehab ${money(d.rehab)} | rent ${money(d.rent||d.rentEst)} | ceiling ${c.ready?money(c.mao):'n/a'} | tags ${dealTags(d).join(',')} | wholesaler ${d.wholesalerName||''} | stage ${d.stage}`}).join('\n');
   const res=await runAI('ask',`${negName()} is looking at your deals…`,(ai,signal)=>ai.text(`You are ${negName()}, an acquisitions analyst for a DFW investor. Their buy box: flip target ROI ${state.settings.buy.targetRoi}%, min profit ${money(state.settings.buy.minProfit)}, wholesale fee ${money(state.settings.buy.wsFee)}. Answer the question using only these deals. Be brief and specific, name addresses.\n\nDeals:\n${leads}\n\nQuestion: ${q}`,{signal}));
   if(res&&state.modal)state.modal.answer=res.text;render()};
@@ -5103,7 +5348,8 @@ A.log=el=>logMessage(state.dealId,el.dataset.ask==='1');
 A['del-msg']=el=>{const d=D();d.thread=(d.thread||[]).filter(t=>t.id!==el.dataset.mid);saveDeal(d)};
 A['undo-optout']=()=>{const d=D();d.optedOut=false;saveDeal(d)};
 A['maya-tab']=el=>{state.mayaTab=el.dataset.v;render()};
-A['maya-send']=()=>{const msg=(state.drafts['maya-msg']||'').trim();if(!msg)return;state.drafts['maya-msg']='';aiChat(state.dealId,msg)};
+A['dict']=el=>dictToggle(el.dataset.k);
+A['maya-send']=()=>{dictStop();const msg=(state.drafts['maya-msg']||'').trim();if(!msg)return;state.drafts['maya-msg']='';aiChat(state.dealId,msg)};
 A.quick=el=>quickAction(state.dealId,el.dataset.q);
 A['ai-opening']=()=>aiOpening(state.dealId);
 A['ai-reply']=()=>aiReply(state.dealId);
@@ -5161,6 +5407,7 @@ A['pr-send']=async()=>{
 A['pr-end']=()=>endCall();
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
 A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
+A['mk-lens']=el=>{state.settings.markets.lens=el.dataset.v;state.mk.show=25;saveSettings();render()};
 A['mk-strat']=el=>{state.settings.markets.strategy=el.dataset.v;saveSettings()};
 A['mk-metro']=el=>{const k=el.dataset.k;state.mk.metro=k;state.mk.zip=null;render();setTimeout(()=>{const t=document.getElementById('mk-map');if(t)t.scrollIntoView({block:'start',behavior:'smooth'})},90)};
 A['mk-zip']=el=>{const z=el.dataset.k;if(!z){state.mk.zip=null;render();return}const o=DISC.byZip[z];if(!o)return;state.mk.metro=o.mk;state.mk.zip=z;render();setTimeout(()=>{const e=document.getElementById('mk-zip');if(e)e.scrollIntoView({block:'center',behavior:'smooth'})},90)};

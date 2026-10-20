@@ -156,7 +156,7 @@ function setRehab(){
   const book=rehabBook();const R=state.settings.rehab||{};const n=esc(negName());const bm=(state.settings.ai||{}).bigModel||'claude-opus-5-5';
   return `<section class="card"><div class="card-head"><span class="ci orange">${ico('hammer')}</span><div><h2>Your repair prices</h2><p>${n} counts quantities from the photos and prices them with these numbers</p></div><div class="ch-r"><button class="btn ghost sm" data-act="rehab-reset">Reset to defaults</button></div></div>
   <div class="tbl-wrap"><table class="tbl" style="min-width:540px"><thead><tr><th>Item</th><th>Unit</th><th class="r">Your price</th></tr></thead><tbody>${book.map(b=>`<tr style="cursor:default"><td>${esc(b.label)}</td><td class="small muted">${esc(b.unit)}</td><td class="r"><input class="input tnum" id="rb-${b.key}" data-fs="rehab.costs.${b.key}" data-t="num" value="${b.cost}" style="width:110px;text-align:right" inputmode="decimal">${b.cost!==b.def?`<div class="xs muted">default ${money(b.def)}</div>`:''}</td></tr>`).join('')}</tbody></table></div>
-  <label class="field"><span>Notes for ${n} on pricing (optional)</span><textarea class="input" id="rb-notes" data-fs="rehab.notes" data-t="text" rows="3" placeholder="e.g. My GC charges $28/sqft for a full cosmetic. Always budget a new water heater on houses built before 2010.">${esc(R.notes||'')}</textarea></label>
+  <label class="field"><span>Notes for ${n} on pricing (optional)</span><textarea data-dict class="input" id="rb-notes" data-fs="rehab.notes" data-t="text" rows="3" placeholder="e.g. My GC charges $28/sqft for a full cosmetic. Always budget a new water heater on houses built before 2010.">${esc(R.notes||'')}</textarea></label>
   <p class="small muted">The defaults are typical US mid-range contractor prices. Putting in your own contractor’s numbers is the single biggest accuracy boost for ${n}’s rehab estimates.</p></section>
   <section class="card"><div class="card-head"><span class="ci grad">${ico('spark')}</span><div><h2>Model for the big calls</h2><p>Photo inspections, deal research, and the re-check when an agent answers</p></div></div>
   <div class="seg" role="group" aria-label="Model for big calls">${[['claude-opus-5-5','Opus 5.5 (sharpest)'],['same','Same as everything else']].map(([v,l])=>`<button data-act="big-model" data-v="${v}" aria-pressed="${bm===v}">${l}</button>`).join('')}</div>
@@ -198,7 +198,7 @@ function modalHTML(){
     body=linkModalHTML();
   }else if(m.type==='ask'){
     body=`<div class="row" style="justify-content:space-between"><h2>Ask ${esc(negName())} about your leads</h2><button class="btn ghost sm" data-act="modal-close" aria-label="Close">${ico('close')}</button></div>
-    <textarea class="input" id="ask-q" data-draft rows="3" placeholder="e.g. Which of these work as a flip at my numbers? Which wholesaler sends the best deals?">${esc(state.drafts['ask-q']||'')}</textarea>
+    <textarea data-dict class="input" id="ask-q" data-draft rows="3" placeholder="e.g. Which of these work as a flip at my numbers? Which wholesaler sends the best deals?">${esc(state.drafts['ask-q']||'')}</textarea>
     <div class="row"><button class="btn primary" data-act="ask-go">${ico('spark')}Ask</button>${busyHTML('ask',false)}</div>${m.answer?`<div class="note purple" style="white-space:pre-wrap">${esc(m.answer)}</div>`:''}`;
   }
   return `<div class="modal-scrim" data-act="modal-close"></div><div class="modal-box" role="dialog" aria-modal="true">${body}</div>`;

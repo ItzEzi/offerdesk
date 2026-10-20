@@ -5,6 +5,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('input,select,textarea'))return;
   const el=e.target.closest('[data-act]');if(!el)return;
   if(el.tagName==='A')return;
+  if(DICT.want&&el.dataset.act!=='dict')dictStop();/* any button (Send, Save…) takes what was said so far */
   const fn=A[el.dataset.act];if(fn){e.preventDefault();fn(el,e)}
 });
 const D=()=>(state.modal&&state.modal.id&&state.deals[state.modal.id])||cur();
@@ -48,7 +49,7 @@ A['modal-save']=()=>{const F=state.modal.form;if(!(F.address||'').trim()){toast(
 A['confirm-yes']=()=>{const m=state.modal;state.modal=null;if(m&&m.run)m.run();render()};
 A['confirm-yes2']=()=>{const m=state.modal;state.modal=null;if(m&&m.run2)m.run2();render()};
 A['ask-fab']=()=>{state.modal={type:'ask'};render()};
-A['ask-go']=async()=>{const q=(state.drafts['ask-q']||'').trim();if(!q)return;
+A['ask-go']=async()=>{dictStop();const q=(state.drafts['ask-q']||'').trim();if(!q)return;
   const leads=Object.values(state.deals).filter(d=>d.stage!=='dead').slice(0,40).map(d=>{const c=calc(d);return `- ${streetOf(d.address)}, ${d.city||''} | ${d.source} | asking ${money(curList(d))} | ARV ${money(d.arv)} | rehab ${money(d.rehab)} | rent ${money(d.rent||d.rentEst)} | ceiling ${c.ready?money(c.mao):'n/a'} | tags ${dealTags(d).join(',')} | wholesaler ${d.wholesalerName||''} | stage ${d.stage}`}).join('\n');
   const res=await runAI('ask',`${negName()} is looking at your deals…`,(ai,signal)=>ai.text(`You are ${negName()}, an acquisitions analyst for a DFW investor. Their buy box: flip target ROI ${state.settings.buy.targetRoi}%, min profit ${money(state.settings.buy.minProfit)}, wholesale fee ${money(state.settings.buy.wsFee)}. Answer the question using only these deals. Be brief and specific, name addresses.\n\nDeals:\n${leads}\n\nQuestion: ${q}`,{signal}));
   if(res&&state.modal)state.modal.answer=res.text;render()};
@@ -117,7 +118,8 @@ A.log=el=>logMessage(state.dealId,el.dataset.ask==='1');
 A['del-msg']=el=>{const d=D();d.thread=(d.thread||[]).filter(t=>t.id!==el.dataset.mid);saveDeal(d)};
 A['undo-optout']=()=>{const d=D();d.optedOut=false;saveDeal(d)};
 A['maya-tab']=el=>{state.mayaTab=el.dataset.v;render()};
-A['maya-send']=()=>{const msg=(state.drafts['maya-msg']||'').trim();if(!msg)return;state.drafts['maya-msg']='';aiChat(state.dealId,msg)};
+A['dict']=el=>dictToggle(el.dataset.k);
+A['maya-send']=()=>{dictStop();const msg=(state.drafts['maya-msg']||'').trim();if(!msg)return;state.drafts['maya-msg']='';aiChat(state.dealId,msg)};
 A.quick=el=>quickAction(state.dealId,el.dataset.q);
 A['ai-opening']=()=>aiOpening(state.dealId);
 A['ai-reply']=()=>aiReply(state.dealId);
@@ -175,6 +177,7 @@ A['pr-send']=async()=>{
 A['pr-end']=()=>endCall();
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
 A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
+A['mk-lens']=el=>{state.settings.markets.lens=el.dataset.v;state.mk.show=25;saveSettings();render()};
 A['mk-strat']=el=>{state.settings.markets.strategy=el.dataset.v;saveSettings()};
 A['mk-metro']=el=>{const k=el.dataset.k;state.mk.metro=k;state.mk.zip=null;render();setTimeout(()=>{const t=document.getElementById('mk-map');if(t)t.scrollIntoView({block:'start',behavior:'smooth'})},90)};
 A['mk-zip']=el=>{const z=el.dataset.k;if(!z){state.mk.zip=null;render();return}const o=DISC.byZip[z];if(!o)return;state.mk.metro=o.mk;state.mk.zip=z;render();setTimeout(()=>{const e=document.getElementById('mk-zip');if(e)e.scrollIntoView({block:'center',behavior:'smooth'})},90)};

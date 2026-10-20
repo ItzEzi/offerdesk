@@ -31,7 +31,7 @@ function stripHTML(d){
   const a=d.analysis;const aud=a&&a.audience?`${a.audience}${a.audienceConfidence?' ('+a.audienceConfidence+')':''}`:null;
   return `<div class="strip3"><div class="sbox"><span class="lab">Marketing audience</span><span class="v">${ico('user')}${aud?esc(aud.replace(/^./,m=>m.toUpperCase())):'<span class="muted">Run an inspection</span>'}</span></div>
   <div class="sbox"><span class="lab">Deal motivation</span><span class="v" style="color:var(--t-orange)">${ico('flame')}${a&&a.motivation?esc(a.motivation.replace(/^./,m=>m.toUpperCase())):'<span class="muted">Run an inspection</span>'}</span></div>
-  <div class="sbox"><span class="lab">Your instructions to ${esc(negName())}</span><textarea id="d-instr" data-fd="instructions" rows="1" placeholder="e.g. Don’t go above 150K, seller is an estate">${esc(d.instructions||'')}</textarea></div></div>`;
+  <div class="sbox"><span class="lab">Your instructions to ${esc(negName())}</span><textarea data-dict id="d-instr" data-fd="instructions" rows="1" placeholder="e.g. Don’t go above 150K, seller is an estate">${esc(d.instructions||'')}</textarea></div></div>`;
 }
 function conversationCard(d,c){
   const th=(d.thread||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));const n=negName();const agent=((d.agent&&d.agent.name)||counterpart(d)).replace(/\s*\(example\)/i,'');
@@ -44,7 +44,7 @@ function conversationCard(d,c){
   <details ${th.length?'':'open'}><summary>${ico('plus')} Log a message, reply or call note</summary><div style="display:grid;gap:10px;margin-top:10px">
     <div class="seg" role="group" aria-label="Kind">${[['in','Their reply'],['out','Something I sent'],['note','Call note']].map(([v,l])=>`<button data-act="log-kind" data-k="${v}" aria-pressed="${k===v}">${l}</button>`).join('')}</div>
     <div class="grid-fields">${k!=='note'?`<label class="field"><span>Channel</span><select class="input" id="log-ch" data-draft>${[['email','Email'],['sms','Text'],['call','Call']].map(([v,l])=>`<option value="${v}" ${(state.drafts['log-ch']||'email')===v?'selected':''}>${l}</option>`).join('')}</select></label>`:''}<label class="field"><span>Number named (optional)</span><input class="input tnum" id="log-price" data-draft value="${esc(state.drafts['log-price']||'')}" placeholder="e.g. 199,990" inputmode="numeric"></label></div>
-    <textarea class="input" id="log-text" data-draft rows="4" placeholder="${k==='in'?'Paste their email or text':k==='out'?'What you sent':'What was said'}">${esc(state.drafts['log-text']||'')}</textarea>
+    <textarea data-dict class="input" id="log-text" data-draft rows="4" placeholder="${k==='in'?'Paste their email or text':k==='out'?'What you sent':'What was said'}">${esc(state.drafts['log-text']||'')}</textarea>
     <div class="row">${k==='in'?`<button class="btn primary" data-act="log" data-ask="1">${ico('spark')}Log it and ask ${esc(n)}</button>`:''}<button class="btn" data-act="log" data-ask="0">Just log it</button></div></div></details></section>`;
 }
 function autopilotCard(d,c){
@@ -160,7 +160,7 @@ function detailsCard(d,c){
   ${f('pd-mlsid','mlsId','MLS ID',d.mlsId)}${f('pd-zipdom','zipAvgDom','ZIP avg days on market',d.zipAvgDom,'num',d.zipDomAuto?'placeholder="'+d.zipDomAuto+' (Redfin)"':'')}
   <label class="field"><span>Listed on</span><input class="input" type="date" id="pd-listed" data-fd="listedDate" data-t="date" value="${esc(d.listedDate?isoDay(d.listedDate):'')}"></label>${f('pd-url','listingUrl','Listing link',d.listingUrl)}</div>
   <label class="field"><span>Listing description</span><textarea class="input" id="pd-desc" data-fd="description" rows="3">${esc(d.description)}</textarea></label>
-  <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>
+  <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea data-dict class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>
   ${isWs&&d.wsClaims?`<div class="note"><b>What the wholesaler claimed:</b> ${[['Asking',d.wsClaims.asking],['ARV',d.wsClaims.arv],['Repairs',d.wsClaims.rehab],['Rent',d.wsClaims.rent]].filter(x=>x[1]!=null).map(([l,v])=>l+' '+money(v)).join(' · ')}${d.wsClaims.terms?' · Terms: '+esc(d.wsClaims.terms):''}${d.wsClaims.deadline?' · Deadline: '+esc(d.wsClaims.deadline):''}${d.wsClaims.access?' · Access: '+esc(d.wsClaims.access):''}${(d.wsClaims.redFlags||[]).length?`<br><b>Check:</b> ${d.wsClaims.redFlags.map(esc).join(' · ')}`:''}</div>`:''}
   ${['contract','closed'].includes(d.stage)?`<div><b>Contract checklist</b>${items.map(([k,l])=>`<label class="check"><input type="checkbox" id="ck-${k}" data-fd="checklist.${k}" data-t="bool" ${ck[k]?'checked':''}><span>${esc(l)}</span></label>`).join('')}</div>`:''}
   <div class="row"><button class="btn danger" data-act="delete-deal">${ico('trash')}Delete deal</button></div></section>`;
@@ -179,13 +179,13 @@ function mayaPanel(d,c){
   if(tab==='chat'){
     body=`<div class="chatlog" id="chatlog" data-stick="1">${chat.length?chat.map(m=>`<div class="bub ${m.role==='user'?'me':''}"><span class="who">${m.role==='user'?'You':n}</span>${esc(m.content)}</div>`).join(''):`<div class="bub"><span class="who">${n}</span>Ask me anything about this deal, or tap an action. I’ll draft the message and you approve it${d.autopilot&&state.settings.auto.enabled?' (on autopilot I send safe ones myself)':''}.</div>`}${state.busy['chat:'+d.id]?`<div class="bub"><span class="who">${n}</span><span class="muted">thinking…</span></div>`:''}</div>
     <div class="qchips">${QUICK.map(q=>`<button class="qchip ${q.c}" data-act="quick" data-q="${q.id}" ${busyAny?'disabled':''}>${esc(q.label)}</button>`).join('')}</div>
-    <div class="chat-in"><textarea class="input" id="maya-msg" data-draft rows="2" placeholder="Chat with ${n} about this property…">${esc(state.drafts['maya-msg']||'')}</textarea><button class="send-btn" data-act="maya-send" aria-label="Send to ${n}" ${busyAny?'disabled':''}>${ico('send')}</button></div>`;
+    <div class="chat-in"><textarea data-dict class="input" id="maya-msg" data-draft rows="2" placeholder="Chat with ${n} about this property…">${esc(state.drafts['maya-msg']||'')}</textarea><button class="send-btn" data-act="maya-send" aria-label="Send to ${n}" ${busyAny?'disabled':''}>${ico('send')}</button></div>`;
   }else{
     const isSms=tab==='sms';
     const can=isSms?canText(d):canEmail(d);
     body=`<div style="padding:12px 16px;display:grid;gap:10px">${isSms?`<p class="small muted">${smsOn()?'Texts go out from your Twilio number.':gvOn()?(d.gvThreadId?'Replies go out through Google Voice.':'Google Voice can only reply after they text you first.'):'Texting isn’t automatic yet: copy the text and send it from your phone, or connect Twilio in Connect.'}</p>`:`<p class="small muted">${gmailOn()?`Sends from ${esc(sendEmail())}${ownThread(d)?', in the same thread':''}.`:'Connect Gmail to send from here.'}</p>`}
       ${isSms?'':`<input class="input" id="cmp-subj" data-draft placeholder="Subject" value="${esc(state.drafts['cmp-subj']||('Re: '+streetOf(d.address)))}">`}
-      <textarea class="input" id="${isSms?'cmp-sms':'cmp-body'}" data-draft rows="${isSms?3:6}" placeholder="Write your own ${isSms?'text':'email'} to ${esc(counterpart(d))}">${esc(state.drafts[isSms?'cmp-sms':'cmp-body']||'')}</textarea>
+      <textarea class="input" data-dict id="${isSms?'cmp-sms':'cmp-body'}" data-draft rows="${isSms?3:6}" placeholder="Write your own ${isSms?'text':'email'} to ${esc(counterpart(d))}">${esc(state.drafts[isSms?'cmp-sms':'cmp-body']||'')}</textarea>
       <div class="row"><button class="btn primary sm" data-act="compose-send" data-ch="${isSms?'sms':'email'}" ${can?'':'disabled'}>${ico('send')}Send ${isSms?'text':'email'}</button><button class="btn sm" data-act="compose-log" data-ch="${isSms?'sms':'email'}">I sent it myself</button>${busyHTML('send:'+d.id,false)}</div></div>`;
   }
   const next=nextStepHTML(d,c);

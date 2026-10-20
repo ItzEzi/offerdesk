@@ -12,6 +12,7 @@ function doRender(){
   $('#alertbar').innerHTML=alertHTML();
   $('#main').innerHTML=state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`;
   $('#modal-root').innerHTML=modalHTML();
+  try{dictDecorate()}catch(e){console.warn(e)}
   for(const [id,[t,l]] of Object.entries(scrolls)){const el=document.getElementById(id);if(el){el.scrollTop=t;el.scrollLeft=l}}
   for(const [id,o] of Object.entries(opens)){const el=document.getElementById(id);if(el)el.open=o}
   window.scrollTo(0,y);

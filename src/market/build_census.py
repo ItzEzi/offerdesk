@@ -158,10 +158,10 @@ def check_labels(year):
         for line in raw.splitlines():
             p = line.split('\t') if '\t' in line else line.split('|')
             if len(p) >= 4:
-                for c in p:
+                for i, c in enumerate(p):
                     c = c.strip()
                     if re.match(r'^[BC]\d{5}_\d{3}$', c):
-                        labs[c] = p[-1].strip()
+                        labs[c] = (p[i + 1] if i + 1 < len(p) else '').strip()   # the label follows the unique ID
                         break
     except Exception as e:
         print('label check skipped:', err_text(e))

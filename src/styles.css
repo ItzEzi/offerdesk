@@ -646,3 +646,34 @@ details.card>summary{cursor:pointer}
 #cp-send .seg,#mk-controls .seg{flex-wrap:wrap}
 .tag.score{white-space:normal;max-width:100%}
 @media (max-width:560px){.wrapseg button{flex-basis:45%;border-top:1px solid var(--line-strong);margin-top:-1px}}
+
+/* dictation: mic inside text boxes */
+.dict-wrap{position:relative;display:block;flex:1 1 auto;min-width:0;width:100%}
+.dict-wrap>textarea{width:100%;padding-right:44px}
+.dict-wrap.one>textarea{padding-right:36px}
+.dict-btn{position:absolute;right:6px;bottom:6px;width:32px;height:32px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;transition:background .15s,color .15s,border-color .15s}
+.dict-btn svg{width:16px;height:16px}
+.dict-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+.dict-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.dict-btn.on{background:var(--s-red);border-color:transparent;color:#fff;animation:dictpulse 1.4s ease-in-out infinite}
+.dict-wrap.one .dict-btn{width:26px;height:26px;bottom:50%;transform:translateY(50%);right:2px}
+.dict-wrap.one .dict-btn svg{width:14px;height:14px}
+@keyframes dictpulse{0%,100%{box-shadow:0 0 0 0 rgba(217,58,58,.45)}50%{box-shadow:0 0 0 6px rgba(217,58,58,0)}}
+@media (prefers-reduced-motion:reduce){.dict-btn.on{animation:none}}
+/* Markets: rank-by lens + food vs eaters chart */
+.mk-lens{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.mk-lens .seg button svg{width:14px;height:14px;margin-right:4px;vertical-align:-2px}
+.rc-wrap{width:100%;overflow:hidden}
+.rc{width:100%;height:auto;display:block;max-width:1100px;margin:0 auto}
+.rc-q{fill:var(--b-green);opacity:.7}
+.rc-qlab{font-size:12px;font-weight:700;fill:var(--t-green)}
+.rc-qlab.dim{fill:var(--muted);font-weight:600}
+.rc-mid{stroke:var(--line-strong);stroke-dasharray:4 4}
+.rc-axis{stroke:var(--line-strong)}
+.rc-ax{font-size:11.5px;fill:var(--muted)}
+.rc-dot{stroke:var(--surface);stroke-width:1.5;cursor:pointer;opacity:.82}
+.rc-dot.top{opacity:1;stroke:var(--ink);stroke-width:1.2}
+.rc-dot.sel{stroke:var(--ink);stroke-width:3;opacity:1}
+.rc-dot:hover{opacity:1;stroke:var(--ink)}
+.rc-lab{font-size:11.5px;font-weight:700;fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round;pointer-events:none}
+@media (max-width:640px){.rc-lab{font-size:19px}.rc-qlab{font-size:18px}.rc-ax{font-size:18px}.rc-dot{stroke-width:2}}
