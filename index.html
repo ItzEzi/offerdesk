@@ -1242,7 +1242,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261020-2234';
+const APP_V='20261020-2331';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -4198,8 +4198,21 @@ const MK_SUB={
 };
 const mkSet=()=>state.settings.markets;
 function mkStrat(){const s=mkSet().strategy;if(MK_W[s])return s;const b=state.settings.buy.strategy;return b==='wholesale'?'wholesale':(b==='brrrr'||b==='rental')?'brrrr':'flip'}
-function mkStates(){return new Set(String(mkSet().states||'').toUpperCase().split(/[^A-Z]+/).filter(x=>/^[A-Z]{2}$/.test(x)))}
-const mkLabel=k=>!k?'':k[0]==='~'?`Outside metro areas, ${k.slice(1)}`:k.replace(/\s+metro area$/i,'');
+const US_STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'Washington DC',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',PR:'Puerto Rico'};
+const stName=c=>US_STATES[c]||c||'';
+/* "Ocala, FL" -> "Ocala, Florida"; "Bristol, TN-VA" -> "Bristol, Tennessee / Virginia" */
+const stFull=s=>String(s||'').replace(/,\s*([A-Z]{2}(?:-[A-Z]{2})*)$/,(m,c)=>', '+c.split('-').map(stName).join(' / '));
+/* the state filter takes codes or names: "OH, TX" or "Ohio, Texas" */
+function mkStates(){
+  const out=new Set();const byName={};for(const [c,n] of Object.entries(US_STATES))byName[n.toLowerCase()]=c;
+  for(const t of String(mkSet().states||'').split(/[,;/\n]+/).map(x=>x.trim()).filter(Boolean)){
+    const u=t.toUpperCase();if(/^[A-Z]{2}$/.test(u)&&US_STATES[u]){out.add(u);continue}
+    const c=byName[t.toLowerCase()];if(c){out.add(c);continue}
+    for(const w of u.split(/[^A-Z]+/))if(/^[A-Z]{2}$/.test(w)&&US_STATES[w])out.add(w);
+  }
+  return out;
+}
+const mkLabel=k=>!k?'':k[0]==='~'?`Outside metro areas, ${stName(k.slice(1))}`:stFull(k.replace(/\s+metro area$/i,''));
 /* HUD's small-area rent has floors that overstate rent in the cheapest ZIPs, so cap it near Zillow's typical rent when both exist */
 const mkRent=o=>o.fmr3!=null&&o.zori!=null?Math.min(o.fmr3,Math.round(o.zori*1.3)):o.fmr3??o.zori??null;
 const mkYield=o=>{const r=mkRent(o);return r&&o.price?r*12/o.price:null};
@@ -4289,7 +4302,7 @@ function dealTarget(d){
 function mkStar(type,key){
   const M=mkSet();M.targets=M.targets||[];const i=M.targets.findIndex(t=>t.type===type&&t.key===key);
   if(i>=0)M.targets.splice(i,1);
-  else{const o=type==='zip'?DISC.byZip[key]:null;M.targets.push({type,key,label:type==='zip'?`${key}${o&&o.city?' · '+o.city+', '+o.st:''}`:mkLabel(key),metro:o?o.mk:undefined,zips:type==='metro'?Object.values(DISC.byZip).filter(x=>x.mk===key).map(x=>x.z):undefined,at:Date.now()})}
+  else{const o=type==='zip'?DISC.byZip[key]:null;M.targets.push({type,key,label:type==='zip'?`${key}${o&&o.city?' · '+o.city+', '+stName(o.st):''}`:mkLabel(key),metro:o?o.mk:undefined,zips:type==='metro'?Object.values(DISC.byZip).filter(x=>x.mk===key).map(x=>x.z):undefined,at:Date.now()})}
   saveSettings();
 }
 const starBtn=(type,key)=>{const on=isTarget(type,key);return `<button class="starbtn ${on?'on':''}" data-act="mk-star" data-type="${type}" data-k="${esc(key)}" aria-pressed="${on}" aria-label="${on?'Remove from':'Add to'} target markets" title="${on?'Remove from':'Add to'} target markets">${ico('star')}</button>`};
@@ -4318,7 +4331,7 @@ function mkControls(st,M,R){
     <label class="field"><span>to</span><input class="input tnum" id="mk-max" data-fs="markets.maxPrice" data-t="num" value="${M.maxPrice??''}" inputmode="numeric" placeholder="any"></label>
     <label class="field"><span>Min. homes sold (3 mo)</span><input class="input tnum" id="mk-sold" data-fs="markets.minSold" data-t="num" value="${M.minSold??''}" inputmode="numeric"></label>
     ${lens==='room'?`<label class="field"><span>Min. metro sales (3 mo)</span><input class="input tnum" id="mk-msold" data-fs="markets.minMetroSold" data-t="num" value="${M.minMetroSold??300}" inputmode="numeric" title="Enough deals to build a business on. Smaller metros are hidden."></label>`:''}
-    <label class="field mk-states"><span>Only these states</span><input class="input" id="mk-states" data-fs="markets.states" data-t="text" value="${esc(M.states||'')}" placeholder="All states, or e.g. TX, OH, IN" autocomplete="off"></label>
+    <label class="field mk-states"><span>Only these states</span><input class="input" id="mk-states" data-fs="markets.states" data-t="text" value="${esc(M.states||'')}" placeholder="All states, or e.g. Ohio, Texas, Indiana" autocomplete="off"></label>
   </div>
   <p class="small muted" style="margin-top:10px"><b>${lens==='room'?`Deals use the ${MK_STRATS[st].toLowerCase()} score, which weighs:`:`${MK_STRATS[st]} score weighs:`}</b> ${Object.entries(w).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${MK_SUB[k][0].toLowerCase()} ${v}%`).join(' · ')}</p></section>`;
 }
@@ -4326,7 +4339,7 @@ function mkTargetsCard(R){
   const T=mkTargets();if(!T.length)return '';
   const deals=Object.values(state.deals).filter(d=>!d.example&&dealTarget(d)).length;
   return `<section class="card" id="mk-targets"><div class="card-head"><span class="ci green">${ico('target')}</span><div><h2>Your target markets</h2><p>${deals?`${deals} of your deals are in these markets. `:''}Deals here get a “Target market” tag.</p></div></div>
-  <div class="mk-tchips">${T.map(t=>{const sc=t.type==='metro'?(R.byKey[t.key]||{}).score:(DISC.byZip[t.key]||{}).ls;return `<span class="mk-tchip"><button class="linkbtn" data-act="${t.type==='metro'?'mk-metro':'mk-zip'}" data-k="${esc(t.key)}">${esc(t.label)}</button>${sc!=null?mkPill(sc):''}<button class="iconx" data-act="mk-star" data-type="${t.type}" data-k="${esc(t.key)}" aria-label="Remove ${esc(t.label)}">${ico('close')}</button></span>`}).join('')}</div></section>`;
+  <div class="mk-tchips">${T.map(t=>{const sc=t.type==='metro'?(R.byKey[t.key]||{}).score:(DISC.byZip[t.key]||{}).ls;return `<span class="mk-tchip"><button class="linkbtn" data-act="${t.type==='metro'?'mk-metro':'mk-zip'}" data-k="${esc(t.key)}">${esc(stFull(t.label))}</button>${sc!=null?mkPill(sc):''}<button class="iconx" data-act="mk-star" data-type="${t.type}" data-k="${esc(t.key)}" aria-label="Remove ${esc(stFull(t.label))}">${ico('close')}</button></span>`}).join('')}</div></section>`;
 }
 function mkMapCard(R){
   const sel=state.mk.metro?R.byKey[state.mk.metro]:null;
@@ -4373,7 +4386,7 @@ function mkZipDetail(o,R){
   const S=MKT.states[o.st];const Z=S&&S.zips&&S.zips.zips&&S.zips.zips[o.z];const s=Z&&Z.s;
   if(!S&&!MKT.failed[o.st])loadMarketState(o.st).then(()=>render());
   const rentLine=[o.fmr3?`HUD fair market rent, 3-bed: <b>${money(o.fmr3)}</b>/mo`:'',o.zori?`Zillow typical rent: <b>${money(o.zori)}</b>/mo${o.zoriYoy!=null?` (${sgn(o.zoriYoy)} a year)`:''}`:''].filter(Boolean).join(' · ');
-  return `<div class="mk-zip" id="mk-zip"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${o.z} · ${esc(o.city||'')}, ${o.st}${o.county?` <span class="muted" style="font-weight:600">${esc(o.county)} County</span>`:''}</h3>
+  return `<div class="mk-zip" id="mk-zip"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${o.z} · ${esc(o.city||'')}, ${esc(stName(o.st))}${o.county?` <span class="muted" style="font-weight:600">${esc(o.county)} County</span>`:''}</h3>
     <p class="small muted">${moneyK(o.price)} median · $${o.ppsf??'—'}/sqft · ${o.dom??'—'} days · ${o.sold??'—'} sold, ${o.active??'—'} active · sale-to-list ${pctv(o.stl,1)} · ${o.mos??'—'} months of supply${o.cancel!=null?` · ${pctv(o.cancel)} of pendings cancel`:''}</p>
     ${rentLine?`<p class="small">${rentLine}</p>`:''}${(()=>{const m=R.byKey[o.mk];return m&&m.price&&o.price<m.price*.6?`<p class="small" style="color:var(--t-amber)">Median is ${Math.round(o.price/m.price*100)}% of the metro’s typical fitting ZIP. Cheap ZIPs can hide tough blocks and weak rents: check it street by street before buying.</p>`:''})()}</div><div class="row" style="flex-wrap:nowrap">${mkPill(o.ls)}${starBtn('zip',o.z)}<button class="btn ghost sm" data-act="mk-zip" data-k="" aria-label="Close">${ico('close')}</button></div></div>
   ${R.lens==='room'&&o.rm?`<div class="split" style="margin-top:8px"><div>${roomBars(o.rm)}<p class="small"><span class="tag ${compCls(o.rm.eaters)}">${compWord(o.rm.eaters)} competition</span>${o.score!=null?` <span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${o.score}/100</span>`:''}</p></div><div class="mk-facts">${roomFacts({sfr:o.sfr,inflow:inflowOf(o),heat:o.rm.heat,pop:null,yb:o.yb,own75:o.own75,job:jobOf(o),popG:o.cPopG,mig:o.cMig,inc:incGOf(o),p2y:o.ppsf2y},true)}${o.cName?`<div><span class="small muted">County</span><b>${esc(o.cName)}</b></div>`:''}</div></div>`:''}
@@ -4412,7 +4425,7 @@ function drawMarketMap(){
   const tip=document.getElementById('mk-tip');
   const hit=e=>{const r=cv.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;let best=null,bd=(zoom?14:9)**2;for(const p of MKMAP.pts){const d=(p[0]-x)**2+(p[1]-y)**2;if(d<bd){bd=d;best=p}}return best};
   cv.onmousemove=e=>{const p=hit(e);if(!p){tip.hidden=true;cv.style.cursor='';return}const o=p[2];cv.style.cursor='pointer';tip.hidden=false;
-    tip.innerHTML=`<b>${o.z} · ${esc(o.city||'')}, ${o.st}</b><span>${R.lens==='room'?`Room ${o.ls} · ${compWord(o.rm&&o.rm.eaters).toLowerCase()} competition`:`Score ${o.ls}`} · ${moneyK(o.price)} · ${o.dom??'—'} days · ${o.sold??'—'} sold</span><span class="muted">${esc(mkLabel(o.mk))}</span>`;
+    tip.innerHTML=`<b>${o.z} · ${esc(o.city||'')}, ${esc(stName(o.st))}</b><span>${R.lens==='room'?`Room ${o.ls} · ${compWord(o.rm&&o.rm.eaters).toLowerCase()} competition`:`Score ${o.ls}`} · ${moneyK(o.price)} · ${o.dom??'—'} days · ${o.sold??'—'} sold</span><span class="muted">${esc(mkLabel(o.mk))}</span>`;
     const tx=Math.min(p[0]+12,W-tip.offsetWidth-4),ty=p[1]+12+tip.offsetHeight>H?p[1]-tip.offsetHeight-10:p[1]+12;tip.style.left=Math.max(4,tx)+'px';tip.style.top=Math.max(4,ty)+'px'};
   cv.onmouseleave=()=>{tip.hidden=true};
   cv.onclick=e=>{const p=hit(e);if(!p)return;tip.hidden=true;const o=p[2];state.mk.metro=o.mk;state.mk.zip=o.z;render();setTimeout(()=>{const el=document.getElementById('mk-zip')||document.getElementById('mk-metro');if(el)el.scrollIntoView({block:'start',behavior:'smooth'})},90)};
