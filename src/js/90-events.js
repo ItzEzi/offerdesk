@@ -177,6 +177,8 @@ A['pr-send']=async()=>{
 A['pr-end']=()=>endCall();
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
 A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
+A['rs-new']=()=>rsWorkbook();
+A['rs-comp']=()=>rsCompetition();
 A['mk-lens']=el=>{state.settings.markets.lens=el.dataset.v;state.mk.show=25;saveSettings();render()};
 A['mk-strat']=el=>{state.settings.markets.strategy=el.dataset.v;saveSettings()};
 A['mk-metro']=el=>{const k=el.dataset.k;state.mk.metro=k;state.mk.zip=null;render();setTimeout(()=>{const t=document.getElementById('mk-map');if(t)t.scrollIntoView({block:'start',behavior:'smooth'})},90)};
@@ -305,6 +307,8 @@ document.addEventListener('change',e=>{
   if(t.dataset.sec){const v=t.value.trim().replace(/\s+/g,'');setSecret(t.dataset.sec,t.dataset.sec==='apiKey'?v:t.value.trim());if(t.dataset.sec==='apiKey'){delete state.conn.aiCheck;saveConn();render();if(v)testKey()}else if(t.dataset.sec==='model'){delete state.conn.aiCheck;saveConn();render()}else render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpCsv&&t.files&&t.files[0]){const c=state.campaigns[t.dataset.cpCsv];const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));if(!items.length){toast('That file has no addresses. Use Redfin’s Download All.',5200);return}const n=await cpAddItems(c,items);toast(`Added ${n} listing${n===1?'':'s'}${n<items.length?` (${items.length-n} were already here)`:''}.`)};fr.readAsText(t.files[0]);t.value='';return}
+  if(t.hasAttribute('data-rs-wb')&&t.files&&t.files[0]){const f=t.files[0];t.value='';rsWorkbook(f);return}
+  if(t.hasAttribute('data-rs-csv')&&t.files&&t.files.length){const fs=[...t.files];t.value='';rsImportFiles(fs);return}
   if(t.dataset.cpAgent){const c=cpCur();const it=c&&c.items.find(i=>i.k===t.dataset.cpAgent);if(it){const v=t.value.trim().toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v)){toast('That doesn’t look like an email.');return}it.agent=Object.assign(it.agent||{},{email:v,src:it.agent&&it.agent.src||'you'});cpPrice(c).then(()=>saveCampaign(c))}return}
   if(t.id==='cp-sort'){state.cp.sort=t.value;render();return}
   const typ=t.dataset.t||'text';
@@ -341,6 +345,7 @@ document.addEventListener('dragleave',e=>{const el=e.target.closest&&e.target.cl
 document.addEventListener('drop',e=>{
   const z=e.target.closest&&e.target.closest('[data-drop]');
   if(z&&z.dataset.drop==='cp'&&e.dataTransfer.files&&e.dataTransfer.files.length){e.preventDefault();z.classList.remove('over');const c=cpCur();const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));const n=items.length?await cpAddItems(c,items):0;toast(n?`Added ${n} listings.`:'That file has no addresses. Use Redfin’s Download All.')};fr.readAsText(e.dataTransfer.files[0]);return}
+  if(z&&z.dataset.drop==='rs'&&e.dataTransfer.files&&e.dataTransfer.files.length){e.preventDefault();z.classList.remove('over');rsImportFiles([...e.dataTransfer.files]);return}
   if(z&&e.dataTransfer.files&&e.dataTransfer.files.length){e.preventDefault();z.classList.remove('over');addPhotoBlobs(z.dataset.drop,[...e.dataTransfer.files],'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}`)});return}
   const col=e.target.closest&&e.target.closest('.col');if(!col)return;e.preventDefault();col.classList.remove('over');
   const id=e.dataTransfer.getData('text/x-deal');const d=state.deals[id];if(d&&d.stage!==col.dataset.stage){d.stage=col.dataset.stage;if(['contract','closed','dead'].includes(d.stage))d.autopilot=false;saveDeal(d);toast('Moved to '+STAGE_LABEL[d.stage])}});
@@ -358,7 +363,7 @@ async function boot(){
     try{v.conn=v.conn||JSON.parse(lsGet('od.conn')||'null')}catch(e){}
   }
   state.settings=deepMerge(DEFAULTS,v.settings);
-  state.practice=v.practice||{};state.campaigns=v.campaigns||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
+  state.practice=v.practice||{};state.campaigns=v.campaigns||{};state.research=v.research||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
   if(state.conn.email&&!state.conn.accounts){state.conn.accounts={g1:{email:state.conn.email,twilio:!!state.conn.twilio,twilioFrom:state.conn.twilioFrom||'',version:state.conn.version||1}};if(!state.settings.conn.sendAccount)state.settings.conn.sendAccount='g1'}
   state.deals=v.deals||null;
   if(!state.deals){state.deals=exampleDeals();if(!state.settings.profile.name)state.settings.profile.name='Ezra Rothschild';persist('deals');persist('settings')}

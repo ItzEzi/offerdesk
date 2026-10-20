@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261020-2117: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261020-2234: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261020-2117';
+const APP_V='20261020-2234';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -175,7 +175,7 @@ const state={
   loaded:false,view:'dashboard',dealId:null,busy:{},drafts:{},modal:null,syncing:false,autoRunning:false,cloudSyncing:false,
   lf:{q:'',source:'all',stage:'all',status:'all',sentiment:'all',type:'all',beds:'any',price:'any',state:'all',special:'all',autopilot:'all'},
   leads:{q:'',tag:null,fav:false,type:'all'},
-  campaigns:{},cp:{id:null,filter:'all',sort:'offerPct',show:80},mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
+  campaigns:{},research:{},cp:{id:null,filter:'all',sort:'offerPct',show:80},mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
 };
 const negName=()=>state.settings.neg.name||'Maya';
 
@@ -189,7 +189,7 @@ const IDB={db:null,
   put(store,val,key){return IDB.tx(store,'readwrite',s=>key===undefined?s.put(val):s.put(val,key))},
   del(store,key){return IDB.tx(store,'readwrite',s=>s.delete(key))}
 };
-const KEYS=['settings','deals','practice','mail','activity','conn','campaigns'];
+const KEYS=['settings','deals','practice','mail','activity','conn','campaigns','research'];
 /* Maya 24/7 (the Gmail script runs this same code) stops starting new work near its time limit */
 const WORKER={on:false,deadline:0};const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
 const saveTimers={};
@@ -1116,14 +1116,15 @@ const COLS={
 const WHOLES={
   settings:{key:'settings',get:()=>state.settings,set:v=>{state.settings=deepMerge(DEFAULTS,v||{})}},
   conn:{key:'conn',get:()=>state.conn,set:v=>{state.conn=v&&typeof v==='object'?v:{}}},
+  research:{key:'research',get:()=>state.research||{},set:v=>{state.research=v&&typeof v==='object'?v:{}}},
   secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',elevenKey:s.elevenKey||'',accounts:acctList()}},
     set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;if(v.elevenKey)s.elevenKey=v.elevenKey;else delete s.elevenKey;
       const acc=(Array.isArray(v.accounts)?v.accounts:[]).filter(a=>a&&a.id);const mine=acctList().find(a=>a.id===cm().acct);if(mine&&!acc.some(a=>a.id===mine.id))acc.unshift(mine);
       s.accounts=acc;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
 };
 const range=(p,n)=>Array.from({length:n},(_,i)=>p+i);
-const PARTS=[...range('deals',8),'practice','campaigns',...range('emails',4),'texts','settings','conn','secrets','mailmeta','activity'];
-const KEY_PARTS={deals:range('deals',8),practice:['practice'],campaigns:['campaigns'],mail:[...range('emails',4),'texts','mailmeta'],activity:['activity'],settings:['settings'],conn:['conn'],secrets:['secrets']};
+const PARTS=[...range('deals',8),'practice','campaigns',...range('emails',4),'texts','settings','conn','research','secrets','mailmeta','activity'];
+const KEY_PARTS={deals:range('deals',8),practice:['practice'],campaigns:['campaigns'],mail:[...range('emails',4),'texts','mailmeta'],activity:['activity'],settings:['settings'],conn:['conn'],research:['research'],secrets:['secrets']};
 const partOf=(c,id)=>COLS[c].n>1?c+shardOf(id,COLS[c].n):c;
 function parsePart(P){const m=String(P).match(/^([a-z]+)(\d*)$/);return {c:m[1],i:m[2]===''?0:+m[2]}}
 function keyOfPart(P){const {c}=parsePart(P);return COLS[c]?COLS[c].key:WHOLES[c]?WHOLES[c].key:c==='mailmeta'?'mail':c}

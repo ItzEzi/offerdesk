@@ -677,3 +677,19 @@ details.card>summary{cursor:pointer}
 .rc-dot:hover{opacity:1;stroke:var(--ink)}
 .rc-lab{font-size:11.5px;font-weight:700;fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round;pointer-events:none}
 @media (max-width:640px){.rc-lab{font-size:19px}.rc-qlab{font-size:18px}.rc-ax{font-size:18px}.rc-dot{stroke-width:2}}
+/* Markets: research pack */
+.rs-tbl td,.rs-tbl th{white-space:nowrap}
+.rs-steps{display:grid;gap:14px;margin-top:14px}
+.rs-step{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:8px;min-width:0}
+.rs-step h3{margin:0;font-size:14px;display:flex;align-items:center;gap:8px}
+.rs-step p{margin:0}
+.rs-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:999px;background:var(--brand-soft);color:var(--brand-ink);font-size:12px;font-weight:800;flex:none}
+.rs-links{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.rs-zip{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--sunk)}
+.rs-zip a{font-weight:700}
+.rs-drop{display:flex;gap:10px;align-items:center;border:1.5px dashed var(--line-strong);border-radius:12px;padding:14px;cursor:pointer;font-size:13px;color:var(--ink-2)}
+.rs-drop svg{width:20px;height:20px;flex:none}
+.rs-drop.over{border-color:var(--brand);background:var(--brand-soft)}
+.rs-cands{margin:0;padding-left:18px;font-size:13px;display:grid;gap:3px}
+#rs-cands summary{cursor:pointer;font-weight:700;margin-top:12px}
+.rs-step>.btn,.rs-step>a.btn{justify-self:start}

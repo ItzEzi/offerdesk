@@ -146,7 +146,7 @@ const state={
   loaded:false,view:'dashboard',dealId:null,busy:{},drafts:{},modal:null,syncing:false,autoRunning:false,cloudSyncing:false,
   lf:{q:'',source:'all',stage:'all',status:'all',sentiment:'all',type:'all',beds:'any',price:'any',state:'all',special:'all',autopilot:'all'},
   leads:{q:'',tag:null,fav:false,type:'all'},
-  campaigns:{},cp:{id:null,filter:'all',sort:'offerPct',show:80},mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
+  campaigns:{},research:{},cp:{id:null,filter:'all',sort:'offerPct',show:80},mk:{metro:null,zip:null,show:25},page:1,mayaTab:'chat',settingsTab:'connections',bellOpen:false,practiceId:null,logKind:'in',compsPaste:false,photoUrls:{},practicePersona:'tough'
 };
 const negName=()=>state.settings.neg.name||'Maya';
 
@@ -160,7 +160,7 @@ const IDB={db:null,
   put(store,val,key){return IDB.tx(store,'readwrite',s=>key===undefined?s.put(val):s.put(val,key))},
   del(store,key){return IDB.tx(store,'readwrite',s=>s.delete(key))}
 };
-const KEYS=['settings','deals','practice','mail','activity','conn','campaigns'];
+const KEYS=['settings','deals','practice','mail','activity','conn','campaigns','research'];
 /* Maya 24/7 (the Gmail script runs this same code) stops starting new work near its time limit */
 const WORKER={on:false,deadline:0};const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
 const saveTimers={};

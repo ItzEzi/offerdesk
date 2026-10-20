@@ -17,14 +17,15 @@ const COLS={
 const WHOLES={
   settings:{key:'settings',get:()=>state.settings,set:v=>{state.settings=deepMerge(DEFAULTS,v||{})}},
   conn:{key:'conn',get:()=>state.conn,set:v=>{state.conn=v&&typeof v==='object'?v:{}}},
+  research:{key:'research',get:()=>state.research||{},set:v=>{state.research=v&&typeof v==='object'?v:{}}},
   secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',elevenKey:s.elevenKey||'',accounts:acctList()}},
     set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;if(v.elevenKey)s.elevenKey=v.elevenKey;else delete s.elevenKey;
       const acc=(Array.isArray(v.accounts)?v.accounts:[]).filter(a=>a&&a.id);const mine=acctList().find(a=>a.id===cm().acct);if(mine&&!acc.some(a=>a.id===mine.id))acc.unshift(mine);
       s.accounts=acc;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
 };
 const range=(p,n)=>Array.from({length:n},(_,i)=>p+i);
-const PARTS=[...range('deals',8),'practice','campaigns',...range('emails',4),'texts','settings','conn','secrets','mailmeta','activity'];
-const KEY_PARTS={deals:range('deals',8),practice:['practice'],campaigns:['campaigns'],mail:[...range('emails',4),'texts','mailmeta'],activity:['activity'],settings:['settings'],conn:['conn'],secrets:['secrets']};
+const PARTS=[...range('deals',8),'practice','campaigns',...range('emails',4),'texts','settings','conn','research','secrets','mailmeta','activity'];
+const KEY_PARTS={deals:range('deals',8),practice:['practice'],campaigns:['campaigns'],mail:[...range('emails',4),'texts','mailmeta'],activity:['activity'],settings:['settings'],conn:['conn'],research:['research'],secrets:['secrets']};
 const partOf=(c,id)=>COLS[c].n>1?c+shardOf(id,COLS[c].n):c;
 function parsePart(P){const m=String(P).match(/^([a-z]+)(\d*)$/);return {c:m[1],i:m[2]===''?0:+m[2]}}
 function keyOfPart(P){const {c}=parsePart(P);return COLS[c]?COLS[c].key:WHOLES[c]?WHOLES[c].key:c==='mailmeta'?'mail':c}

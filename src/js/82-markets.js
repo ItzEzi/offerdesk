@@ -123,7 +123,7 @@ function viewMarkets(){
   const head=hero('g-markets','Market Discovery',R&&R.lens==='room'?'Where the deals are and the investors aren’t yet. Good numbers, less competition, a good future.':'Every US ZIP ranked for how you invest. Set your strategy and budget, then dig into the best metros.',meta,
     R?`<div class="h-stat"><b>${numFmt(R.zips.length)}</b><span>ZIPs fit your box</span></div><div class="h-stat"><b>${numFmt(R.metros.length)}</b><span>markets</span></div>`:'');
   if(!D)return `<div class="wrap page">${head}<section class="card">${DISC.err?`<div class="note amber">${esc(DISC.err)}</div><button class="btn sm" data-act="mk-reload">${ico('refresh')}Try again</button>`:`<div class="busy"><div class="spin"></div><span>Loading market data for every US ZIP…</span></div>`}</section></div>`;
-  return `<div class="wrap page">${head}${mkControls(st,M,R)}${R.lens==='room'?mkRoomChart(R):''}${mkTargetsCard(R)}
+  return `<div class="wrap page">${head}${mkControls(st,M,R)}${R.lens==='room'?mkRoomChart(R):''}${mkTargetsCard(R)}${mkResearchCard(R)}
   <div class="mk-grid">${mkMapCard(R)}${mkMetrosCard(R)}</div>
   ${state.mk.metro&&R.byKey[state.mk.metro]?mkMetroCard(R.byKey[state.mk.metro],R):state.mk.metro?`<section class="card" id="mk-metro"><div class="note">No ZIPs in ${esc(mkLabel(state.mk.metro))} fit your filters right now. Widen the price range or lower the minimum sales.</div><button class="btn sm" data-act="mk-us">Back to all markets</button></section>`:''}
   ${mkMemoCard(R)}
