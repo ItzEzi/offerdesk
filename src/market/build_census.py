@@ -360,7 +360,8 @@ def build(zips=None):
                      int(c['pop']) if c['pop'] is not None else None, int(b['pop']) if b.get('pop') is not None else None,
                      cty.get(z),
                      int(c['ownDet']) if c['ownDet'] is not None else None, int(c['rentDet']) if c['rentDet'] is not None else None])
-    used = {r[-1] for r in rows if r[-1]}
+    ic = COLS.index('cty')
+    used = {r[ic] for r in rows if r[ic]}
     counties = {}
     for f in used:
         p, j = pe.get(f, {}), jb.get(f, {})
