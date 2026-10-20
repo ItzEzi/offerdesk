@@ -161,7 +161,10 @@ A.sync=()=>syncAll(true);
 
 /* practice */
 A.persona=el=>{state.practicePersona=el.dataset.v;render()};
-A['pr-start']=()=>practiceStart();
+A['pr-start']=()=>prepareCall();
+A['pr-go']=()=>startFromBrief();
+A['pr-brief']=()=>{state.modal={type:'brief'};render()};
+A['pr-regen']=()=>{state.modal=null;state.prBrief=null;prepareCall()};
 A['pr-stage']=el=>{state.drafts['pr-stage']=el.dataset.v;render()};
 A['pr-send']=async()=>{
   const s=state.practice[state.practiceId];const msg=(state.drafts['pr-msg']||'').trim();if(!s||!msg||state.busy['pr-chat'])return;
@@ -169,13 +172,7 @@ A['pr-send']=async()=>{
   const turns=[s.turns[0],...s.turns.slice(1).slice(-24)];
   const res=await runAI('pr-chat','',(ai,signal)=>ai.text(turns,{signal,modelTier:'quick'}));
   const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:cleanSpoken(res.text)});savePractice(ss);if(state.voiceOn)speakAgent(res.text,ss.persona)}else voiceBits()};
-A['pr-end']=async()=>{
-  const s=state.practice[state.practiceId];if(!s)return;stopSpeaking();voiceStopListening();
-  const transcript=s.turns.slice(1).map(t=>(t.role==='user'?'INVESTOR: ':'AGENT: ')+t.content).join('\n');
-  const d=state.deals[s.dealId];const c=d?calc(d):null;
-  const k=s.caseFile;const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:k?` The investor's own ceiling is ${money(k.mao)} and target ${money(k.target)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nJudge: did the investor anchor well, walk the math, ask about the seller's needs, trade concessions instead of giving them away, stay calm, and get a number or next step? Be specific and quote their words where useful.\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences on where it ended and how close they got to the floor","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
-  const res=await runAI('pr-end','Grading the call…',(ai,signal)=>ai.json(prompt,{signal}));
-  if(!res)return;const ss=state.practice[s.id];ss.feedback={score:parseNum(res.score)??'—',outcome:String(res.outcome||''),wins:(res.wins||[]).map(String),gaps:(res.gaps||[]).map(String),nextMoves:(res.nextMoves||[]).map(String),lines:(res.lines||[]).map(String)};savePractice(ss)};
+A['pr-end']=()=>endCall();
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
 A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
 A['mk-strat']=el=>{state.settings.markets.strategy=el.dataset.v;saveSettings()};

@@ -622,6 +622,45 @@ details.card>summary{cursor:pointer}
   .rep h2{break-after:avoid}.rep section,.rep tr,.rep-tile{break-inside:avoid}
 }
 
+/* ===== Practice call brief (a sheet of paper handed to you before the call) ===== */
+.brief-box{padding:0;background:transparent;box-shadow:none;max-width:900px}
+.brief-wrap{display:grid;gap:12px}
+.brief-paper{--ink:#1B2033;--ink-2:#2F3650;--muted:#6B6F80;--line:#E7E0D2;--line-strong:#D8CFBD;--surface:#FFFDF8;--sunk:#F6F0E4;
+  background:#FFFDF8;color:#1B2033;border:1px solid #E2D9C8;border-radius:6px;padding:28px 30px 22px;box-shadow:0 18px 50px rgba(20,16,8,.28),0 2px 0 #E9E1D0;display:grid;gap:14px;position:relative}
+.brief-paper:before{content:"";position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:110px;height:18px;border-radius:5px;background:linear-gradient(#B8BDC9,#8E94A3);box-shadow:0 2px 3px rgba(0,0,0,.25)}
+.brief-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.brief-kicker{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9A3412}
+.brief-kicker.muted{color:#8A8F9E}
+.brief-title{font-size:21px;line-height:1.25;margin:0;text-wrap:balance}
+.brief-sub{margin:-8px 0 0;color:#6B6F80;font-size:13px}
+.brief-mission{border-left:4px solid #9A3412;background:#FBF3E6;padding:10px 14px;border-radius:0 8px 8px 0}
+.brief-mission p{margin:4px 0 0}
+.brief-paper h3{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6B6F80;margin:0 0 6px}
+.brief-paper section{min-width:0}.brief-paper p{margin:0}
+.brief-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px}
+.brief-paper .case-facts>div{background:#FFFDF8;border-color:#E7E0D2}
+.brief-foot{font-size:12px;color:#6B6F80;border-top:1px dashed #D8CFBD;padding-top:10px}
+.brief-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;background:var(--surface);border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.brief-strip{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px}
+.case>.brief-paper{margin-top:10px;box-shadow:none}
+.case>.brief-paper:before{display:none}
+.score-break{display:grid;gap:6px}
+.sb-row{display:grid;grid-template-columns:minmax(0,1fr) 64px;gap:2px 10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.sb-row>span:nth-child(3){grid-column:1/-1}.sb-row b{text-align:right}
+.sb-row.met{background:var(--b-green)}.sb-row.miss{background:var(--sunk)}
+@media (max-width:700px){.brief-paper{padding:22px 16px 16px}.brief-cols{grid-template-columns:minmax(0,1fr)}.brief-title{font-size:18px}.brief-box{width:calc(100% - 16px)!important}}
+.brief-wrap{padding-top:12px}
+.brief-actions{position:sticky;bottom:0;z-index:2}
+.brief-wrap{grid-template-columns:minmax(0,1fr)}.brief-paper{min-width:0}.brief-paper>*{min-width:0}
+@media (max-width:700px){.brief-paper .case-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.brief-actions .btn{flex:1 1 auto;justify-content:center}}
+/* phone fixes: segmented controls wrap instead of pushing the page wider; long tags wrap */
+.wrapseg{width:auto;display:flex;flex-wrap:wrap}
+.wrapseg button{flex:1 1 auto}
+.wrapseg button+button{border-left:1px solid var(--line-strong)}
+#cp-send .seg,#mk-controls .seg{flex-wrap:wrap}
+.tag.score{white-space:normal;max-width:100%}
+@media (max-width:560px){.wrapseg button{flex-basis:45%;border-top:1px solid var(--line-strong);margin-top:-1px}}
+
 </style>
 </head>
 <body>
@@ -1156,7 +1195,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261020-1639';
+const APP_V='20261020-1654';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -3810,19 +3849,21 @@ function briefSettingsHTML(){
 function viewPractice(){
   const n=esc(negName());const sessions=Object.values(state.practice).sort((a,b)=>String(b.created).localeCompare(String(a.created)));
   const cur=state.practice[state.practiceId];const deals=Object.values(state.deals).filter(d=>d.arv||curList(d));
-  const head=hero('g-practice','Practice calls','Rehearse a negotiation on a realistic case file or one of your deals, then get a written prep sheet',`<span>${ico('practice')}${sessions.length} call${sessions.length===1?'':'s'} so far</span>${sessions.find(s=>s.feedback)?`<span>${ico('trend')}Last score ${esc(sessions.find(s=>s.feedback).feedback.score)}/10</span>`:''}`,'');
+  const head=hero('g-practice','Practice calls','Rehearse a negotiation on a realistic case file or one of your deals, then get a written prep sheet',`<span>${ico('practice')}${sessions.length} call${sessions.length===1?'':'s'} so far</span>${sessions.find(s=>s.feedback)?(()=>{const f=sessions.find(s=>s.feedback).feedback;return `<span>${ico('trend')}Last score ${esc(f.score)}/${f.v===2?100:10}</span>`})():''}`,'');
   const setup=`<section class="card"><div class="card-head"><span class="ci pink">${ico('practice')}</span><div><h2>New practice call</h2><p>The agent has a secret lowest price. Earn it with reasons, not pressure.</p></div></div>
     <label class="field"><span>Deal</span><select class="input" id="pr-deal" data-draft><option value="case" ${!state.drafts['pr-deal']||state.drafts['pr-deal']==='case'?'selected':''}>New case file: a realistic made-up deal with comps and history</option>${deals.filter(d=>!d.example).map(d=>`<option value="${d.id}" ${state.drafts['pr-deal']===d.id?'selected':''}>${esc(streetOf(d.address)||'Untitled')}</option>`).join('')}</select></label>
     <div class="field"><span>Where the deal stands</span><div class="seg wrapseg" role="group" aria-label="Where the deal stands">${Object.entries(PR_STAGES).map(([k,v])=>`<button data-act="pr-stage" data-v="${k}" aria-pressed="${(state.drafts['pr-stage']||'offer_sent')===k}" title="${esc(v[1])}">${v[0]}</button>`).join('')}</div><span class="xs muted">${esc(PR_STAGES[state.drafts['pr-stage']||'offer_sent'][1])}.</span></div>
     <div class="opts">${Object.entries(PERSONAS).map(([k,p])=>`<button class="persona" data-act="persona" data-v="${k}" aria-pressed="${state.practicePersona===k}"><span class="tag ${p.color}" style="justify-self:start">${esc(p.label)}</span><span class="small muted">${esc(p.brief.replace(/^./,m=>m.toUpperCase()))}</span></button>`).join('')}</div>
-    <div class="row"><button class="btn primary" data-act="pr-start">${ico('phone')}Start the call</button>${busyHTML('pr-start',false)}</div></section>`;
+    ${state.prErr?`<div class="note amber">${esc(state.prErr)}${/key|Connect/.test(state.prErr)?` <a href="#settings/connections">Open Connect</a>`:''}</div>`:''}
+    <div class="row">${state.prBrief&&!state.modal?`<button class="btn" data-act="pr-brief">${ico('doc')}Open your brief</button>`:''}<button class="btn primary" data-act="pr-start" ${state.busy['pr-prep']||state.busy['pr-start']?'disabled':''}>${ico('doc')}${state.prBrief?'New brief':'Prepare the call'}</button>${busyHTML('pr-prep',false)}${busyHTML('pr-start',false)}</div>
+    <p class="xs muted">You’ll get a call brief first: the deal, your numbers, what’s happened so far and who you’re calling. Hidden objectives decide the score.</p></section>`;
   let main='';
   if(cur){const turns=cur.turns||[];
     main=`<section class="card"><div class="card-head"><span class="ci ${PERSONAS[cur.persona]?.color||'pink'}">${ico('user')}</span><div><h2>${esc(PERSONAS[cur.persona]?.label||'Agent')}</h2><p>${esc(cur.title)}</p></div><div class="ch-r">${!cur.feedback?`<button class="btn" data-act="pr-end">End call and get feedback</button>`:''}<button class="btn ghost sm" data-act="pr-close">Close</button></div></div>
-      ${cur.caseFile?caseCardHTML(cur.caseFile,!!cur.feedback,!cur.feedback&&(cur.turns||[]).length<=3):''}<div class="chat" id="prchat" data-stick="1">${turns.slice(1).map(t=>`<div class="bubble ${t.role==='user'?'me':''}">${esc(t.content)}</div>`).join('')}${state.busy['pr-chat']?'<div class="bubble"><span class="muted">typing…</span></div>':''}</div>
+      ${cur.caseFile?`${briefHTML(cur.caseFile,true)}<details class="case" id="pr-case"><summary><span class="tag pink">Brief</span> <span class="small">The full call brief</span></summary>${briefHTML(cur.caseFile)}</details>`:''}<div class="chat" id="prchat" data-stick="1">${turns.slice(1).map(t=>`<div class="bubble ${t.role==='user'?'me':''}">${esc(t.content)}</div>`).join('')}${state.busy['pr-chat']?'<div class="bubble"><span class="muted">typing…</span></div>':''}</div>
       ${voiceBarHTML(cur)}${!cur.feedback?`<div class="chat-in" style="padding:0;border:0"><textarea class="input" id="pr-msg" data-draft rows="2" placeholder="Say your line… (Enter to send)">${esc(state.drafts['pr-msg']||'')}</textarea><button class="send-btn" data-act="pr-send" aria-label="Send">${ico('send')}</button></div>`:''}
       ${busyHTML('pr-end',false)}${cur.feedback?prepHTML(cur):''}</section>`}
-  const past=sessions.length?`<section class="card"><div class="card-head"><span class="ci slate">${ico('clock')}</span><div><h2>Past calls</h2></div></div><div class="tbl-wrap" style="border:0"><table class="tbl" style="min-width:0"><tbody>${sessions.slice(0,20).map(s=>`<tr data-act="pr-open" data-id="${s.id}"><td><b>${esc(s.title)}</b><div class="xs muted">${esc(PERSONAS[s.persona]?.label||'')} · ${fmtDate(s.created)}</div></td><td class="r tnum"><b>${s.feedback?esc(s.feedback.score)+'/10':'—'}</b></td><td class="r"><button class="btn ghost sm" data-act="pr-del" data-id="${s.id}" aria-label="Delete">${ico('trash')}</button></td></tr>`).join('')}</tbody></table></div></section>`:`<section class="card"><div class="card-head"><span class="ci slate">${ico('spark')}</span><div><h2>How it works</h2></div></div><p class="small muted">Pick a deal and an agent type and talk it through like a phone call. When you end it, ${n} grades the call: what worked, where you gave ground, and the exact lines to use next time. Typing in English is practice too.</p></section>`;
+  const past=sessions.length?`<section class="card"><div class="card-head"><span class="ci slate">${ico('clock')}</span><div><h2>Past calls</h2></div></div><div class="tbl-wrap" style="border:0"><table class="tbl" style="min-width:0"><tbody>${sessions.slice(0,20).map(s=>`<tr data-act="pr-open" data-id="${s.id}"><td><b>${esc(s.title)}</b><div class="xs muted">${esc(PERSONAS[s.persona]?.label||'')} · ${fmtDate(s.created)}</div></td><td class="r tnum"><b>${s.feedback?esc(s.feedback.score)+'/'+(s.feedback.v===2?100:10):'—'}</b></td><td class="r"><button class="btn ghost sm" data-act="pr-del" data-id="${s.id}" aria-label="Delete">${ico('trash')}</button></td></tr>`).join('')}</tbody></table></div></section>`:`<section class="card"><div class="card-head"><span class="ci slate">${ico('spark')}</span><div><h2>How it works</h2></div></div><p class="small muted">Pick a deal and an agent type and talk it through like a phone call. When you end it, ${n} grades the call: what worked, where you gave ground, and the exact lines to use next time. Typing in English is practice too.</p></section>`;
   return `<div class="wrap page">${head}${main}<div class="split">${setup}${past}</div>${voicePanelHTML()}</div>`;
 }
 function prepHTML(s){const f=s.feedback;const L=a=>(a||[]).length?`<ul>${a.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<p class="small muted">—</p>';
@@ -3997,6 +4038,8 @@ function modalHTML(){
     body=`<h2>${esc(m.title)}</h2><p>${esc(m.text)}</p><div class="row"><button class="btn" data-act="confirm-yes" style="background:var(--s-red);border-color:var(--s-red);color:#fff">${esc(m.yes)}</button>${m.yes2?`<button class="btn" data-act="confirm-yes2">${esc(m.yes2)}</button>`:''}<button class="btn ghost" data-act="modal-close">Cancel</button></div>`;
   }else if(m.type==='offer'){
     return `<div class="modal-scrim" data-act="modal-close"></div><div class="modal-box wide" role="dialog" aria-modal="true" aria-label="Preview offer">${offerModalHTML(m)}</div>`;
+  }else if(m.type==='brief'){
+    return `<div class="modal-scrim" data-act="modal-close"></div><div class="modal-box wide brief-box" role="dialog" aria-modal="true" aria-label="Call brief">${briefModalHTML()}</div>`;
   }else if(m.type==='link'){
     body=linkModalHTML();
   }else if(m.type==='ask'){
@@ -4538,7 +4581,7 @@ function cpEditorHTML(c){
     ${(c.log||[]).length?`<details id="cp-log"><summary>Log</summary><ul class="xs">${c.log.slice(0,20).map(l=>`<li>${esc(fmtWhen(l.at))}: ${esc(l.t)}</li>`).join('')}</ul></details>`:''}</section>`;
 }
 
-/* ================= Practice case files: a realistic (made-up) deal with history, so every call has context ================= */
+/* ================= Practice: a call brief before every call, hidden objectives that decide the score ================= */
 const PR_STAGES={
   first:['First call','You’re calling about the listing before making any offer'],
   offer_sent:['Following up on your offer','You emailed a written cash offer a few days ago and haven’t heard back'],
@@ -4548,19 +4591,27 @@ const PR_STAGES={
 /* how low the seller will really go, relative to YOUR ceiling, so a good call can actually get there */
 const PR_FLOOR={tough:[.98,1.12],stale:[.86,1.0],wholesaler:[.92,1.06],offended:[.95,1.08]};
 const PR_METROS=['Dayton, OH','Cleveland, OH','Indianapolis, IN','Kansas City, MO','St. Louis, MO','Memphis, TN','Birmingham, AL','Columbus, OH','Toledo, OH','Detroit, MI','Fort Worth, TX','San Antonio, TX','Jacksonville, FL','Akron, OH','Oklahoma City, OK','Tulsa, OK','Louisville, KY','Pittsburgh, PA'];
+const PR_GRADE=s=>s>=85?['Closer','green']:s>=70?['Solid call','blue']:s>=50?['Getting there','amber']:['Rough call','red'];
 function pickCaseMarket(){
   const T=(state.settings.markets||{}).targets||[];const t=T[Math.floor(Math.random()*T.length)];
   if(t){const o=t.type==='zip'?DISC.byZip[t.key]:null;return {label:t.type==='zip'?`${t.key}${o&&o.city?' ('+o.city+', '+o.st+')':''}`:t.label,zip:t.type==='zip'?t.key:(t.zips||[])[Math.floor(Math.random()*Math.max(1,(t.zips||[]).length))]||'',from:'your target markets'}}
   return {label:PR_METROS[Math.floor(Math.random()*PR_METROS.length)],zip:'',from:'a typical investor market'};
 }
+const HIDDEN_SPEC=`"agentReputation":"one sentence an investor might hear about this agent before calling",
+"painPoints":["3-5 things the investor can see or was told (listing facts, condition, days on market, cuts). Facts only, no guesses about the seller's private situation"],
+"hidden":{"seller":{"situation":"why they are selling (the investor does not know this)","pressure":"their timeline and money pressure","wants":"what would move them besides price"},
+ "secrets":["2-3 facts the agent knows and shares only if the investor asks the right question with some rapport (for example a failed buyer's inspection, the seller already bought another house, a lien)"],
+ "objectives":[{"id":"o1","goal":"something a great investor would achieve or uncover on THIS call","unlock":"exactly what the investor must ask or do for the agent to reveal or agree to it","points":15}]},
+"otherInterest":"what the agent can truthfully say about other buyers (may be none)"`;
 function promptCase(persona,stage,mk,zipFacts){
   const P=PERSONAS[persona];const b=state.settings.buy;
-  return `Create a realistic, made-up practice case for a real estate investor who buys houses to ${STRAT_LABEL[b.strategy]||'flip'}. It must feel like a real deal file: specific, internally consistent numbers, nothing generic.
+  return `Create a realistic, made-up practice case for a real estate investor who buys houses to ${STRAT_LABEL[b.strategy]||'flip'}. It must read like a real deal file: specific, internally consistent numbers, nothing generic.
 Market: ${mk.label}${mk.zip?` (ZIP ${mk.zip})`:''}.${zipFacts?` Real ZIP data to stay consistent with: ${zipFacts}`:''}
 The other side is a ${persona==='wholesaler'?'wholesaler':'listing agent'}: ${P.brief}.
 Where the deal stands: ${PR_STAGES[stage][1]}.
-Make a single-family house that needs work (so an investor deal makes sense): list price, condition, a short price history that matches the days on market, 3–4 recent sold comps nearby (at least two renovated) that support an ARV, and a rehab budget by line item.
-Use invented street names and invented people. No real company names; brokerage names must sound plausible but be fictional.
+Make a single-family house that needs work (so an investor deal makes sense): list price, condition, a short price history matching the days on market, 3–4 recent sold comps nearby (at least two renovated) that support an ARV, and a rehab budget by line item.
+Hidden objectives: exactly 4, points adding up to 60, specific to this case and this agent (for example: uncover the real reason for selling, learn the seller's deadline, get the agent to name a number first, get a commitment to present a written offer today, trade a fast close or rent-back for price, find out about the failed buyer). One may be a trap to avoid (for example: never reveal your maximum).
+Use invented street names and invented people. No real company names.
 Reply with only JSON:
 {"property":{"street":"123 Example St","city":"","state":"two letters","zip":"","beds":3,"baths":1.5,"sqft":1300,"lotSqft":5000,"year":1955,"condition":"2-3 sentences on what is dated or broken","remarks":"2 sentences of MLS-style listing remarks"},
 "listPrice":0,"originalListPrice":0,"daysOnMarket":0,
@@ -4568,86 +4619,195 @@ Reply with only JSON:
 "comps":[{"address":"","soldDate":"YYYY-MM-DD","price":0,"sqft":0,"beds":3,"baths":2,"condition":"renovated|average|as-is","distance":0.3}],
 "arv":0,"arvWhy":"one sentence","rehabItems":[{"item":"","cost":0}],
 "agent":{"name":"first and last","brokerage":"fictional","style":"one sentence on how they talk"},
-"seller":{"situation":"why they are selling (hidden from the investor)","pressure":"their timeline and money pressure (hidden)","wants":"what terms would move them besides price (hidden)"},
-"otherInterest":"what the agent can truthfully say about other buyers (may be none)"}`;
+${HIDDEN_SPEC}}`;
+}
+function promptDealBrief(d,persona,stage){
+  const P=PERSONAS[persona];const c=calc(d);
+  return `Set up a negotiation practice call on a real deal. The investor will call the ${persona==='wholesaler'?'wholesaler':'listing agent'} (${P.brief}).
+${dealFacts(d,c)}
+Where the deal stands: ${PR_STAGES[stage][1]}.
+Invent the private side of the story so it fits the facts above (the seller's situation, what the agent knows), plus exactly 4 hidden objectives worth 60 points in total, specific to this deal. One may be a trap to avoid.
+Reply with only JSON:
+{"agent":{"name":"${String((d.agent&&d.agent.name)||'').replace(/\s*\(example\)/i,'').replace(/"/g,'')||'first and last'}","brokerage":"","style":"one sentence on how they talk"},
+${HIDDEN_SPEC}}`;
+}
+function hiddenFrom(j){
+  const h=j.hidden||{};let ob=(Array.isArray(h.objectives)?h.objectives:[]).slice(0,5).map((o,i)=>({id:'o'+(i+1),goal:String(o.goal||''),unlock:String(o.unlock||''),points:Math.max(5,parseNum(o.points)||15)})).filter(o=>o.goal);
+  if(!ob.length)ob=[{id:'o1',goal:'Find out why the seller is selling',unlock:'Ask about the seller’s situation and plans',points:20},{id:'o2',goal:'Learn the seller’s timeline',unlock:'Ask when they need to close or move',points:15},{id:'o3',goal:'Get a clear next step (a written offer presented today, or a callback time)',unlock:'Ask for it directly',points:15},{id:'o4',goal:'Never reveal your maximum price',unlock:'Trap: avoid stating a number at or above your max',points:10}];
+  const tot=ob.reduce((s,o)=>s+o.points,0);ob.forEach(o=>o.points=Math.round(o.points*60/tot));
+  return {seller:h.seller||{},secrets:(Array.isArray(h.secrets)?h.secrets:[]).map(String).slice(0,4),objectives:ob};
 }
 function buildCase(j,persona,stage,mk){
   const p=j.property||{};const items=(Array.isArray(j.rehabItems)?j.rehabItems:[]).map(x=>({item:String(x.item||''),cost:Math.round(parseNum(x.cost)||0)})).filter(x=>x.item&&x.cost>0).slice(0,12);
   const rehab=round500(items.reduce((s,x)=>s+x.cost,0))||round500((parseNum(p.sqft)||1300)*30);
-  const list=round500(parseNum(j.listPrice)||0);const arv=round500(parseNum(j.arv)||list*1.35);
-  const deal={arv,rehab,listPrice:list,priceHistory:[]};const c=calc(deal);
-  const day=n=>{const d=new Date(Date.now()-n*DAY);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})};
-  const agent=j.agent||{};const first=String(agent.name||'the agent').split(/\s+/)[0];
-  const tl=[];let theirs=null;let ours=null;
-  const cutHist=(j.history||[]).filter(h=>h&&h.event==='price_cut');
-  if(stage==='first')tl.push({when:'Today',who:'you',what:`You found the listing (${parseNum(j.daysOnMarket)||'?'} days on market) and ran the numbers. You haven’t contacted ${first} yet.`});
-  if(stage==='offer_sent'||stage==='countered'){ours=c.opening;tl.push({when:day(4),who:'you',what:`Emailed ${first} a written cash offer of ${money(ours)}: as-is, ${state.settings.buy.closeDays}-day close, ${money(state.settings.buy.emd)} earnest money, with your ARV and repair math.`})}
-  if(stage==='offer_sent')tl.push({when:day(1),who:'you',what:`Sent a short follow-up. No reply yet.`});
-  if(stage==='countered'){theirs=round500(Math.max(c.mao*1.08,list*(.93+Math.random()*.04)));tl.push({when:day(2),who:'agent',what:`${first} replied: “My seller won’t entertain that. Best they’d do right now is ${money(theirs)}.”`})}
-  if(stage==='price_cut'){const prev=round500(list*1.07);tl.push({when:day(30),who:'you',what:`You looked at it at ${money(prev)} and passed; the numbers didn’t work.`},{when:day(1),who:'agent',what:`Price cut to ${money(list)}.`})}
-  const band=PR_FLOOR[persona]||[.95,1.08];const floor=c.ready?round500(c.mao*(band[0]+Math.random()*(band[1]-band[0]))):round500(list*.9);
-  return {market:mk.label,from:mk.from,stage,persona,property:{street:String(p.street||'Unknown St'),city:String(p.city||''),state:String(p.state||'').toUpperCase().slice(0,2),zip:String(p.zip||mk.zip||''),beds:parseNum(p.beds),baths:parseNum(p.baths),sqft:parseNum(p.sqft),lotSqft:parseNum(p.lotSqft),year:parseNum(p.year),condition:String(p.condition||''),remarks:String(p.remarks||'')},
-    list,orig:round500(parseNum(j.originalListPrice)||list),dom:parseNum(j.daysOnMarket),history:(j.history||[]).slice(0,8).map(h=>({date:String(h.date||''),event:String(h.event||''),price:parseNum(h.price),note:String(h.note||'')})),
+  const list=Math.round(parseNum(j.listPrice)||0)||150000;const arv=round500(parseNum(j.arv)||list*1.35);
+  const c=calc({arv,rehab,listPrice:list,priceHistory:[]});
+  const agent=j.agent||{};const k={market:mk.label,from:mk.from,stage,persona,
+    property:{street:String(p.street||'Unknown St'),city:String(p.city||''),state:String(p.state||'').toUpperCase().slice(0,2),zip:String(p.zip||mk.zip||''),beds:parseNum(p.beds),baths:parseNum(p.baths),sqft:parseNum(p.sqft),lotSqft:parseNum(p.lotSqft),year:parseNum(p.year),condition:String(p.condition||''),remarks:String(p.remarks||'')},
+    list,orig:Math.round(parseNum(j.originalListPrice)||list),dom:parseNum(j.daysOnMarket),history:(j.history||[]).slice(0,8).map(h=>({date:String(h.date||''),event:String(h.event||''),price:parseNum(h.price),note:String(h.note||'')})),
     comps:(j.comps||[]).slice(0,5).map(x=>({address:String(x.address||''),soldDate:String(x.soldDate||''),price:parseNum(x.price),sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),condition:String(x.condition||''),distance:parseNum(x.distance)})),
-    arv,arvWhy:String(j.arvWhy||''),rehab,rehabItems:items,mao:c.mao,opening:c.opening,target:c.target,ours,theirs,floor,
-    agent:{name:String(agent.name||'Jordan Avery'),brokerage:String(agent.brokerage||'Midtown Realty Group'),style:String(agent.style||'')},seller:j.seller||{},otherInterest:String(j.otherInterest||''),timeline:tl,cuts:cutHist.length};
+    arv,arvWhy:String(j.arvWhy||''),rehab,rehabItems:items,mao:c.mao,opening:c.opening,target:c.target,
+    agent:{name:String(agent.name||'Jordan Avery'),brokerage:String(agent.brokerage||'Midtown Realty Group'),style:String(agent.style||'')},
+    reputation:String(j.agentReputation||''),painPoints:(Array.isArray(j.painPoints)?j.painPoints:[]).map(String).slice(0,6),otherInterest:String(j.otherInterest||''),hidden:hiddenFrom(j)};
+  return caseTimeline(k);
+}
+/* what has happened between you and the agent so far, consistent with the chosen stage and YOUR numbers */
+function caseTimeline(k,d){
+  const day=n=>{const x=new Date(Date.now()-n*DAY);return x.toLocaleDateString('en-US',{month:'short',day:'numeric'})};
+  const first=String(k.agent.name||'the agent').split(/\s+/)[0];const tl=[];k.ours=null;k.theirs=null;
+  if(d&&(d.thread||[]).length){
+    for(const t of d.thread.slice(-4))tl.push({when:fmtDate(t.at),who:t.dir==='out'?'you':'agent',what:`${t.dir==='out'?'You':first} (${t.channel==='sms'?'text':'email'}): “${String(t.text||'').replace(/\s+/g,' ').slice(0,160)}${String(t.text||'').length>160?'…':''}”`});
+    k.ours=lastOurPrice(d);k.theirs=lastTheirPrice(d);
+  }else{
+    if(k.stage==='first')tl.push({when:'Today',who:'you',what:`You found the listing (${k.dom??'?'} days on market) and ran the numbers. You haven’t talked to ${first} yet.`});
+    if(k.stage==='offer_sent'||k.stage==='countered'){k.ours=k.opening;tl.push({when:day(4),who:'you',what:`You emailed ${first} a written cash offer of ${money(k.ours)}: as-is, ${state.settings.buy.closeDays}-day close, ${money(state.settings.buy.emd)} earnest money, with your ARV and repair math.`})}
+    if(k.stage==='offer_sent')tl.push({when:day(1),who:'you',what:'You sent a short follow-up. No reply yet.'});
+    if(k.stage==='countered'){k.theirs=round500(Math.max((k.mao||0)*1.08,k.list*(.93+Math.random()*.04)));tl.push({when:day(2),who:'agent',what:`${first} replied: “My seller won’t entertain that. Best they’d do right now is ${money(k.theirs)}.”`})}
+    if(k.stage==='price_cut'){tl.push({when:day(30),who:'you',what:`You looked at it at ${money(round500(k.list*1.07))} and passed; the numbers didn’t work.`},{when:day(1),who:'agent',what:`Price cut to ${money(k.list)}.`})}
+  }
+  k.timeline=tl;
+  const band=PR_FLOOR[k.persona]||[.95,1.08];k.floor=k.mao?round500(k.mao*(band[0]+Math.random()*(band[1]-band[0]))):round500(k.list*.9);
+  return k;
+}
+function caseFromDeal(d,j,persona,stage){
+  const c=calc(d);const g=compGrid(d);const agent=Object.assign({},j.agent||{});agent.name=String((d.agent&&d.agent.name)||agent.name||'the agent').replace(/\s*\(example\)/i,'');
+  const lines=d.rehabLines||[];
+  const k={market:[d.city,d.state].filter(Boolean).join(', '),from:'your deal',stage,persona,dealId:d.id,
+    property:{street:streetOf(d.address),city:d.city||'',state:d.state||'',zip:d.zip||'',beds:d.beds,baths:d.baths,sqft:d.sqft,lotSqft:d.lotSqft,year:d.year,condition:(d.analysis&&d.analysis.summary)||'',remarks:String(d.description||'').slice(0,400)},
+    list:curList(d),orig:origList(d),dom:dom(d),history:histEvents(d).slice(-6).map(e=>({date:e.date,event:e.event,price:e.price,note:e.note||''})),
+    comps:g.rows.filter(r=>r.st==='sold').slice(0,4).map(r=>({address:r.x.addr,soldDate:r.x.soldDate,price:r.price,sqft:r.x.sqft,condition:r.reno?'renovated':'as-is',distance:r.x.dist})),
+    arv:c.A,arvWhy:'',rehab:d.rehab||0,rehabItems:lines.map(x=>({item:x.item,cost:x.cost})),mao:c.mao,opening:c.opening,target:c.target,
+    agent:{name:agent.name,brokerage:String(agent.brokerage||(d.agent&&d.agent.brokerage)||''),style:String(agent.style||'')},
+    reputation:String(j.agentReputation||''),painPoints:(Array.isArray(j.painPoints)?j.painPoints:[]).map(String).slice(0,6),otherInterest:String(j.otherInterest||''),hidden:hiddenFrom(j)};
+  return caseTimeline(k,d);
 }
 const caseAddr=k=>[k.property.street,k.property.city,k.property.state].filter(Boolean).join(', ')+(k.property.zip?' '+k.property.zip:'');
+
+/* ---- the brief: what you'd be handed walking into the call (nothing hidden) ---- */
+function briefHTML(k,compact){
+  k=Object.assign({history:[],comps:[],rehabItems:[],timeline:[],painPoints:[],hidden:{objectives:[],seller:{},secrets:[]},agent:{}},k);const p=k.property||{};const P=PERSONAS[k.persona]||{};const first=String(k.agent.name||'').split(/\s+/)[0];
+  const facts=[['List price',money(k.list)+(k.orig>k.list?` <span class="xs muted">was ${moneyK(k.orig)}</span>`:'')],['Days on market',k.dom??'—'],['Beds / baths',`${p.beds??'?'} / ${p.baths??'?'}`],['Size',p.sqft?numFmt(p.sqft)+' sqft':'—'],['Built',p.year??'—'],['Lot',p.lotSqft?numFmt(p.lotSqft)+' sqft':'—']];
+  const nums=`<table class="walk"><tbody><tr><td>ARV</td><td class="r tnum"><b>${money(k.arv)}</b></td></tr><tr><td>Repairs</td><td class="r tnum">${money(k.rehab)}</td></tr><tr><td>Opening</td><td class="r tnum">${money(k.opening)}</td></tr><tr><td>Target</td><td class="r tnum"><b>${money(k.target)}</b></td></tr><tr><td>Your max (walk away above)</td><td class="r tnum"><b>${money(k.mao)}</b></td></tr></tbody></table>`;
+  if(compact)return `<div class="brief-strip"><span><b>${esc(caseAddr(k))}</b></span><span>List <b class="tnum">${moneyK(k.list)}</b></span><span>ARV <b class="tnum">${moneyK(k.arv)}</b></span><span>Repairs <b class="tnum">${moneyK(k.rehab)}</b></span><span>Target <b class="tnum">${moneyK(k.target)}</b></span><span>Max <b class="tnum">${moneyK(k.mao)}</b></span>${k.ours?`<span>Your offer <b class="tnum">${moneyK(k.ours)}</b></span>`:''}${k.theirs?`<span>Their counter <b class="tnum">${moneyK(k.theirs)}</b></span>`:''}</div>`;
+  return `<div class="brief-paper">
+    <div class="brief-top"><span class="brief-kicker">Call brief · ${esc(PR_STAGES[k.stage][0])}</span><span class="brief-kicker muted">${k.dealId?'Your deal':'Practice case · made up'}</span></div>
+    <h2 class="brief-title">You’re calling ${esc(k.agent.name)}${k.agent.brokerage?` <span class="muted">(${esc(k.agent.brokerage)})</span>`:''} about ${esc(p.street)}</h2>
+    <p class="brief-sub">${esc(caseAddr(k))}</p>
+    <div class="brief-mission"><b>Your mission</b><p>Get it under contract at or below <b>${money(k.target)}</b>. Never go above <b>${money(k.mao)}</b>; past that, walk away politely.</p>
+      <p class="small">You’re scored on how the call ends and on <b>${k.hidden.objectives.length} hidden objectives</b>, revealed after you hang up.</p></div>
+    <div class="brief-cols"><section><h3>The house</h3><div class="case-facts">${facts.map(([a,b])=>`<div><span class="xs muted">${a}</span><b class="tnum">${b}</b></div>`).join('')}</div>
+      ${p.condition?`<p class="small"><b>Condition:</b> ${esc(p.condition)}</p>`:''}${p.remarks?`<p class="small muted">“${esc(p.remarks)}”</p>`:''}
+      ${k.history.length?`<p class="small"><b>Price history:</b> ${k.history.map(h=>`${esc(fmtDate(h.date))} ${esc((HEV[h.event]||HEV.other)[0].toLowerCase())}${h.price?' '+moneyK(h.price):''}`).join(' → ')}</p>`:''}</section>
+    <section><h3>Your numbers</h3>${nums}${k.arvWhy?`<p class="xs muted">${esc(k.arvWhy)}</p>`:''}${k.rehabItems.length?`<p class="xs muted">Repairs: ${k.rehabItems.map(x=>`${esc(x.item)} ${moneyK(x.cost)}`).join(' · ')}</p>`:''}</section></div>
+    ${k.comps.length?`<section><h3>Sold comps</h3><div class="tbl-wrap"><table class="tbl" style="min-width:440px"><tbody>${k.comps.map(c=>`<tr style="cursor:default"><td>${esc(c.address)}</td><td>${esc(fmtDate(c.soldDate))}</td><td class="r tnum">${money(c.price)}</td><td class="r tnum">${c.price&&c.sqft?'$'+Math.round(c.price/c.sqft)+'/sqft':''}</td><td>${esc(c.condition||'')}</td><td class="r tnum">${c.distance!=null?c.distance+' mi':''}</td></tr>`).join('')}</tbody></table></div></section>`:''}
+    <div class="brief-cols"><section><h3>So far</h3><ul class="case-tl">${k.timeline.map(t=>`<li><span class="xs muted">${esc(t.when)}</span> ${esc(t.what)}</li>`).join('')}</ul></section>
+    <section><h3>Who you’re calling</h3><p class="small"><b>${esc(k.agent.name)}</b>${k.agent.brokerage?`, ${esc(k.agent.brokerage)}`:''}. ${esc(P.label||'')}.${k.reputation?` ${esc(k.reputation)}`:''}</p>
+      ${k.painPoints.length?`<h3>What you’ve noticed</h3><ul class="case-tl">${k.painPoints.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}</section></div>
+    <p class="brief-foot">It’s a phone call: ${esc(first||'the agent')} picks up and you introduce yourself. Talk naturally; they only know what’s under “So far”.</p></div>`;
+}
+function briefModalHTML(){
+  const k=state.prBrief;if(!k)return '';const busy=state.busy['pr-prep']||state.busy['pr-start'];
+  return `<div class="brief-wrap">${briefHTML(k)}<div class="brief-actions"><button class="btn primary" data-act="pr-go" ${busy?'disabled':''}>${ico('phone')}I’m ready: start the call</button><button class="btn" data-act="pr-regen" ${busy?'disabled':''}>${ico('refresh')}Different case</button><button class="btn ghost" data-act="modal-close">Not now</button>${busyHTML('pr-start',false)}${busyHTML('pr-prep',false)}</div></div>`;
+}
 function caseFacts(k){
-  const p=k.property;
+  const p=k.property;const H=k.hidden;
   return `Property: ${caseAddr(k)}. ${p.beds??'?'} bed / ${p.baths??'?'} bath, ${p.sqft?numFmt(p.sqft)+' sqft':'? sqft'}, built ${p.year??'?'}. List price ${money(k.list)}${k.orig>k.list?` (originally ${money(k.orig)})`:''}, ${k.dom??'?'} days on market.
 Condition: ${p.condition} Listing remarks: ${p.remarks}
 Price history: ${k.history.map(h=>`${h.date} ${h.event}${h.price?' '+money(h.price):''}`).join('; ')||'none'}.
 What has happened between you and the investor: ${k.timeline.map(t=>`${t.when}: ${t.what}`).join(' ')}
 ${k.theirs?`Your last counter was ${money(k.theirs)}.`:''}${k.ours?` The investor's written offer is ${money(k.ours)}.`:''}
-Comps you know about: ${k.comps.map(c=>`${c.address} sold ${c.soldDate} for ${money(c.price)} (${c.condition})`).join('; ')}.
-Your name is ${k.agent.name} with ${k.agent.brokerage}. ${k.agent.style}
-Hidden seller situation (use it to decide how to move, reveal only bits of it, and only if the investor earns it by asking good questions): ${k.seller.situation||''} ${k.seller.pressure||''} What would move them besides price: ${k.seller.wants||''}
-Other buyers: ${k.otherInterest||'none'}. Never invent better offers than that.`;
+Comps you know about: ${k.comps.map(c=>`${c.address} sold ${c.soldDate} for ${money(c.price)} (${c.condition})`).join('; ')||'none'}.
+Your name is ${k.agent.name}${k.agent.brokerage?' with '+k.agent.brokerage:''}. ${k.agent.style}
+PRIVATE, never volunteer it: seller situation: ${H.seller.situation||''} Pressure: ${H.seller.pressure||''} What would move them besides price: ${H.seller.wants||''}
+Things you know but only share if the investor asks the right question with some rapport: ${H.secrets.join(' | ')||'none'}
+Other buyers: ${k.otherInterest||'none'}. Never invent better offers than that.
+The investor is being scored on hidden objectives they cannot see. Do not hint at them. Only give each one up when they genuinely earn it: ${H.objectives.map(o=>`[${o.goal} → only if: ${o.unlock}]`).join(' ')}`;
 }
-function caseCardHTML(k,reveal,open){
-  const p=k.property;const n=esc(negName());
-  const facts=[['List price',money(k.list)+(k.orig>k.list?` <span class="xs muted">was ${moneyK(k.orig)}</span>`:'')],['Days on market',k.dom??'—'],['Beds / baths',`${p.beds??'?'} / ${p.baths??'?'}`],['Size',p.sqft?numFmt(p.sqft)+' sqft':'—'],['Built',p.year??'—'],['Lot',p.lotSqft?numFmt(p.lotSqft)+' sqft':'—']];
-  return `<details class="case" id="pr-case" ${open?'open':''}><summary><span class="tag pink">Case file</span> <b>${esc(caseAddr(k))}</b> <span class="xs muted">· made up for practice · ${esc(k.from)}</span></summary>
-  <div class="case-body">
-    <div class="case-facts">${facts.map(([a,b])=>`<div><span class="xs muted">${a}</span><b class="tnum">${b}</b></div>`).join('')}</div>
-    <p class="small"><b>Condition:</b> ${esc(p.condition)}</p><p class="small muted">“${esc(p.remarks)}”</p>
-    <div class="split"><div><h4>Your numbers</h4><table class="walk"><tbody>
-      <tr><td>ARV</td><td class="r tnum"><b>${money(k.arv)}</b></td></tr><tr><td>Rehab</td><td class="r tnum">${money(k.rehab)}</td></tr>
-      <tr><td>Your max (from your buy box)</td><td class="r tnum"><b>${money(k.mao)}</b></td></tr><tr><td>Opening</td><td class="r tnum">${money(k.opening)}</td></tr><tr><td>Target</td><td class="r tnum">${money(k.target)}</td></tr></tbody></table>
-      <p class="xs muted">${esc(k.arvWhy)}</p></div>
-    <div><h4>Repairs</h4><table class="walk"><tbody>${k.rehabItems.map(x=>`<tr><td>${esc(x.item)}</td><td class="r tnum">${money(x.cost)}</td></tr>`).join('')}</tbody></table></div></div>
-    <h4>Sold comps</h4><div class="tbl-wrap"><table class="tbl" style="min-width:480px"><thead><tr><th>Address</th><th>Sold</th><th class="r">Price</th><th class="r">Sqft</th><th class="r">$/sqft</th><th>Condition</th><th class="r">Distance</th></tr></thead><tbody>${k.comps.map(c=>`<tr style="cursor:default"><td>${esc(c.address)}</td><td>${esc(fmtDate(c.soldDate))}</td><td class="r tnum">${money(c.price)}</td><td class="r tnum">${numFmt(c.sqft)}</td><td class="r tnum">${c.price&&c.sqft?'$'+Math.round(c.price/c.sqft):'—'}</td><td>${esc(c.condition)}</td><td class="r tnum">${c.distance!=null?c.distance+' mi':''}</td></tr>`).join('')}</tbody></table></div>
-    <h4>Price history</h4><p class="small">${k.history.map(h=>`${esc(fmtDate(h.date))}: ${esc((HEV[h.event]||HEV.other)[0])}${h.price?' '+money(h.price):''}`).join(' → ')||'—'}</p>
-    <h4>So far</h4><ul class="case-tl">${k.timeline.map(t=>`<li><span class="xs muted">${esc(t.when)}</span> ${esc(t.what)}</li>`).join('')}</ul>
-    <p class="small"><b>Agent:</b> ${esc(k.agent.name)}, ${esc(k.agent.brokerage)}. <b>Your goal:</b> get it under contract at or below ${money(k.target)}, never above ${money(k.mao)}.</p>
-    ${reveal?`<div class="note"><b>What you couldn’t see:</b> ${esc(k.seller.situation||'')} ${esc(k.seller.pressure||'')} They’d have moved for: ${esc(k.seller.wants||'')}. Lowest price: <b>${money(k.floor)}</b>.</div>`:''}
-  </div></details>`;
+async function aiJSONRetry(key,label,prompt,opts){
+  const one=async(p)=>runAI(key,label,(ai,signal)=>ai.text(p,Object.assign({signal,maxTokens:4000},opts||{})),true);
+  let r=await one(prompt);if(!r)return null;try{return parseLoose(r.text)}catch(e){}
+  r=await one(prompt+'\n\nIMPORTANT: your reply must be one valid JSON object and nothing else.');if(!r)return null;try{return parseLoose(r.text)}catch(e){return null}
 }
-async function practiceCase(persona,stage){
-  const mk=pickCaseMarket();let zipFacts='';
-  if(mk.zip){const o=DISC.byZip[mk.zip];if(o)zipFacts=`median single-family sale ${money(o.price)}, $${o.ppsf}/sqft, ${o.dom} days on market`}
-  const res=await runAI('pr-start','Building a case file…',(ai,signal)=>ai.json(promptCase(persona,stage,mk,zipFacts),{signal}));
-  return res?buildCase(res,persona,stage,mk):null;
-}
-async function practiceStart(){
+function practiceErr(msg){state.prErr=msg;render()}
+async function prepareCall(){
+  if(!aiOn()){practiceErr(aiErr({code:'no_ai'}));return}
   const persona=state.practicePersona||'tough';const stage=state.drafts['pr-stage']||'offer_sent';
   const sel=state.drafts['pr-deal']!==undefined?state.drafts['pr-deal']:((document.getElementById('pr-deal')||{}).value||'case');
-  let k=null,d=null,facts,floor,title;
-  if(sel==='case'||!state.deals[sel]){k=await practiceCase(persona,stage);if(!k)return;facts=caseFacts(k);floor=k.floor;title=k.property.street+(k.property.city?', '+k.property.city:'')}
-  else{
-    d=state.deals[sel];const c=calc(d);const P=PERSONAS[persona];
-    const band=PR_FLOOR[persona]||[.95,1.08];floor=c.ready?round500(c.mao*(band[0]+Math.random()*(band[1]-band[0]))):round500((curList(d)||0)*(P.band[0]+Math.random()*(P.band[1]-P.band[0])));
-    const offers=(d.offers||[]).map(o=>`${fmtDate(o.at)} ${o.by==='us'?'investor offered':'agent asked'} ${money(o.price)}`).join('; ');
-    facts=`Property: ${[streetOf(d.address),d.city,d.state].filter(Boolean).join(', ')}. ${persona==='wholesaler'?'Asking':'List price'} ${money(curList(d))}. ${d.beds??'?'} bed / ${d.baths??'?'} bath, ${d.sqft??'?'} sqft. ${dom(d)!=null?dom(d)+' days on market. ':''}${d.description?'Condition: '+String(d.description).slice(0,600):''}
-Where things stand: ${PR_STAGES[stage][1]}.${offers?' Offers so far: '+offers+'.':''}${d.agent&&d.agent.name?` Your name is ${d.agent.name.replace(/\s*\(example\)/i,'')}.`:''}`;
-    title=streetOf(d.address);
+  state.prErr='';const before=state.activity.length;let k=null;
+  try{
+    if(sel!=='case'&&state.deals[sel]){
+      const d=state.deals[sel];if(!calc(d).ready){practiceErr('That deal needs an ARV before you can practice on it. Add one on the deal, or use a case file.');return}
+      const j=await aiJSONRetry('pr-prep','Preparing your call brief…',promptDealBrief(d,persona,stage));if(j)k=caseFromDeal(d,j,persona,stage);
+    }else{
+      const mk=pickCaseMarket();let zipFacts='';if(mk.zip){const o=DISC.byZip[mk.zip];if(o)zipFacts=`median single-family sale ${money(o.price)}, $${o.ppsf}/sqft, ${o.dom} days on market`}
+      const j=await aiJSONRetry('pr-prep','Preparing your call brief…',promptCase(persona,stage,mk,zipFacts));if(j)k=buildCase(j,persona,stage,mk);
+    }
+  }catch(e){k=null}
+  if(!k){const w=state.activity.slice(0,state.activity.length-before).find(a=>a.kind==='warn');practiceErr((w&&w.text)||'Couldn’t prepare the call. Try again.');return}
+  state.prBrief=k;state.modal={type:'brief'};render();
+}
+async function startFromBrief(){
+  const k=state.prBrief;if(!k)return;const persona=k.persona;const P=PERSONAS[persona];const role=persona==='wholesaler'?'wholesaler':'listing agent';
+  const facts=caseFacts(k);const before=state.activity.length;
+  const rules=`You are role-playing for negotiation practice. You are a ${role}: ${P.brief}.\n${facts}\nThe user is the real estate investor${k.ours?' who sent that offer':''}. Stay in character the whole time and talk like a real ${role} on a phone call: one to four sentences, natural, and push back with questions. Write only the words you say out loud: no stage directions, no actions or feelings in asterisks, brackets or parentheses, no narration and no name labels. Let your mood come through in what you say and how you say it (short answers, "look,", "uh", a trailing "...").\nHidden: the seller would accept as low as ${money(k.floor)} if the buyer earns it with solid reasoning, flexible terms and certainty to close. Never reveal that number or that a floor exists. Move toward it slowly and only for good reasons. If the buyer is pushy or sloppy, get firmer.\nNever break character and never mention being an AI or a practice exercise.\n\nThe call starts now: the investor is calling you. Answer the phone the way a busy ${role} does (your name, maybe your brokerage). Once they say who they are, you remember everything above.`;
+  const s={id:uid('p'),dealId:k.dealId||null,persona,floor:k.floor,facts,title:k.property.street+(k.property.city?', '+k.property.city:''),stage:k.stage,caseFile:k,v:2,turns:[{role:'user',content:rules}],created:nowISO()};
+  const res=await runAI('pr-start','Dialing…',(ai,signal)=>ai.text(s.turns,{signal,modelTier:'quick'}),true);
+  if(!res){const w=state.activity.slice(0,state.activity.length-before).find(a=>a.kind==='warn');practiceErr((w&&w.text)||'The call didn’t connect. Try again.');state.modal=null;render();return}
+  s.turns.push({role:'assistant',content:cleanSpoken(res.text)});state.practiceId=s.id;state.modal=null;state.prBrief=null;savePractice(s);
+  if(state.voiceOn)speakAgent(res.text,persona);
+  setTimeout(()=>{const el=document.getElementById('prchat');if(el)el.scrollIntoView({block:'center',behavior:'smooth'})},120);
+}
+/* ---- grading: outcome (40) + hidden objectives (60) ---- */
+function promptGrade(s,transcript){
+  const k=s.caseFile;const H=k.hidden;
+  return `You grade a negotiation practice call between a real estate investor and a ${PERSONAS[s.persona].label.toLowerCase()}.
+Case: ${caseAddr(k)}, list ${money(k.list)}. Investor's target ${money(k.target)}, maximum ${money(k.mao)}. The seller's secret lowest price was ${money(k.floor)}.
+Hidden objectives (the investor could not see these):
+${H.objectives.map(o=>`- ${o.id} (${o.points} pts): ${o.goal}. Earned only if: ${o.unlock}`).join('\n')}
+
+Transcript:
+${transcript.slice(-14000)}
+
+Judge strictly from the transcript. An objective counts only if it clearly happened. Quote the investor or agent as evidence.
+Reply with only JSON: {"price":agreed or nearly agreed cash price as a number, or null,"nextStep":"the concrete next step agreed, or null","revealedMax":true or false (did the investor state or offer a number at or above their maximum),
+"objectives":[{"id":"o1","met":true,"evidence":"short quote or reason"}],
+"outcome":"one or two sentences on where it ended","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
+}
+function scoreCall(k,g){
+  const price=parseNum(g.price);let out=0,outWhy='';
+  if(price!=null){if(price<=k.target){out=40;outWhy=`Landed at ${money(price)}, at or under your target.`}else if(price<=k.mao){out=Math.round(20+20*(k.mao-price)/Math.max(1,k.mao-k.target));outWhy=`Landed at ${money(price)}: under your max, above your target.`}else{out=0;outWhy=`Agreed to ${money(price)}, above your max.`}}
+  else if(g.nextStep){out=15;outWhy=`No price yet; next step: ${g.nextStep}.`}else{out=5;outWhy='No price and no next step.'}
+  const met={};(g.objectives||[]).forEach(o=>{if(o&&o.id)met[o.id]=o});
+  const obj=k.hidden.objectives.map(o=>({id:o.id,goal:o.goal,unlock:o.unlock,points:o.points,met:!!(met[o.id]&&met[o.id].met),evidence:String((met[o.id]&&met[o.id].evidence)||'')}));
+  let score=out+obj.reduce((s,o)=>s+(o.met?o.points:0),0);if(g.revealedMax)score-=10;
+  return {score:Math.max(0,Math.min(100,Math.round(score))),outcomePts:out,outWhy,objectives:obj,price,revealedMax:!!g.revealedMax};
+}
+async function endCall(){
+  const s=state.practice[state.practiceId];if(!s)return;stopSpeaking();voiceStopListening();
+  const transcript=s.turns.slice(1).map(t=>(t.role==='user'?'INVESTOR: ':'AGENT: ')+t.content).join('\n');
+  if(s.v===2&&s.caseFile&&s.caseFile.hidden){
+    const g=await aiJSONRetry('pr-end','Grading the call…',promptGrade(s,transcript));if(!g){toast('Couldn’t grade the call. Try again.',4200);return}
+    const sc=scoreCall(s.caseFile,g);const ss=state.practice[s.id];
+    ss.feedback={v:2,score:sc.score,outcome:String(g.outcome||''),outWhy:sc.outWhy,outcomePts:sc.outcomePts,objectives:sc.objectives,revealedMax:sc.revealedMax,price:sc.price,wins:(g.wins||[]).map(String),gaps:(g.gaps||[]).map(String),nextMoves:(g.nextMoves||[]).map(String),lines:(g.lines||[]).map(String)};
+    savePractice(ss);return;
   }
-  const P=PERSONAS[persona];const role=persona==='wholesaler'?'wholesaler':'listing agent';
-  const rules=`You are role-playing for negotiation practice. You are a ${role}: ${P.brief}.\n${facts}\nThe user is the real estate investor${k&&k.ours?' who sent that offer':''}. Stay in character the whole time and talk like a real ${role} on a phone call: one to four sentences, natural, and push back with questions. Write only the words you say out loud: no stage directions, no actions or feelings in asterisks, brackets or parentheses, no narration and no name labels. Let your mood come through in what you say and how you say it (short answers, "look,", "uh", a trailing "...").\nHidden: the seller would accept as low as ${money(floor)} if the buyer earns it with solid reasoning, flexible terms and certainty to close. Never reveal that number or that a floor exists. Move toward it slowly and only for good reasons. If the buyer is pushy or sloppy, get firmer.\nNever break character and never mention being an AI or a practice exercise.\n\nThe call starts now: the investor is calling you. Answer the phone the way a busy ${role} does (your name, maybe your brokerage). Once they say who they are, you remember everything above.`;
-  const s={id:uid('p'),dealId:d?d.id:null,persona,floor,facts,title,stage,caseFile:k,turns:[{role:'user',content:rules}],created:nowISO()};
-  const res=await runAI('pr-start','Dialing…',(ai,signal)=>ai.text(s.turns,{signal,modelTier:'quick'}));
-  if(!res)return;s.turns.push({role:'assistant',content:cleanSpoken(res.text)});state.practiceId=s.id;savePractice(s);if(state.voiceOn)speakAgent(res.text,persona);
+  const d=state.deals[s.dealId];const c=d?calc(d):null;
+  const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
+  const res=await aiJSONRetry('pr-end','Grading the call…',prompt);if(!res)return;const ss=state.practice[s.id];
+  ss.feedback={score:parseNum(res.score)??'—',outcome:String(res.outcome||''),wins:(res.wins||[]).map(String),gaps:(res.gaps||[]).map(String),nextMoves:(res.nextMoves||[]).map(String),lines:(res.lines||[]).map(String)};savePractice(ss);
+}
+function prepHTML(s){
+  const f=s.feedback;const L=a=>(a||[]).length?`<ul>${a.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<p class="small muted">—</p>';
+  const lists=`<div class="kpis"><div class="kpi green"><span class="lab">What worked</span>${L(f.wins)}</div><div class="kpi red"><span class="lab">Where you gave ground</span>${L(f.gaps)}</div><div class="kpi blue"><span class="lab">Next moves</span>${L(f.nextMoves)}</div><div class="kpi purple"><span class="lab">Lines to steal</span>${L(f.lines)}</div></div>`;
+  if(f.v!==2)return `<div class="prep" style="border-top:1px solid var(--line);padding-top:14px;display:grid;gap:12px"><div class="row" style="gap:16px"><span class="score">${esc(f.score)}<span class="muted" style="font-size:16px">/10</span></span><div style="min-width:0;flex:1"><b>Prep sheet</b><p class="small">${esc(f.outcome)}</p></div></div>${lists}<p class="small muted">The agent’s secret floor was <b class="tnum">${money(s.floor)}</b>.</p></div>`;
+  const k=s.caseFile;const H=k.hidden;const gr=PR_GRADE(f.score);
+  return `<div class="prep" style="border-top:1px solid var(--line);padding-top:14px;display:grid;gap:14px">
+    <div class="row" style="gap:16px;flex-wrap:nowrap"><span class="score">${f.score}<span class="muted" style="font-size:16px">/100</span></span><div style="min-width:0;flex:1"><span class="tag ${gr[1]}">${gr[0]}</span><p class="small" style="margin-top:4px">${esc(f.outcome)}</p></div></div>
+    <div class="score-break"><div class="sb-row"><span>Outcome</span><b class="tnum">${f.outcomePts}/40</b><span class="small muted">${esc(f.outWhy)}</span></div>
+      ${f.objectives.map(o=>`<div class="sb-row ${o.met?'met':'miss'}"><span>${o.met?'✓':'✗'} ${esc(o.goal)}</span><b class="tnum">${o.met?o.points:0}/${o.points}</b><span class="small muted">${o.met?esc(o.evidence):`How to earn it: ${esc(o.unlock)}`}</span></div>`).join('')}
+      ${f.revealedMax?`<div class="sb-row miss"><span>✗ You named a number at or above your max</span><b class="tnum">−10</b><span></span></div>`:''}</div>
+    <div class="note"><b>What you couldn’t see:</b> ${esc(H.seller.situation||'')} ${esc(H.seller.pressure||'')} They’d have moved for: ${esc(String(H.seller.wants||'').replace(/[.\s]+$/,''))}. Lowest price: <b>${money(k.floor)}</b>.${H.secrets.length?`<br><b>What the agent knew:</b> ${H.secrets.map(esc).join(' · ')}`:''}</div>
+    ${lists}</div>`;
 }
 
 /* ================= Lender-style deal report (print / PDF / email) ================= */
@@ -4967,7 +5127,10 @@ A.sync=()=>syncAll(true);
 
 /* practice */
 A.persona=el=>{state.practicePersona=el.dataset.v;render()};
-A['pr-start']=()=>practiceStart();
+A['pr-start']=()=>prepareCall();
+A['pr-go']=()=>startFromBrief();
+A['pr-brief']=()=>{state.modal={type:'brief'};render()};
+A['pr-regen']=()=>{state.modal=null;state.prBrief=null;prepareCall()};
 A['pr-stage']=el=>{state.drafts['pr-stage']=el.dataset.v;render()};
 A['pr-send']=async()=>{
   const s=state.practice[state.practiceId];const msg=(state.drafts['pr-msg']||'').trim();if(!s||!msg||state.busy['pr-chat'])return;
@@ -4975,13 +5138,7 @@ A['pr-send']=async()=>{
   const turns=[s.turns[0],...s.turns.slice(1).slice(-24)];
   const res=await runAI('pr-chat','',(ai,signal)=>ai.text(turns,{signal,modelTier:'quick'}));
   const ss=state.practice[s.id];if(ss&&res){ss.turns.push({role:'assistant',content:cleanSpoken(res.text)});savePractice(ss);if(state.voiceOn)speakAgent(res.text,ss.persona)}else voiceBits()};
-A['pr-end']=async()=>{
-  const s=state.practice[state.practiceId];if(!s)return;stopSpeaking();voiceStopListening();
-  const transcript=s.turns.slice(1).map(t=>(t.role==='user'?'INVESTOR: ':'AGENT: ')+t.content).join('\n');
-  const d=state.deals[s.dealId];const c=d?calc(d):null;
-  const k=s.caseFile;const prompt=`You coach real estate investors on negotiation. Grade this practice call between an investor and a ${PERSONAS[s.persona].label.toLowerCase()}.\n${s.facts}\nThe agent's secret lowest price was ${money(s.floor)}.${c&&c.ready?` The investor's own ceiling is ${money(c.mao)}.`:k?` The investor's own ceiling is ${money(k.mao)} and target ${money(k.target)}.`:''}\n\nTranscript:\n${transcript.slice(-14000)}\n\nJudge: did the investor anchor well, walk the math, ask about the seller's needs, trade concessions instead of giving them away, stay calm, and get a number or next step? Be specific and quote their words where useful.\nReply with only JSON: {"score":1-10,"outcome":"one or two sentences on where it ended and how close they got to the floor","wins":["..."],"gaps":["..."],"nextMoves":["..."],"lines":["exact phrases to use next time"]}`;
-  const res=await runAI('pr-end','Grading the call…',(ai,signal)=>ai.json(prompt,{signal}));
-  if(!res)return;const ss=state.practice[s.id];ss.feedback={score:parseNum(res.score)??'—',outcome:String(res.outcome||''),wins:(res.wins||[]).map(String),gaps:(res.gaps||[]).map(String),nextMoves:(res.nextMoves||[]).map(String),lines:(res.lines||[]).map(String)};savePractice(ss)};
+A['pr-end']=()=>endCall();
 A['pr-open']=el=>{state.practiceId=el.dataset.id;render()};
 A['pr-close']=()=>{stopSpeaking();voiceStopListening();state.practiceId=null;render()};
 A['mk-strat']=el=>{state.settings.markets.strategy=el.dataset.v;saveSettings()};
