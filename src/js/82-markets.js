@@ -134,7 +134,7 @@ const starBtn=(type,key)=>{const on=isTarget(type,key);return `<button class="st
 function viewMarkets(){
   const D=DISC.data;const M=mkSet();const st=mkStrat();const R=D?mkCompute():null;const src=D&&D.sources||{};
   const meta=D?`<span>${ico('trend')}Redfin, 3 months to ${esc(D.periodEnd||'')}</span><span>${ico('home')}Rents: HUD ${esc(src.safmr||'—')} + Zillow ${esc(src.zori||'—')}</span><span>${ico('refresh')}Updated weekly</span>`:'';
-  const head=hero('g-markets','Market Discovery',R&&R.lens==='room'?'Where the deals are and the investors aren’t yet. Good numbers, less competition, a good future.':'Every US ZIP ranked for how you invest. Set your strategy and budget, then dig into the best metros.',meta,
+  const head=hero('g-markets','Market Discovery',R&&R.lens==='room'?'Where the most food is left on the table: listings nobody grabbed, a resale market that works, and a good future.':'Every US ZIP ranked for how you invest. Set your strategy and budget, then dig into the best metros.',meta,
     R?`<div class="h-stat"><b>${numFmt(R.zips.length)}</b><span>ZIPs fit your box</span></div><div class="h-stat"><b>${numFmt(R.metros.length)}</b><span>markets</span></div>`:'');
   if(!D)return `<div class="wrap page">${head}<section class="card">${DISC.err?`<div class="note amber">${esc(DISC.err)}</div><button class="btn sm" data-act="mk-reload">${ico('refresh')}Try again</button>`:`<div class="busy"><div class="spin"></div><span>Loading market data for every US ZIP…</span></div>`}</section></div>`;
   return `<div class="wrap page">${head}${mkControls(st,M,R)}${R.lens==='room'?mkRoomChart(R):''}${mkTargetsCard(R)}${mkResearchCard(R)}
@@ -147,7 +147,7 @@ function mkControls(st,M,R){
   const w=MK_W[st];const lens=R?R.lens:'stats';
   return `<section class="card" id="mk-controls"><div class="mk-lens"><span class="small muted">Rank by</span><div class="seg wrapseg" role="group" aria-label="Rank by">
     <button data-act="mk-lens" data-v="stats" aria-pressed="${lens==='stats'}">Best numbers</button><button data-act="mk-lens" data-v="room" aria-pressed="${lens==='room'}" ${roomOn()?'':'disabled title="Competition data isn’t published yet"'}>${ico('target')}Room at the table</button></div>
-    ${lens==='room'?`<span class="xs muted">Deals ${ROOM_W.food}% · few investors ${ROOM_W.room}% · future ${ROOM_W.future}%${st==='wholesale'?'. For wholesaling, fewer investors also means fewer buyers for your contracts.':''}</span>`:roomOn()?'':`<span class="xs muted">Competition data arrives with the next market update.</span>`}</div>
+    ${lens==='room'?`<span class="xs muted">Food left over ${ROOM_W.left}% · share left ${ROOM_W.share}% · resale ${ROOM_W.exit}% · future ${ROOM_W.future}%${st==='wholesale'?'. For wholesaling, also check there are enough cash buyers to sell your contracts to.':''}</span>`:roomOn()?'':`<span class="xs muted">Competition data arrives with the next market update.</span>`}</div>
   <div class="mk-ctl">
     <div class="field"><span>Strategy</span><div class="seg" role="group" aria-label="Strategy">${Object.entries(MK_STRATS).map(([k,l])=>`<button data-act="mk-strat" data-v="${k}" aria-pressed="${st===k}">${l}</button>`).join('')}</div></div>
     <label class="field"><span>Median price from</span><input class="input tnum" id="mk-min" data-fs="markets.minPrice" data-t="num" value="${M.minPrice??''}" inputmode="numeric" placeholder="0"></label>
