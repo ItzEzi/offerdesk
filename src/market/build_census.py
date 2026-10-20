@@ -11,6 +11,7 @@ Writes census.json for the Markets page "Room at the table" lens:
     ovac         "other vacant" homes as a share of all homes (neglected / stuck properties)
     inc / inc0   median household income, now and 5 years earlier
     pop / pop0   population, now and 5 years earlier
+    own1/rent1   the raw counts behind sfr (owner- and renter-occupied single-family detached homes, table B25032)
     cty          county FIPS (largest land overlap, Census ZCTA-county relationship file)
   per county:
     Census population estimates: growth since 2020, net domestic migration since 2020, last-year growth
@@ -325,7 +326,7 @@ def optional(name, fn, default):
         STATUS[name] = 'failed: %s' % err_text(e)
         return default
 
-COLS = ['z', 'sfr', 'sfr0', 'yb', 'own65', 'own75', 'ovac', 'inc', 'inc0', 'pop', 'pop0', 'cty']
+COLS = ['z', 'sfr', 'sfr0', 'yb', 'own65', 'own75', 'ovac', 'inc', 'inc0', 'pop', 'pop0', 'cty', 'own1', 'rent1']
 CCOLS = ['popG', 'popYoy', 'mig', 'pop', 'jobYoy', 'job2y', 'jobs', 'name']
 
 def build(zips=None):
@@ -357,7 +358,8 @@ def build(zips=None):
                      share(c['ovac'], c['units']) if c['units'] and c['units'] >= 30 else None,
                      int(c['inc']) if c['inc'] else None, int(b['inc']) if b.get('inc') else None,
                      int(c['pop']) if c['pop'] is not None else None, int(b['pop']) if b.get('pop') is not None else None,
-                     cty.get(z)])
+                     cty.get(z),
+                     int(c['ownDet']) if c['ownDet'] is not None else None, int(c['rentDet']) if c['rentDet'] is not None else None])
     used = {r[-1] for r in rows if r[-1]}
     counties = {}
     for f in used:
