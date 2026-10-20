@@ -3,6 +3,7 @@ name: Market data (Redfin)
 # Every Wednesday morning, pull the latest public market data and publish it to the
 # "data" branch, where OfferDesk reads it. Redfin updates ZIP data monthly and metro data weekly;
 # Zillow's rent index (ZORI) is monthly; HUD Small Area Fair Market Rents are yearly.
+# Census ACS (who owns the homes, housing age, owner age) and population estimates are yearly; BLS county jobs are quarterly.
 on:
   schedule:
     - cron: '23 7 * * 3'
@@ -26,7 +27,7 @@ jobs:
           python-version: '3.12'
       - name: Install the spreadsheet reader (HUD rents)
         run: pip install --quiet openpyxl
-      - name: Build market data (Redfin, Zillow rents, HUD rents, GeoNames)
+      - name: Build market data (Redfin, Zillow rents, HUD rents, GeoNames, Census, BLS jobs)
         run: python src/market/build_market.py out/market
       - name: Publish to the data branch
         env:

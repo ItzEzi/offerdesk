@@ -299,7 +299,7 @@ def optional(name, fn, default):
         return default
 
 DCOLS = ['z', 'st', 'city', 'county', 'lat', 'lng', 'mi', 'price', 'ppsf', 'dom', 'mos', 'sold', 'active', 'priceYoy', 'ppsfYoy',
-         'stl', 'off2w', 'pdPct', 'cancel', 'delist', 'relist', 'zori', 'zoriYoy', 'fmr3', 'end']
+         'stl', 'off2w', 'pdPct', 'cancel', 'delist', 'relist', 'zori', 'zoriYoy', 'fmr3', 'above', 'ppsf2y', 'end']
 
 def build_discover(data, metro, latest, now, period_end):
     """One national table (every ZIP, single-family) for the Markets page."""
@@ -323,7 +323,7 @@ def build_discover(data, metro, latest, now, period_end):
         out.append([z, st, g[0] if g else '', g[2] if g else '', g[3] if g else None, g[4] if g else None, mix[mname],
                     L['price'], L['ppsf'], L['dom'], L['mos'], L['sold'], L['active'], L['priceYoy'], L['ppsfYoy'],
                     L['stl'], L['off2w'], L.get('pdPct'), rnd(c.get('cancel'), 1), rnd(d.get('delist'), 1), rnd(d.get('relist'), 1),
-                    rz[0], rz[1], fm.get(z), L['end']])
+                    rz[0], rz[1], fm.get(z), L.get('above'), L.get('ppsf2y'), L['end']])
     minv = {}
     for nm in mlist:
         k = re.sub(r'\s+metro area$', '', nm)
@@ -351,6 +351,10 @@ def main():
                   'dom': rnd(L.get('dom')), 'stl': rnd(L.get('stl'), 1), 'above': rnd(L.get('above'), 1), 'sold': rnd(L.get('sold')), 'newl': rnd(L.get('newl')),
                   'active': rnd(L.get('active')), 'inv': rnd(L.get('inv')), 'pend': rnd(L.get('pend')), 'listp': rnd(L.get('listp')), 'listppsf': rnd(L.get('listppsf')),
                   'mos': rnd(L.get('mos'), 1), 'off2w': rnd(L.get('off2w'), 1)}
+        # $/sqft change over ~2 years (same month two years back, else the oldest month we kept)
+        old = [m for m in ms if m <= '%04d-%s' % (int(ms[-1][:4]) - 2, ms[-1][5:7])] or ms[:1]
+        p0, p1 = (per[old[-1]].get('ppsf') if old and old[-1] != ms[-1] else None), L.get('ppsf')
+        latest['ppsf2y'] = rnd((p1 / p0 - 1) * 100, 1) if p0 and p1 and old[-1] <= '%04d-%s' % (int(ms[-1][:4]) - 1, ms[-1][5:7]) else None
         latest.update(drops.get(z, {}))
         latest_all[z] = latest
         series = {k: [rnd(per[m].get(k), 1 if k == 'mos' else 0) if m in per else None for m in all_months] for k in ('price', 'ppsf', 'dom', 'mos', 'sold')}
@@ -376,10 +380,20 @@ def main():
     with open(os.path.join(OUT, 'discover.json'), 'w') as f:
         json.dump(disc, f, separators=(',', ':'))
     print('discover.json:', len(disc['rows']), 'ZIPs, sources:', json.dumps(disc['sources']))
+    # who already owns the houses, housing age, owners' age, population and jobs (Census + BLS): the competition lens
+    census = None
+    try:
+        import build_census
+        c = build_census.main(OUT, zips=set(latest_all))
+        census = {'file': 'census.json', 'rows': len(c['rows']), 'counties': len(c['counties']), 'acsYear': c['acsYear'], 'baseYear': c['baseYear'],
+                  'popVintage': c['popVintage'], 'qcew': c['qcew'], 'status': c['status']}
+    except Exception as e:
+        print('census data skipped:', e)
+        census = {'failed': str(e)[:200]}
     with open(os.path.join(OUT, 'index.json'), 'w') as f:
         json.dump({'updated': now, 'redfinUpdated': upd, 'periodEnd': period_end, 'metroWeekEnd': wk, 'propertyType': PTYPE, 'source': 'Redfin Data Center',
                    'zipCount': sum(v['count'] for v in files.values()), 'files': files,
-                   'discover': {'file': 'discover.json', 'rows': len(disc['rows']), 'sources': disc['sources']}}, f, separators=(',', ':'))
+                   'discover': {'file': 'discover.json', 'rows': len(disc['rows']), 'sources': disc['sources']}, 'census': census}, f, separators=(',', ':'))
     print('states:', len(files), 'zips:', sum(v['count'] for v in files.values()), 'period end:', period_end, 'redfin updated:', upd, 'metro week end:', wk)
 
 if __name__ == '__main__':
