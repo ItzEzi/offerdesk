@@ -161,6 +161,7 @@ qs = ['What does a renovated 3-bed, 1–2 bath sell for in [ZIP] right now?',
       'Which areas sell fast, and which ones sit? Where would you not buy?',
       'How many investors and flippers are buying here? (1 = few, 5 = crowded)',
       'Who are the active flippers? Which lenders and contractors do they use?',
+      'Title companies: what share of your closings are off-market or wholesale deals?',
       'Would you work with an out-of-state buyer? What do you need from me?',
       'Who else should I talk to?']
 for q in qs:
