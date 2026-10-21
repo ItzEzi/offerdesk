@@ -75,6 +75,7 @@ def note(ws, cell, text):
 
 # ============================ Start Here ============================
 ws = wb.active; ws.title = 'Start Here'
+ws['Z1'] = 'OfferDesk workbook v3'; ws['Z1'].font = font('FFFFFF', size=8)   # version marker: OfferDesk upgrades older workbooks on update
 ws.sheet_view.showGridLines = False
 ws.column_dimensions['A'].width = 4
 ws.column_dimensions['B'].width = 34
@@ -425,7 +426,7 @@ ds.freeze_panes = 'A4'
 
 # ============================ Flip Candidates ============================
 F_AUTO = PatternFill('solid', fgColor='DDEBF7')
-N_F = 200; FC0 = 8; FC1 = FC0 + N_F - 1
+N_F = 300; FC0 = 8; FC1 = FC0 + N_F - 1
 fs = wb.create_sheet('Flip Candidates')
 title(fs, 'Flip Candidates', 'Likely renovated resales: older houses that sold well above their ZIP\'s typical $/sqft. Open each link, look at the sale history, and type the EARLIER sale (yellow).')
 fcols = [('Metro', 18, 'in', 't'), ('ZIP', 8, 'in', 't'), ('Address', 26, 'in', 't'), ('Link', 12, 'in', 't'), ('Sqft', 8, 'in', 'n'), ('Year built', 7, 'in', 'yr'),
@@ -447,7 +448,7 @@ fs.freeze_panes = fs.cell(row=FC0, column=4)
 note(fs, 'O7', 'Likely flip = the earlier sale was within ~18 months and the price jumped 25% or more. Profit uses the rehab and cost assumptions at the top of the Past Flips tab.')
 
 # ============================ Competition ============================
-N_K = 200; K0 = 8; K1 = K0 + N_K - 1
+N_K = 600; K0 = 8; K1 = K0 + N_K - 1
 ks = wb.create_sheet('Competition')
 title(ks, 'Competition', 'Companies that advertise buying houses for cash in each metro ("we buy houses"). Maya can fill this from a web search; add any you find yourself.')
 kcols = [('Metro', 18, 'in', 't'), ('Company', 26, 'in', 't'), ('Website', 30, 'in', 't'), ('Found by', 10, 'in', 't'), ('Local? (Y/N)', 8, 'in', 't'), ('Notes', 30, 'in', 't')]

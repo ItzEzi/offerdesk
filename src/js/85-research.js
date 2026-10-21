@@ -167,7 +167,7 @@ function rsMetroEnd(ws){for(let r=8;r<=80;r++){if(xs(ws.getCell('A'+r)).startsWi
 /* Rows OfferDesk filled for metros he un-starred: clear them, unless he typed something in the row himself. */
 function rsPrune(wb,keep){
   const gone=new Set(),kept=new Set();
-  for(const [name,to0] of [['Metros',0],['ZIPs',107],['Listing Watch',307],['Flip Candidates',207],['Competition',207]]){
+  for(const [name,to0] of [['Metros',0],['ZIPs',107],['Listing Watch',307],['Flip Candidates',307],['Competition',607]]){
     const ws=wb.getWorksheet(name);if(!ws)continue;
     const end=to0||rsMetroEnd(ws);
     for(let r=8;r<=end;r++){
@@ -191,7 +191,8 @@ async function rsTemplate(X){
 }
 function rsNeedsUpgrade(old,tpl){
   const a=old.getWorksheet('Metros'),b=tpl.getWorksheet('Metros');if(!a||!b)return false;
-  return rsMetroEnd(a)!==rsMetroEnd(b)||tpl.worksheets.some(w=>!old.getWorksheet(w.name));
+  const ver=w=>{const ws=w.getWorksheet('Start Here');return ws?xs(ws.getCell('Z1')):''};
+  return ver(old)!==ver(tpl)||rsMetroEnd(a)!==rsMetroEnd(b)||tpl.worksheets.some(w=>!old.getWorksheet(w.name));
 }
 function rsUpgrade(old,tpl){
   for(const ws of old.worksheets){
@@ -264,10 +265,10 @@ function rsFill(wb){
   /* Flip Candidates */
   const fws=sheet('Flip Candidates');
   if(fws){
-    const idx={};for(const r of xRows(fws,8,207)){const a=xs(fws.getCell('C'+r)),z=xs(fws.getCell('B'+r));if(a&&z)idx[rsKey(a,z)]=r}
+    const idx={};for(const r of xRows(fws,8,307)){const a=xs(fws.getCell('C'+r)),z=xs(fws.getCell('B'+r));if(a&&z)idx[rsKey(a,z)]=r}
     for(const [k,c] of Object.entries(R.cands)){
       if(!ms.some(t=>t.key===c.metro))continue;
-      let r=idx[k];if(!r){r=xFirstEmpty(fws,8,207,['A','C']);if(!r){rep.warn.push('The Flip Candidates tab is full.');break}idx[k]=r;rep.cands++}
+      let r=idx[k];if(!r){r=xFirstEmpty(fws,8,307,['A','C']);if(!r){rep.warn.push('The Flip Candidates tab is full.');break}idx[k]=r;rep.cands++}
       const vals={A:mkLabel(c.metro),B:c.zip,C:c.addr,D:c.url?{text:'Redfin',hyperlink:c.url}:null,E:c.sqft,F:c.year,G:xDate(c.soldOn),H:c.soldPrice,I:c.zipPpsf};
       if(!c.soldOn&&!xs(fws.getCell('L'+r)))vals.L='No sold date in the download (local MLS rule): copy it from the Redfin sale history into Sold on.';
       for(const [col,v] of Object.entries(vals))xSet(fws.getCell(col+r),v);
@@ -276,9 +277,9 @@ function rsFill(wb){
   /* Competition */
   const kws=sheet('Competition');
   if(kws){
-    const have=new Set();for(const r of xRows(kws,8,207)){const m=xs(kws.getCell('A'+r)),n=xs(kws.getCell('B'+r));if(m&&n)have.add(m.toLowerCase()+'|'+n.toLowerCase())}
+    const have=new Set();for(const r of xRows(kws,8,607)){const m=xs(kws.getCell('A'+r)),n=xs(kws.getCell('B'+r));if(m&&n)have.add(m.toLowerCase()+'|'+n.toLowerCase())}
     for(const t of ms){const C=R.comp[t.key];if(!C)continue;const label=mkLabel(t.key);
-      for(const co of C.companies){const k=label.toLowerCase()+'|'+co.name.toLowerCase();if(have.has(k))continue;const r=xFirstEmpty(kws,8,207,['A','B']);if(!r){rep.warn.push('The Competition tab is full.');break}
+      for(const co of C.companies){const k=label.toLowerCase()+'|'+co.name.toLowerCase();if(have.has(k))continue;const r=xFirstEmpty(kws,8,607,['A','B']);if(!r){rep.warn.push('The Competition tab is full.');break}
         have.add(k);const vals={A:label,B:co.name,C:co.url?{text:co.url.replace(/^https?:\/\/(www\.)?/,'').slice(0,60),hyperlink:co.url}:null,D:'Maya',E:co.local,F:`${RS_TAG} ${rsDay(C.at)}`};
         for(const [col,v] of Object.entries(vals))xSet(kws.getCell(col+r),v);rep.comp++}}
   }else if(Object.values(R.comp).length)rep.warn.push('This workbook has no Competition tab. Download a fresh workbook to get it.');
