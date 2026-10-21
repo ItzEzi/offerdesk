@@ -537,6 +537,41 @@ def job_catalog(out):
             res[dom] = 'error %s' % e
     json.dump(res, open(os.path.join(out, 'catalog.json'), 'w'), indent=1)
 
+# ---------------- Maryland SDAT (Baltimore City): last two transfers per property ----------------
+def job_maryland(out):
+    """Maryland assessments keep each property's last transfers (date, price, arm's-length code). A flip = latest transfer
+    within 18 months of the previous one, for more money. Baltimore City only (jurisdiction BACI)."""
+    meta = json.loads(open_retry(['https://opendata.maryland.gov/api/views/ed4q-f8tm/columns.json'])[1].read().decode('utf-8'))
+    names = [c['fieldName'] for c in meta]
+    def f(*parts):
+        for n in names:
+            if all(p in n for p in parts):
+                return n
+        return None
+    C = {'acct': f('account_id'), 'jur': f('jurisdiction_code'), 'zip': f('premise_address_zip_code'), 'use': f('land_use_code'),
+         'd1': f('sales_segment_1_transfer_date'), 'p1': f('sales_segment_1_consideration'), 'h1': f('sales_segment_1_how_conveyed'),
+         'd2': f('sales_segment_2_transfer_date'), 'p2': f('sales_segment_2_consideration'), 'h2': f('sales_segment_2_how_conveyed')}
+    log('maryland columns', C)
+    base = 'https://opendata.maryland.gov/resource/ed4q-f8tm.json'
+    sel = ','.join(v for v in C.values() if v)
+    rows = socrata_all(base, sel, "%s = 'BACI'" % C['jur'], C['acct'])
+    log('rows', len(rows), 'sample', rows[:2])
+    sales = []
+    hows = collections.Counter()
+    for r in rows:
+        zp = str(r.get(C['zip']) or '')[:5]
+        for d, p_, h in (('d1', 'p1', 'h1'), ('d2', 'p2', 'h2')):
+            dt = pdate(str(r.get(C[d]) or '').replace('.', '-')[:10]); pr = num(r.get(C[p_]))
+            if not dt or not pr:
+                continue
+            hw = str(r.get(C[h]) or '').strip(); hows[hw] += 1
+            sales.append({'parcel': r.get(C['acct']), 'date': dt, 'price': pr, 'zip': zp, 'all': 'Baltimore City', 'market': hw[:1] in ('1', '3', '')})
+    since = datetime.date(2024, 1, 1)
+    res = {'rows': len(rows), 'sales': len(sales), 'columns': C, 'howConveyed': hows.most_common(12),
+           'note': 'Only the last two transfers per property are kept by SDAT, so older sales are missing; recent flips are complete.',
+           'city': flips_from_sales(sales, 'all', since=since), 'byBand': with_bands(sales, since), 'byZip': flips_from_sales(sales, 'zip', since=since)}
+    json.dump(res, open(os.path.join(out, 'maryland_flips.json'), 'w'), default=str)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
