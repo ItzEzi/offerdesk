@@ -181,7 +181,7 @@ def job_philly(out):
             comp[s_['zip']][0] += 1; comp[s_['zip']][1] += s_['company']
     companyShare = {z: {'sales': a, 'companyBuyers': b, 'share': round(100 * b / a, 1)} for z, (a, b) in comp.items() if a >= 20}
     res = {'rows': len(rows), 'since': str(since), 'byZip': flips_from_sales(sales, 'zip', since=since), 'companyBuyersByZip': companyShare,
-           'city': flips_from_sales([dict(s, all='Philadelphia') for s in sales], 'all', since=since)}
+           'city': flips_from_sales([dict(s, all='Philadelphia') for s in sales], 'all', since=since), 'byBand': with_bands(sales, since)}
     json.dump(res, open(os.path.join(out, 'philly_flips.json'), 'w'), default=str)
 
 FHFA_URLS = ['https://www.fhfa.gov/hpi/download/quarterly_datasets/hpi_at_metro.csv',
@@ -189,7 +189,10 @@ FHFA_URLS = ['https://www.fhfa.gov/hpi/download/quarterly_datasets/hpi_at_metro.
 CBSA = {'Pittsburgh': '38300', 'Scranton': '42540', 'Philadelphia (division)': '37964', 'Indianapolis': '26900', 'South Bend': '43780',
         'Buffalo': '15380', 'Rochester': '40380', 'Dallas (division)': '19124', 'Tampa': '45300', 'Oklahoma City': '36420',
         'Cleveland': '17410', 'Baltimore': '12580', 'Richmond': '40060', 'Detroit suburbs (Warren division)': '47664', 'St. Louis': '41180',
-        'Kansas City': '28140', 'Columbus OH': '18140', 'Louisville': '31140'}
+        'Kansas City': '28140', 'Columbus OH': '18140', 'Louisville': '31140', 'Milwaukee': '33340', 'Cincinnati': '17140',
+        'Chicago (division)': '16984', 'Atlanta': '12060', 'Memphis': '32820', 'Albany NY': '10580', 'Syracuse': '45060', 'Waterbury CT (new)': '47930',
+        'New Haven': '35300', 'Hartford': '25540', 'Hartford (new)': '25540', 'Tampa (new)': '45300', 'Detroit (division)': '19804', 'Baltimore city area': '12580',
+        'Allentown': '10900', 'Harrisburg': '25420', 'Akron': '10420', 'Dayton': '19430', 'Toledo': '45780', 'Birmingham': '13820', 'Omaha': '36540'}
 
 def job_fhfa(out):
     err = []
@@ -228,6 +231,7 @@ def job_fhfa(out):
                 continue
             v = s[k][1]; peak = max(peak, v); dd = min(dd, v / peak - 1)
         res[label] = {'name': s[last][0], 'latest': '%dQ%d' % last, 'chg1y': chg(1), 'chg5y': chg(5), 'chg10y': chg(10), 'maxDrawdownSince2005': round(dd * 100, 1)}
+    res['_index'] = {code: list(v.values())[-1][0] for code, v in series.items()}
     json.dump(res, open(os.path.join(out, 'fhfa.json'), 'w'), indent=1)
 
 OEWS_URLS = ['https://www.bls.gov/oes/special-requests/oesm24ma.zip', 'https://www.bls.gov/oes/special.requests/oesm24ma.zip']
@@ -383,6 +387,152 @@ def finish_indiana(out, sales, heads):
         sub = [dict(s_, band=band(s_['price'])) for s_ in sales if s_['county'] == c]
         res['byCountyBand'][c] = flips_from_sales(sub, 'band', since=since)
     json.dump(res, open(os.path.join(out, 'indiana_flips.json'), 'w'), default=str)
+
+def band_of(p):
+    return 'under 50K' if p < 50000 else '50-100K' if p < 100000 else '100-150K' if p < 150000 else '150-250K' if p < 250000 else '250K+'
+
+def with_bands(sales, since):
+    return flips_from_sales([dict(s_, band=band_of(s_['price'])) for s_ in sales], 'band', since=since)
+
+def socrata_all(base, select, where, order, page=50000, cap=2000000):
+    rows, off = [], 0
+    while off < cap:
+        q = urllib.parse.urlencode({'$select': select, '$where': where, '$order': order, '$limit': page, '$offset': off})
+        chunk = json.loads(open_retry([base + '?' + q]).read().decode('utf-8'))
+        rows += chunk; log('socrata', base.split('/')[2], 'offset', off, 'got', len(chunk))
+        if len(chunk) < page:
+            break
+        off += page
+    return rows
+
+# ---------------- Cook County (Chicago) ----------------
+COOK_TWP = {'10': 'Barrington', '11': 'Berwyn', '12': 'Bloom', '13': 'Bremen', '14': 'Calumet', '15': 'Cicero', '16': 'Elk Grove', '17': 'Evanston',
+            '18': 'Hanover', '19': 'Lemont', '20': 'Leyden', '21': 'Lyons', '22': 'Maine', '23': 'New Trier', '24': 'Niles', '25': 'Northfield',
+            '26': 'Norwood Park', '27': 'Oak Park', '28': 'Orland', '29': 'Palatine', '30': 'Palos', '31': 'Proviso', '32': 'Rich', '33': 'River Forest',
+            '34': 'Riverside', '35': 'Schaumburg', '36': 'Stickney', '37': 'Thornton', '38': 'Wheeling', '39': 'Worth', '70': 'Chicago: Hyde Park',
+            '71': 'Chicago: Jefferson', '72': 'Chicago: Lake', '73': 'Chicago: Lake View', '74': 'Chicago: North', '75': 'Chicago: Rogers Park',
+            '76': 'Chicago: South', '77': 'Chicago: West'}
+COMPANY = (' LLC', ' INC', ' L L C', 'CORP', ' LP', 'HOLDINGS', 'PROPERTIES', 'INVESTMENT', 'REALTY', 'CAPITAL', 'HOMES', 'VENTURES', 'GROUP')
+
+def job_cook(out):
+    """Cook County Assessor parcel sales (Socrata wvhk-k5uv): real flips of houses (class 2xx) since 2024, by township."""
+    base = 'https://datacatalog.cookcountyil.gov/resource/wvhk-k5uv.json'
+    sample = json.loads(open_retry([base + '?$limit=3']).read().decode('utf-8'))
+    cols = sorted(sample[0].keys()) if sample else []
+    log('cook columns', cols)
+    want = [c for c in ('pin', 'township_code', 'class', 'sale_date', 'sale_price', 'deed_type', 'buyer_name', 'is_multisale', 'num_parcels_sale',
+                        'sale_filter_less_than_10k', 'sale_filter_deed_type') if c in cols]
+    rows = socrata_all(base, ','.join(want), "sale_date >= '2022-01-01T00:00:00' AND sale_price >= 10000 AND class between '202' and '299'", 'sale_date,pin')
+    sales = []
+    for r in rows:
+        if str(r.get('is_multisale', 'false')).lower() in ('true', '1') or (num(r.get('num_parcels_sale')) or 1) > 1:
+            continue
+        d = pdate(str(r.get('sale_date', ''))[:10]); pr = num(r.get('sale_price'))
+        if not d or not pr:
+            continue
+        dt = (r.get('deed_type') or '').lower()
+        tw = COOK_TWP.get(str(r.get('township_code', '')).zfill(2), str(r.get('township_code')))
+        sales.append({'parcel': r['pin'], 'date': d, 'price': pr, 'twp': tw, 'all': 'Cook County', 'city': 'Chicago city' if tw.startswith('Chicago') else 'Suburban Cook',
+                      'market': 'warranty' in dt or dt in ('', 'other', 'trustee', 'deed'), 'company': any(w in (r.get('buyer_name') or '').upper() for w in COMPANY)})
+    since = datetime.date(2024, 1, 1)
+    comp = collections.defaultdict(lambda: [0, 0])
+    for s_ in sales:
+        if s_['date'] >= since:
+            comp[s_['twp']][0] += 1; comp[s_['twp']][1] += s_['company']
+    res = {'rows': len(rows), 'kept': len(sales), 'columns': cols, 'deedTypes': collections.Counter((r.get('deed_type') or '') for r in rows).most_common(15),
+           'county': flips_from_sales(sales, 'all', since=since), 'cityVsSuburbs': flips_from_sales(sales, 'city', since=since),
+           'byTownship': flips_from_sales(sales, 'twp', since=since), 'byBand': with_bands(sales, since),
+           'companyBuyersByTownship': {k: {'sales': a, 'share': round(100 * b / a, 1)} for k, (a, b) in comp.items() if a >= 50}}
+    json.dump(res, open(os.path.join(out, 'cook_flips.json'), 'w'), default=str)
+
+# ---------------- Milwaukee (city arm's-length sales) ----------------
+MKE = 'https://data.milwaukee.gov/dataset/7a8b81f6-d750-4f62-aee8-30ffce1c64ce/resource/%s/download/%s'
+MKE_FILES = [('060179e8-0d9d-4071-aa54-fd62223842b6', 'armslengthsales_2022_valid_20230404.csv'),
+             ('26d0ca6e-0a70-41fc-8e60-8c1a32343877', 'armslengthsales_2023_valid.csv'),
+             ('01651dab-2be7-40c6-a9d6-31254fe02e29', 'armslengthsales_2024_valid_20250917.csv'),
+             ('1f2dbf65-3ff9-49a2-a9ef-eb0b6c503017', 'armslengthsales_2025_valid_20261019.csv'),
+             ('f4b2cf5c-8a7d-4299-bc3b-b2d976c80fc5', 'armslengthsales_2026_valid_20261019.csv')]
+
+def job_milwaukee(out):
+    """City of Milwaukee arm's-length (valid) sales 2022-2026: resold within 18 months. Distressed purchases are NOT in this file, so flips are undercounted."""
+    sales, heads = [], None
+    for rid, fn in MKE_FILES:
+        try:
+            rows = list(csv.DictReader(io.TextIOWrapper(open_retry([MKE % (rid, fn)]), encoding='utf-8-sig', errors='replace', newline='')))
+        except Exception as e:
+            log(fn, 'failed', e); continue
+        if not rows:
+            continue
+        heads = list(rows[0].keys()); low = {k.lower().replace(' ', '').replace('_', ''): k for k in heads}
+        k_id = low.get('taxkey'); k_d = low.get('saledate'); k_p = low.get('saleprice'); k_t = low.get('proptype') or low.get('propertytype'); k_n = low.get('nbhd') or low.get('neighborhood'); k_u = low.get('units'); k_di = low.get('district')
+        log(fn, 'rows', len(rows), 'cols', heads[:25])
+        for r in rows:
+            d = pdate(r.get(k_d, '')); pr = num(r.get(k_p))
+            if not d or not pr:
+                continue
+            t = (r.get(k_t) or '').lower()
+            if t and 'resid' not in t and 'condo' not in t:
+                continue
+            sales.append({'parcel': r.get(k_id), 'date': d, 'price': pr, 'all': 'Milwaukee city', 'district': r.get(k_di) or '', 'type': t,
+                          'units': r.get(k_u) or ''})
+    since = datetime.date(2024, 1, 1)
+    res = {'heads': heads, 'kept': len(sales), 'city': flips_from_sales(sales, 'all', since=since), 'byBand': with_bands(sales, since),
+           'byDistrict': flips_from_sales(sales, 'district', since=since),
+           'types': collections.Counter(s_['type'] for s_ in sales).most_common(10)}
+    json.dump(res, open(os.path.join(out, 'milwaukee_flips.json'), 'w'), default=str)
+
+# ---------------- Connecticut statewide sales (Waterbury, New Haven, Hartford...) ----------------
+CT_TOWNS = ('Waterbury', 'New Haven', 'Hartford', 'West Hartford', 'Bridgeport', 'New Britain', 'Meriden', 'Stamford', 'Norwalk', 'East Haven', 'Hamden', 'Naugatuck', 'Bloomfield', 'Fairfield', 'Stratford')
+
+def job_ct(out):
+    """Connecticut OPM real estate sales (data.ct.gov 5mzw-sjtu). No parcel id, so the same house = same town + normalised address."""
+    base = 'https://data.ct.gov/resource/5mzw-sjtu.json'
+    sample = json.loads(open_retry([base + '?$limit=3']).read().decode('utf-8'))
+    cols = sorted(sample[0].keys()) if sample else []
+    log('ct columns', cols)
+    dcol = 'daterecorded' if 'daterecorded' in cols else next(c for c in cols if 'date' in c)
+    pcol = 'saleamount' if 'saleamount' in cols else next(c for c in cols if 'amount' in c or 'price' in c)
+    towns = ','.join("'%s'" % t for t in CT_TOWNS)
+    rows = socrata_all(base, '*', "%s >= '2020-01-01T00:00:00' AND town in(%s)" % (dcol, towns), dcol)
+    import re
+    def norm(a):
+        a = re.sub(r'[^A-Z0-9 ]', ' ', (a or '').upper()); a = re.sub(r'\b(UNIT|APT|#)\b.*', '', a)
+        rep = {'STREET': 'ST', 'AVENUE': 'AVE', 'ROAD': 'RD', 'DRIVE': 'DR', 'PLACE': 'PL', 'COURT': 'CT', 'LANE': 'LN', 'TERRACE': 'TER', 'BOULEVARD': 'BLVD'}
+        return ' '.join(rep.get(w, w) for w in a.split())
+    sales = []
+    for r in rows:
+        pt = (r.get('propertytype') or '').lower(); rt = (r.get('residentialtype') or '').lower()
+        if pt and pt not in ('residential', 'single family', 'two family', 'three family', 'four family', 'condo'):
+            continue
+        if rt and rt not in ('single family', 'two family', 'three family', 'four family', 'condo'):
+            continue
+        d = pdate(str(r.get(dcol, ''))[:10]); pr = num(r.get(pcol))
+        if not d or not pr:
+            continue
+        nu = (r.get('nonusecode') or '').strip()
+        sales.append({'parcel': r.get('town', '') + '|' + norm(r.get('address')), 'date': d, 'price': pr, 'town': r.get('town', ''), 'kind': rt or pt,
+                      'market': nu in ('', '0', 'nan')})
+    since = datetime.date(2023, 1, 1)
+    res = {'rows': len(rows), 'kept': len(sales), 'columns': cols, 'lastDate': str(max((s_['date'] for s_ in sales), default=None)),
+           'nonuse': collections.Counter((r.get('nonusecode') or '') for r in rows).most_common(12),
+           'byTown': flips_from_sales(sales, 'town', since=since),
+           'byTownBand': {t: with_bands([s_ for s_ in sales if s_['town'] == t], since) for t in ('Waterbury', 'New Haven', 'Hartford')}}
+    json.dump(res, open(os.path.join(out, 'ct_flips.json'), 'w'), default=str)
+
+# ---------------- Socrata catalogue search (find more open sale datasets) ----------------
+def job_catalog(out):
+    res = {}
+    for dom, q in (('opendata.maryland.gov', 'real property'), ('data.cincinnati-oh.gov', 'sales'), ('data.ny.gov', 'property sales'),
+                   ('data.cityofnewyork.us', 'rolling sales'), ('data.wprdc.org', 'sales'), ('data.detroitmi.gov', 'sales'),
+                   ('data.cuyahogacounty.us', 'sales'), ('www.dallasopendata.com', 'sales')):
+        try:
+            u = 'https://api.us.socrata.com/api/catalog/v1?' + urllib.parse.urlencode({'domains': dom, 'q': q, 'limit': 12})
+            d = json.loads(get(u, 120).read().decode('utf-8'))
+            res[dom] = [{'id': x['resource']['id'], 'name': x['resource']['name'], 'cols': x['resource'].get('columns_field_name', [])[:40],
+                         'updated': x['resource'].get('data_updated_at')} for x in d.get('results', [])]
+        except Exception as e:
+            res[dom] = 'error %s' % e
+    json.dump(res, open(os.path.join(out, 'catalog.json'), 'w'), indent=1)
 
 def main():
     job, out = sys.argv[1], sys.argv[2]
