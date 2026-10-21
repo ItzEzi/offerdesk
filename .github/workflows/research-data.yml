@@ -1,0 +1,48 @@
+name: Research data (one-off, not used by the app)
+
+# Pulls public datasets for market research and publishes summaries to the research-data branch.
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'research/run.py job: probe, wprdc, philly, fhfa, oews'
+        required: true
+        default: 'probe'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-data
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet openpyxl
+      - name: Get earlier results
+        run: |
+          mkdir -p out
+          if git ls-remote --exit-code origin research-data >/dev/null 2>&1; then
+            git fetch -q origin research-data
+            git --work-tree=out checkout -q origin/research-data -- . || true
+          fi
+      - name: Run ${{ inputs.job }}
+        run: python research/run.py "${{ inputs.job }}" out
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          rm -rf .git
+          git init -q
+          git checkout -q -b research-data
+          git add -A
+          git -c user.name="OfferDesk research job" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Research data: ${{ inputs.job }} $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" research-data
