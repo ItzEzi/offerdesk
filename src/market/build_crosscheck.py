@@ -32,9 +32,13 @@ def zhvi():
             dates = [i for i, h in enumerate(head) if len(h) == 10 and h[4] == '-' and h[7] == '-']
             out = {}
             for r in rd:
-                for i in reversed(dates):
+                for k in range(len(dates) - 1, -1, -1):
+                    i = dates[k]
                     if i < len(r) and num(r[i]):
-                        out[r[iz].zfill(5)] = (round(num(r[i])), head[i][:7])
+                        v = num(r[i]); j = dates[k - 12] if k >= 12 else None
+                        v0 = num(r[j]) if j is not None and j < len(r) else None
+                        # change in Zillow's typical home value over 12 months: not skewed by which houses happened to sell
+                        out[r[iz].zfill(5)] = (round(v), head[i][:7], round((v / v0 - 1) * 100, 1) if v0 else None)
                         break
             print('ZHVI: %d ZIPs from %s' % (len(out), url))
             return out
@@ -76,7 +80,7 @@ def optional(name, fn, default):
         STATUS[name] = 'failed: %s' % str(e)[:200]
         return default
 
-COLS = ['z', 'zhvi', 'rdcList', 'rdcActive', 'rdcNew', 'rdcReduced', 'rdcPending', 'rdcDom', 'rdcPpsf']
+COLS = ['z', 'zhvi', 'zhviYoy', 'rdcList', 'rdcActive', 'rdcNew', 'rdcReduced', 'rdcPending', 'rdcDom', 'rdcPpsf']
 
 def main(out_dir, zips=None):
     zv = optional('zhvi', zhvi, {})
@@ -87,7 +91,7 @@ def main(out_dir, zips=None):
     rows = []
     for z in sorted(keys):
         a, b = zv.get(z), rc.get(z, {})
-        rows.append([z, a[0] if a else None, b.get('listPrice'), b.get('active'), b.get('new'), b.get('reduced'), b.get('pending'), b.get('dom'), b.get('ppsf')])
+        rows.append([z, a[0] if a else None, a[2] if a else None, b.get('listPrice'), b.get('active'), b.get('new'), b.get('reduced'), b.get('pending'), b.get('dom'), b.get('ppsf')])
     zmonth = max((v[1] for v in zv.values()), default=None)
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
     d = {'updated': now, 'zhviMonth': zmonth, 'realtorMonth': (month[:4] + '-' + month[4:]) if month else None, 'status': STATUS, 'cols': COLS, 'rows': rows}
