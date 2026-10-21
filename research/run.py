@@ -250,6 +250,32 @@ def job_oews(out):
                 res[r[ina]][TRADES[r[io_]]] = r[ih]
     json.dump(res, open(os.path.join(out, 'oews.json'), 'w'), indent=1, default=str)
 
+def job_indiana_probe(out):
+    """Find the Indiana Sales Disclosure bulk files and record their layout."""
+    import re
+    html = get('https://www.stats.indiana.edu/topic/sdf.asp').read().decode('utf-8', 'replace')
+    links = sorted(set(re.findall(r'href=["\']([^"\']+\.zip)["\']', html, re.I)))
+    log('zip links', links)
+    res = {'links': links, 'files': {}}
+    base = 'https://www.stats.indiana.edu'
+    pick = [l for l in links if any(y in l for y in ('2024', '2025'))][:2] or links[-2:]
+    for l in pick:
+        u = l if l.startswith('http') else base + (l if l.startswith('/') else '/topic/' + l)
+        try:
+            z = zipfile.ZipFile(io.BytesIO(get(u, 1800).read()))
+        except Exception as e:
+            res['files'][u] = 'error %s' % e; continue
+        info = {}
+        for n in z.namelist():
+            if n.lower().endswith(('.txt', '.tsv', '.csv')):
+                with z.open(n) as f:
+                    lines = [f.readline().decode('utf-8', 'replace').rstrip('\r\n') for _ in range(3)]
+                info[n] = {'size': z.getinfo(n).file_size, 'head': lines}
+            else:
+                info[n] = {'size': z.getinfo(n).file_size}
+        res['files'][u] = info
+    json.dump(res, open(os.path.join(out, 'indiana_probe.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
