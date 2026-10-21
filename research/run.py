@@ -289,7 +289,18 @@ IN_COUNTIES = {'49': 'Marion (Indianapolis)', '71': 'St. Joseph (South Bend)', '
 
 def utf16_rows(z, name):
     with z.open(name) as f:
-        txt = io.TextIOWrapper(f, encoding='utf-16', newline='')
+        head = f.read(4)
+    if head[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        enc = 'utf-16'
+    elif len(head) >= 4 and head[1] == 0 and head[3] == 0:
+        enc = 'utf-16-le'
+    elif len(head) >= 4 and head[0] == 0 and head[2] == 0:
+        enc = 'utf-16-be'
+    else:
+        enc = 'utf-8-sig'
+    log(name, 'encoding', enc)
+    with z.open(name) as f:
+        txt = io.TextIOWrapper(f, encoding=enc, errors='replace', newline='')
         yield from csv.reader(txt, delimiter='\t', quotechar='"')
 
 def job_indiana(out):
@@ -301,6 +312,14 @@ def job_indiana(out):
             z = zipfile.ZipFile(io.BytesIO(get(base % yr, 1800).read()))
         except Exception as e:
             log('year', yr, 'failed', e); continue
+        try:
+            in_year(z, yr, sales, heads)
+        except Exception as e:
+            log('year', yr, 'failed while reading', repr(e))
+    finish_indiana(out, sales, heads)
+
+def in_year(z, yr, sales, heads):
+    if True:
         it = utf16_rows(z, 'SALEDISC.txt'); h = [c.strip() for c in next(it)]; heads['SALEDISC'] = h
         def col(*words):
             for i, c in enumerate(h):
@@ -348,6 +367,8 @@ def job_indiana(out):
             pr = p / 100 if p > 5_000_000 and p % 100 == 0 else p   # some years give cents
             sales.append({'parcel': cty + ':' + pn, 'date': d, 'price': pr, 'county': IN_COUNTIES[cty], 'zip': zp}); kept += 1
         log(yr, 'disclosures in counties', len(disc), 'single-parcel homes kept', kept, 'class col', h2[j_cls] if j_cls is not None else None)
+
+def finish_indiana(out, sales, heads):
     since = datetime.date(2024, 1, 1)
     res = {'heads': heads, 'since': str(since), 'byCounty': flips_from_sales(sales, 'county', since=since), 'byZip': flips_from_sales(sales, 'zip', since=since)}
     prices = collections.defaultdict(list)
@@ -355,6 +376,12 @@ def job_indiana(out):
         if s_['date'] >= since:
             prices[s_['county']].append(s_['price'])
     res['medianSale'] = {k: med(v) for k, v in prices.items()}
+    def band(p):
+        return 'under 50K' if p < 50000 else '50-100K' if p < 100000 else '100-150K' if p < 150000 else '150-250K' if p < 250000 else '250K+'
+    res['byCountyBand'] = {}
+    for c in set(s_['county'] for s_ in sales):
+        sub = [dict(s_, band=band(s_['price'])) for s_ in sales if s_['county'] == c]
+        res['byCountyBand'][c] = flips_from_sales(sub, 'band', since=since)
     json.dump(res, open(os.path.join(out, 'indiana_flips.json'), 'w'), default=str)
 
 def main():
