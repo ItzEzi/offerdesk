@@ -56,8 +56,10 @@ function rsImportText(text,name){
       rep.sold++;const soldOn=rsParseDate(col(o,['sold date','sale date','close date']));
       const L=R.listings[key];if(L&&L.status!=='Sold'){L.status='Sold';L.soldOn=soldOn;L.soldPrice=price;L.lastSeen=today;rep.updated++}
       /* likely renovated resale: an older house that sold well above its ZIP's typical $/sqft in the last year */
-      const zp=z.ppsf;const pp=price&&sqft?price/sqft:null;const inYr=!!(soldOn&&soldOn>=rsDaysAgo(365));
-      if(inYr&&price)(fz[zip]=fz[zip]||{s:0,c:0}).s++;
+      const zp=z.ppsf;const pp=price&&sqft?price/sqft:null;
+      /* some MLSs (Columbia, SC) leave the sold date out of downloads; the Sold links only search the last year, so an undated sale counts as recent */
+      const inYr=soldOn?soldOn>=rsDaysAgo(365):true;
+      if(inYr&&price&&sqft>=600)(fz[zip]=fz[zip]||{s:0,c:0}).s++;
       if(zp&&pp&&sqft>=600&&(rec.year||0)<=1995&&pp>=zp*1.25&&inYr){fz[zip].c++;
         const had=R.cands[key];R.cands[key]=Object.assign(had||{at:today},{...rec,soldOn,soldPrice:price,zipPpsf:zp,prem:pp/zp-1});if(!had)rep.cands++;
       }
@@ -267,6 +269,7 @@ function rsFill(wb){
       if(!ms.some(t=>t.key===c.metro))continue;
       let r=idx[k];if(!r){r=xFirstEmpty(fws,8,207,['A','C']);if(!r){rep.warn.push('The Flip Candidates tab is full.');break}idx[k]=r;rep.cands++}
       const vals={A:mkLabel(c.metro),B:c.zip,C:c.addr,D:c.url?{text:'Redfin',hyperlink:c.url}:null,E:c.sqft,F:c.year,G:xDate(c.soldOn),H:c.soldPrice,I:c.zipPpsf};
+      if(!c.soldOn&&!xs(fws.getCell('L'+r)))vals.L='No sold date in the download (local MLS rule): copy it from the Redfin sale history into Sold on.';
       for(const [col,v] of Object.entries(vals))xSet(fws.getCell(col+r),v);
     }
   }else if(Object.keys(R.cands).length)rep.warn.push('This workbook has no Flip Candidates tab. Download a fresh workbook to get it.');
@@ -322,7 +325,7 @@ function mkResearchCard(R){
   const rows=ms.map(t=>{const s=rsSummary(t.key);return `<tr><td><b>${esc(mkLabel(t.key))}</b></td><td class="r tnum">${rsZipsFor(t.key).length}</td><td class="r tnum">${s.n||'—'}${s.n?`<div class="xs muted">${s.active} active · ${s.pending} pending · ${s.sold} sold${s.gone?` · ${s.gone} gone`:''}</div>`:''}</td><td class="r tnum">${s.dtp!=null?Math.round(s.dtp)+'d':'—'}</td><td class="r tnum">${s.cuts||'—'}</td><td class="r tnum">${s.flip?`${s.cands} <span class="muted">of ${s.flip.found}</span><div class="xs muted">${s.flip.per100<10?s.flip.per100.toFixed(1):Math.round(s.flip.per100)} per 100 sales</div>`:(s.cands||'—')}</td><td class="r tnum">${s.comp?`${s.comp.n}<div class="xs muted">${new Date(s.comp.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>`:'—'}</td></tr>`}).join('');
   const last=st.imports[0];
   const cands=ms.map(t=>{const C=Object.values(st.cands).filter(c=>c.metro===t.key).sort((a,b)=>b.prem-a.prem).slice(0,10);if(!C.length)return '';
-    return `<p class="small" style="margin:8px 0 4px"><b>${esc(mkLabel(t.key))}</b></p><ul class="rs-cands">${C.map(c=>`<li>${c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.addr)}</a>`:esc(c.addr)} <span class="muted">· ${c.zip} · built ${c.year||'?'} · sold ${moneyK(c.soldPrice)} (${rsDay(c.soldOn)}) · ${Math.round(c.prem*100)}% above the ZIP’s $/sqft</span></li>`).join('')}</ul>`}).join('');
+    return `<p class="small" style="margin:8px 0 4px"><b>${esc(mkLabel(t.key))}</b></p><ul class="rs-cands">${C.map(c=>`<li>${c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.addr)}</a>`:esc(c.addr)} <span class="muted">· ${c.zip} · built ${c.year||'?'} · sold ${moneyK(c.soldPrice)} (${c.soldOn?rsDay(c.soldOn):'in the last year'}) · ${Math.round(c.prem*100)}% above the ZIP’s $/sqft</span></li>`).join('')}</ul>`}).join('');
   return `<section class="card" id="mk-research">${head}
   <div class="tbl-wrap"><table class="tbl rs-tbl"><thead><tr><th>Metro</th><th class="r">ZIPs</th><th class="r">Listings watched</th><th class="r">Days to pending</th><th class="r">Price cuts</th><th class="r" title="Kept for you to check, of all the flips found in your Sold downloads. Per 100 sales: how many of every 100 houses sold in the last year look like flips.">Flip candidates</th><th class="r">“We buy houses”</th></tr></thead><tbody>${rows}</tbody></table></div>
   <div class="rs-steps">
