@@ -285,6 +285,78 @@ def job_indiana_probe(out):
         res['files'][u] = info
     json.dump(res, open(os.path.join(out, 'indiana_probe.json'), 'w'), indent=1)
 
+IN_COUNTIES = {'49': 'Marion (Indianapolis)', '71': 'St. Joseph (South Bend)', '45': 'Lake (Gary)', '02': 'Allen (Fort Wayne)', '20': 'Elkhart'}
+
+def utf16_rows(z, name):
+    with z.open(name) as f:
+        txt = io.TextIOWrapper(f, encoding='utf-16', newline='')
+        yield from csv.reader(txt, delimiter='\t', quotechar='"')
+
+def job_indiana(out):
+    """Indiana sales disclosures 2022-2026: real flips (resold within 18 months) in Indianapolis, South Bend and neighbours."""
+    base = 'https://www.stats.indiana.edu/sdfdata/SDF_%d.zip'
+    sales, heads = [], {}
+    for yr in range(2022, 2027):
+        try:
+            z = zipfile.ZipFile(io.BytesIO(get(base % yr, 1800).read()))
+        except Exception as e:
+            log('year', yr, 'failed', e); continue
+        it = utf16_rows(z, 'SALEDISC.txt'); h = [c.strip() for c in next(it)]; heads['SALEDISC'] = h
+        def col(*words):
+            for i, c in enumerate(h):
+                if all(w.lower() in c.lower() for w in words):
+                    return i
+            return None
+        i_id, i_cty = h.index('SDF_ID'), h.index('County_ID')
+        i_date = col('conveyance', 'date')
+        if i_date is None:
+            i_date = col('sale', 'date')
+        i_price = col('sales', 'price')
+        if i_price is None:
+            i_price = col('price')
+        i_val = col('valuable')
+        log(yr, 'date col', h[i_date] if i_date is not None else None, 'price col', h[i_price] if i_price is not None else None)
+        disc = {}
+        for r in it:
+            if len(r) <= max(i_id, i_cty, i_date or 0, i_price or 0):
+                continue
+            cty = r[i_cty].strip().zfill(2)
+            if cty not in IN_COUNTIES:
+                continue
+            if i_val is not None and r[i_val].strip().upper() != 'Y':
+                continue
+            d = pdate(r[i_date]); p = num(r[i_price])
+            if not d or not p:
+                continue
+            disc[r[i_id]] = (cty, d, p)
+        it = utf16_rows(z, 'SALEPARCEL.txt'); h2 = [c.strip() for c in next(it)]; heads['SALEPARCEL'] = h2
+        j_id = h2.index('SDF_ID'); j_par = h2.index('A1_Parcel_Number')
+        j_zip = next((i for i, c in enumerate(h2) if c.lower() == 'a5_zipcode'), None)
+        j_cls = next((i for i, c in enumerate(h2) if 'class' in c.lower()), None)
+        par = collections.defaultdict(list)
+        for r in it:
+            if len(r) > j_id and r[j_id] in disc:
+                par[r[j_id]].append((r[j_par].strip(), r[j_zip].strip()[:5] if j_zip is not None and len(r) > j_zip else '', r[j_cls].strip() if j_cls is not None and len(r) > j_cls else ''))
+        kept = 0
+        for sid, (cty, d, p) in disc.items():
+            ps = par.get(sid, [])
+            if len(ps) != 1:
+                continue
+            pn, zp, cls = ps[0]
+            if cls and cls[:3] not in ('510', '511', '520'):
+                continue
+            pr = p / 100 if p > 5_000_000 and p % 100 == 0 else p   # some years give cents
+            sales.append({'parcel': cty + ':' + pn, 'date': d, 'price': pr, 'county': IN_COUNTIES[cty], 'zip': zp}); kept += 1
+        log(yr, 'disclosures in counties', len(disc), 'single-parcel homes kept', kept, 'class col', h2[j_cls] if j_cls is not None else None)
+    since = datetime.date(2024, 1, 1)
+    res = {'heads': heads, 'since': str(since), 'byCounty': flips_from_sales(sales, 'county', since=since), 'byZip': flips_from_sales(sales, 'zip', since=since)}
+    prices = collections.defaultdict(list)
+    for s_ in sales:
+        if s_['date'] >= since:
+            prices[s_['county']].append(s_['price'])
+    res['medianSale'] = {k: med(v) for k, v in prices.items()}
+    json.dump(res, open(os.path.join(out, 'indiana_flips.json'), 'w'), default=str)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
