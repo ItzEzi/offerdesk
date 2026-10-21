@@ -398,7 +398,7 @@ def socrata_all(base, select, where, order, page=50000, cap=2000000):
     rows, off = [], 0
     while off < cap:
         q = urllib.parse.urlencode({'$select': select, '$where': where, '$order': order, '$limit': page, '$offset': off})
-        chunk = json.loads(open_retry([base + '?' + q]).read().decode('utf-8'))
+        chunk = json.loads(open_retry([base + '?' + q])[1].read().decode('utf-8'))
         rows += chunk; log('socrata', base.split('/')[2], 'offset', off, 'got', len(chunk))
         if len(chunk) < page:
             break
@@ -417,7 +417,7 @@ COMPANY = (' LLC', ' INC', ' L L C', 'CORP', ' LP', 'HOLDINGS', 'PROPERTIES', 'I
 def job_cook(out):
     """Cook County Assessor parcel sales (Socrata wvhk-k5uv): real flips of houses (class 2xx) since 2024, by township."""
     base = 'https://datacatalog.cookcountyil.gov/resource/wvhk-k5uv.json'
-    sample = json.loads(open_retry([base + '?$limit=3']).read().decode('utf-8'))
+    sample = json.loads(open_retry([base + '?$limit=3'])[1].read().decode('utf-8'))
     cols = sorted(sample[0].keys()) if sample else []
     log('cook columns', cols)
     want = [c for c in ('pin', 'township_code', 'class', 'sale_date', 'sale_price', 'deed_type', 'buyer_name', 'is_multisale', 'num_parcels_sale',
@@ -458,7 +458,7 @@ def job_milwaukee(out):
     sales, heads = [], None
     for rid, fn in MKE_FILES:
         try:
-            rows = list(csv.DictReader(io.TextIOWrapper(open_retry([MKE % (rid, fn)]), encoding='utf-8-sig', errors='replace', newline='')))
+            rows = list(csv.DictReader(io.TextIOWrapper(open_retry([MKE % (rid, fn)])[1], encoding='utf-8-sig', errors='replace', newline='')))
         except Exception as e:
             log(fn, 'failed', e); continue
         if not rows:
@@ -487,7 +487,7 @@ CT_TOWNS = ('Waterbury', 'New Haven', 'Hartford', 'West Hartford', 'Bridgeport',
 def job_ct(out):
     """Connecticut OPM real estate sales (data.ct.gov 5mzw-sjtu). No parcel id, so the same house = same town + normalised address."""
     base = 'https://data.ct.gov/resource/5mzw-sjtu.json'
-    sample = json.loads(open_retry([base + '?$limit=3']).read().decode('utf-8'))
+    sample = json.loads(open_retry([base + '?$limit=3'])[1].read().decode('utf-8'))
     cols = sorted(sample[0].keys()) if sample else []
     log('ct columns', cols)
     dcol = 'daterecorded' if 'daterecorded' in cols else next(c for c in cols if 'date' in c)
