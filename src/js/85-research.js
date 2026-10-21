@@ -7,7 +7,7 @@ const EXCELJS_URL='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.j
 const RS_TAG='Auto (OfferDesk)';
 const RS_CAP=40;/* listings watched per metro */
 const RS_CAND_CAP=25;/* flip candidates kept per metro */
-function rsSt(){const r=state.research=state.research||{};r.listings=r.listings||{};r.cands=r.cands||{};r.comp=r.comp||{};r.imports=r.imports||[];return r}
+function rsSt(){const r=state.research=state.research||{};r.listings=r.listings||{};r.cands=r.cands||{};r.flipZ=r.flipZ||{};r.comp=r.comp||{};r.imports=r.imports||[];return r}
 function saveResearch(quiet){persist('research');if(!quiet)render()}
 const rsMetros=()=>mkTargets().filter(t=>t.type==='metro');
 const rsZipsPer=()=>{const n=+(mkSet().rsZips||6);return Math.max(1,Math.min(15,n||6))};
@@ -40,7 +40,7 @@ function rsImportText(text,name){
   const R=rsSt();const metros=new Set(rsMetros().map(t=>t.key));const today=rsDay();
   const recs=csvRecords(text);const M=mkSet();const maxP=+M.maxPrice||null;
   const rep={file:name,at:nowISO(),forSale:0,sold:0,added:0,updated:0,cands:0,skipped:0,outside:0};
-  const seenZips=new Set(),seenKeys=new Set();const fresh=[];
+  const seenZips=new Set(),seenKeys=new Set();const fresh=[];const fz={};/* per ZIP in this file: sales in the last year, and how many look like flips */
   const per={};for(const L of Object.values(R.listings))per[L.metro]=(per[L.metro]||0)+1;
   const chosen={};for(const k of metros)chosen[k]=new Set(rsZipsFor(k).map(o=>o.z));
   for(const o of recs){
@@ -56,8 +56,9 @@ function rsImportText(text,name){
       rep.sold++;const soldOn=rsParseDate(col(o,['sold date','sale date','close date']));
       const L=R.listings[key];if(L&&L.status!=='Sold'){L.status='Sold';L.soldOn=soldOn;L.soldPrice=price;L.lastSeen=today;rep.updated++}
       /* likely renovated resale: an older house that sold well above its ZIP's typical $/sqft in the last year */
-      const zp=z.ppsf;const pp=price&&sqft?price/sqft:null;
-      if(zp&&pp&&sqft>=600&&(rec.year||0)<=1995&&pp>=zp*1.25&&soldOn&&soldOn>=rsDaysAgo(365)){
+      const zp=z.ppsf;const pp=price&&sqft?price/sqft:null;const inYr=!!(soldOn&&soldOn>=rsDaysAgo(365));
+      if(inYr&&price)(fz[zip]=fz[zip]||{s:0,c:0}).s++;
+      if(zp&&pp&&sqft>=600&&(rec.year||0)<=1995&&pp>=zp*1.25&&inYr){fz[zip].c++;
         const had=R.cands[key];R.cands[key]=Object.assign(had||{at:today},{...rec,soldOn,soldPrice:price,zipPpsf:zp,prem:pp/zp-1});if(!had)rep.cands++;
       }
       continue;
@@ -80,6 +81,8 @@ function rsImportText(text,name){
   }
   /* a watched listing missing from a fresh download of its ZIP went off the market (pending, sold or withdrawn) */
   if(rep.forSale)for(const [k,L] of Object.entries(R.listings)){if(L.status==='Active'&&seenZips.has(L.zip)&&!seenKeys.has(k)){L.status='Off market';L.goneOn=today;rep.updated++}}
+  /* the true count, before the cap: each ZIP's latest sold download replaces its old count (a stray row or two from a neighbouring ZIP doesn't) */
+  for(const [zz,v] of Object.entries(fz)){const old=R.flipZ[zz];if(!old||v.s>=20||v.s>=old.s)R.flipZ[zz]={s:v.s,c:v.c,at:today}}
   /* keep the strongest flip candidates per metro */
   const byM={};for(const [k,c] of Object.entries(R.cands))(byM[c.metro]=byM[c.metro]||[]).push([k,c]);
   for(const list of Object.values(byM)){list.sort((a,b)=>(b[1].prem||0)-(a[1].prem||0));for(const [k] of list.slice(RS_CAND_CAP))delete R.cands[k]}
@@ -94,11 +97,17 @@ async function rsImportFiles(files){
   if(!tot.forSale&&!tot.sold){toast(tot.outside?'Those listings aren’t in your starred metros. Star the metro first, or download its ZIPs.':'No listings found in that file. Use Redfin’s “Download All”.',6200);return}
   toast(`Read ${tot.forSale} for sale and ${tot.sold} sold. ${tot.added} new listings watched${tot.cands?`, ${tot.cands} new flip candidates`:''}.${tot.outside?` ${tot.outside} were outside your metros.`:''}`,6200);
 }
+/* flips found in his sold downloads for a metro: total (not capped) and per 100 sales in the last year */
+function rsFlips(key){
+  const R=rsSt();let s=0,c=0,n=0;
+  for(const [z,v] of Object.entries(R.flipZ)){const o=DISC.byZip[z];if(!o||o.mk!==key)continue;s+=v.s;c+=v.c;n++}
+  return n&&s?{sales:s,found:c,per100:c/s*100,zips:n}:null;
+}
 function rsSummary(key){
   const R=rsSt();const L=Object.values(R.listings).filter(x=>x.metro===key);const C=Object.values(R.cands).filter(x=>x.metro===key);
   const by=s=>L.filter(x=>x.status===s).length;
   const dtp=L.filter(x=>x.pendingOn&&x.listedOn).map(x=>(new Date(x.pendingOn)-new Date(x.listedOn))/864e5);
-  return {n:L.length,active:by('Active'),pending:by('Pending'),sold:by('Sold'),gone:by('Off market'),cuts:L.filter(x=>x.price<x.list0).length,dtp:dtp.length?median(dtp):null,cands:C.length,comp:R.comp[key]};
+  return {n:L.length,active:by('Active'),pending:by('Pending'),sold:by('Sold'),gone:by('Off market'),cuts:L.filter(x=>x.price<x.list0).length,dtp:dtp.length?median(dtp):null,cands:C.length,flip:rsFlips(key),comp:R.comp[key]};
 }
 
 /* ---- Maya counts the "we buy houses" companies ---- */
@@ -310,12 +319,12 @@ function mkResearchCard(R){
   const ms=rsMetros();const busy=state.busy['rs-wb'];const n=esc(negName());const st=rsSt();
   const head=`<div class="card-head"><span class="ci teal">${ico('download')}</span><div><h2>Research pack</h2><p>Fills your research workbook from public data, so week 1 takes hours instead of days</p></div></div>`;
   if(!ms.length)return `<section class="card" id="mk-research">${head}<div class="note">Star 2–5 metros (${ico('star')} in the table above). The research pack fills your workbook for those metros.</div></section>`;
-  const rows=ms.map(t=>{const s=rsSummary(t.key);return `<tr><td><b>${esc(mkLabel(t.key))}</b></td><td class="r tnum">${rsZipsFor(t.key).length}</td><td class="r tnum">${s.n||'—'}${s.n?`<div class="xs muted">${s.active} active · ${s.pending} pending · ${s.sold} sold${s.gone?` · ${s.gone} gone`:''}</div>`:''}</td><td class="r tnum">${s.dtp!=null?Math.round(s.dtp)+'d':'—'}</td><td class="r tnum">${s.cuts||'—'}</td><td class="r tnum">${s.cands||'—'}</td><td class="r tnum">${s.comp?`${s.comp.n}<div class="xs muted">${new Date(s.comp.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>`:'—'}</td></tr>`}).join('');
+  const rows=ms.map(t=>{const s=rsSummary(t.key);return `<tr><td><b>${esc(mkLabel(t.key))}</b></td><td class="r tnum">${rsZipsFor(t.key).length}</td><td class="r tnum">${s.n||'—'}${s.n?`<div class="xs muted">${s.active} active · ${s.pending} pending · ${s.sold} sold${s.gone?` · ${s.gone} gone`:''}</div>`:''}</td><td class="r tnum">${s.dtp!=null?Math.round(s.dtp)+'d':'—'}</td><td class="r tnum">${s.cuts||'—'}</td><td class="r tnum">${s.flip?`${s.cands} <span class="muted">of ${s.flip.found}</span><div class="xs muted">${s.flip.per100<10?s.flip.per100.toFixed(1):Math.round(s.flip.per100)} per 100 sales</div>`:(s.cands||'—')}</td><td class="r tnum">${s.comp?`${s.comp.n}<div class="xs muted">${new Date(s.comp.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>`:'—'}</td></tr>`}).join('');
   const last=st.imports[0];
   const cands=ms.map(t=>{const C=Object.values(st.cands).filter(c=>c.metro===t.key).sort((a,b)=>b.prem-a.prem).slice(0,10);if(!C.length)return '';
     return `<p class="small" style="margin:8px 0 4px"><b>${esc(mkLabel(t.key))}</b></p><ul class="rs-cands">${C.map(c=>`<li>${c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.addr)}</a>`:esc(c.addr)} <span class="muted">· ${c.zip} · built ${c.year||'?'} · sold ${moneyK(c.soldPrice)} (${rsDay(c.soldOn)}) · ${Math.round(c.prem*100)}% above the ZIP’s $/sqft</span></li>`).join('')}</ul>`}).join('');
   return `<section class="card" id="mk-research">${head}
-  <div class="tbl-wrap"><table class="tbl rs-tbl"><thead><tr><th>Metro</th><th class="r">ZIPs</th><th class="r">Listings watched</th><th class="r">Days to pending</th><th class="r">Price cuts</th><th class="r">Flip candidates</th><th class="r">“We buy houses”</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="tbl-wrap"><table class="tbl rs-tbl"><thead><tr><th>Metro</th><th class="r">ZIPs</th><th class="r">Listings watched</th><th class="r">Days to pending</th><th class="r">Price cuts</th><th class="r" title="Kept for you to check, of all the flips found in your Sold downloads. Per 100 sales: how many of every 100 houses sold in the last year look like flips.">Flip candidates</th><th class="r">“We buy houses”</th></tr></thead><tbody>${rows}</tbody></table></div>
   <div class="rs-steps">
     <div class="rs-step"><h3><span class="rs-n">1</span>Your workbook</h3>
       <p class="small">First time: <b>Download workbook</b>. After that, use <b>Update my workbook</b>: pick your file, then save the updated copy over it. Light-blue cells came from here. Change a row’s Source/Notes cell and it’s never overwritten.</p>
