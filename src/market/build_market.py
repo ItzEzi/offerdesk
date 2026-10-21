@@ -390,10 +390,18 @@ def main():
     except Exception as e:
         print('census data skipped:', e)
         census = {'failed': str(e)[:900]}
+    # second opinions on the Redfin numbers (Zillow home values, Realtor.com listings)
+    try:
+        import build_crosscheck
+        x = build_crosscheck.main(OUT, zips=set(latest_all))
+        crosscheck = {'file': 'crosscheck.json', 'rows': len(x['rows']), 'zhviMonth': x['zhviMonth'], 'realtorMonth': x['realtorMonth'], 'status': x['status']}
+    except Exception as e:
+        print('crosscheck skipped:', e)
+        crosscheck = {'failed': str(e)[:400]}
     with open(os.path.join(OUT, 'index.json'), 'w') as f:
         json.dump({'updated': now, 'redfinUpdated': upd, 'periodEnd': period_end, 'metroWeekEnd': wk, 'propertyType': PTYPE, 'source': 'Redfin Data Center',
                    'zipCount': sum(v['count'] for v in files.values()), 'files': files,
-                   'discover': {'file': 'discover.json', 'rows': len(disc['rows']), 'sources': disc['sources']}, 'census': census}, f, separators=(',', ':'))
+                   'discover': {'file': 'discover.json', 'rows': len(disc['rows']), 'sources': disc['sources']}, 'census': census, 'crosscheck': crosscheck}, f, separators=(',', ':'))
     print('states:', len(files), 'zips:', sum(v['count'] for v in files.values()), 'period end:', period_end, 'redfin updated:', upd, 'metro week end:', wk)
 
 if __name__ == '__main__':
