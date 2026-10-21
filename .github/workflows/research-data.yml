@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: 'research/run.py job: probe, wprdc, philly, fhfa, oews'
+        description: 'research/run.py job(s), comma-separated: probe, wprdc, philly, fhfa, oews'
         required: true
         default: 'probe'
 
@@ -34,7 +34,8 @@ jobs:
             git --work-tree=out checkout -q origin/research-data -- . || true
           fi
       - name: Run ${{ inputs.job }}
-        run: python research/run.py "${{ inputs.job }}" out
+        run: |
+          for j in $(echo "${{ inputs.job }}" | tr ',' ' '); do python research/run.py "$j" out; done
       - name: Publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
