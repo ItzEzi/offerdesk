@@ -98,13 +98,31 @@ def wprdc_resource(name_hint, pkg):
                 return r
     return j['result']['resources'][0]
 
+WPRDC_SALES_IDS = ['5bbe6c55-bce6-4edb-9d04-68edeb6bf7b1']
+
+def open_retry(urls, tries=4):
+    import time
+    err = []
+    for i in range(tries):
+        for u in urls:
+            try:
+                return u, get(u, 1800)
+            except Exception as e:
+                err.append('%s: %s' % (u, e))
+        time.sleep(20 * (i + 1))
+    raise RuntimeError('; '.join(err[-6:]))
+
 def job_wprdc(out):
     """Allegheny County deed records: real flips by municipality, 2024-01 onward."""
-    pkg = os.environ.get('WPRDC_SALES_PKG', 'real-estate-sales')
-    r = wprdc_resource('', pkg)
-    url = 'https://data.wprdc.org/datastore/dump/%s' % r['id'] if r.get('datastore_active') else r['url']
-    log('sales resource', r['id'], r.get('name'), url)
-    rd = csv.DictReader(io.TextIOWrapper(get(url, 1800), encoding='utf-8-sig', newline=''))
+    urls = ['https://data.wprdc.org/datastore/dump/%s' % i for i in WPRDC_SALES_IDS]
+    try:
+        r = wprdc_resource('', os.environ.get('WPRDC_SALES_PKG', 'real-estate-sales'))
+        urls.insert(0, 'https://data.wprdc.org/datastore/dump/%s' % r['id'] if r.get('datastore_active') else r['url'])
+    except Exception as e:
+        log('package_show failed, using known resource id:', e)
+    url, fh = open_retry(urls)
+    log('sales url', url)
+    rd = csv.DictReader(io.TextIOWrapper(fh, encoding='utf-8-sig', newline=''))
     head = rd.fieldnames; log('columns', head)
     sales, codes = [], collections.Counter()
     since_load = datetime.date(2021, 1, 1)
@@ -135,7 +153,7 @@ def carto(q):
 
 def job_philly(out):
     """Philadelphia deed transfers (OpenDataPhilly RTT summary): real flips by ZIP since 2024."""
-    q = ("select opa_account_num, display_date, total_consideration, zip_code, document_type from rtt_summary "
+    q = ("select opa_account_num, display_date, total_consideration, zip_code, document_type, grantees from rtt_summary "
          "where display_date >= '2021-01-01' and document_type = 'DEED' and total_consideration >= 1000 and opa_account_num is not null")
     url = 'https://phl.carto.com/api/v2/sql?' + urllib.parse.urlencode({'q': q, 'format': 'csv'})
     rows = list(csv.DictReader(io.TextIOWrapper(get(url, 1800), encoding='utf-8-sig', newline='')))
@@ -144,9 +162,16 @@ def job_philly(out):
     for r in rows:
         d = pdate(str(r.get('display_date'))); p = num(r.get('total_consideration'))
         if d and p:
-            sales.append({'parcel': r['opa_account_num'], 'date': d, 'price': p, 'zip': str(r.get('zip_code') or '')[:5]})
+            g = (r.get('grantees') or '').upper()
+            sales.append({'parcel': r['opa_account_num'], 'date': d, 'price': p, 'zip': str(r.get('zip_code') or '')[:5],
+                          'company': any(w in g for w in (' LLC', ' INC', ' L L C', 'CORP', ' LP', 'HOLDINGS', 'PROPERTIES', 'INVESTMENT', 'TRUST', 'REALTY', 'CAPITAL', 'HOMES'))})
     since = datetime.date(2024, 1, 1)
-    res = {'rows': len(rows), 'since': str(since), 'byZip': flips_from_sales(sales, 'zip', since=since),
+    comp = collections.defaultdict(lambda: [0, 0])
+    for s_ in sales:
+        if s_['date'] >= since:
+            comp[s_['zip']][0] += 1; comp[s_['zip']][1] += s_['company']
+    companyShare = {z: {'sales': a, 'companyBuyers': b, 'share': round(100 * b / a, 1)} for z, (a, b) in comp.items() if a >= 20}
+    res = {'rows': len(rows), 'since': str(since), 'byZip': flips_from_sales(sales, 'zip', since=since), 'companyBuyersByZip': companyShare,
            'city': flips_from_sales([dict(s, all='Philadelphia') for s in sales], 'all', since=since)}
     json.dump(res, open(os.path.join(out, 'philly_flips.json'), 'w'), default=str)
 
