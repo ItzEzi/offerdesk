@@ -47,7 +47,7 @@ def flips_from_sales(sales, group_key, min_price=10000, max_days=548, min_gain=0
     byp = collections.defaultdict(list)
     for s in sales:
         byp[s['parcel']].append(s)
-    groups = collections.defaultdict(lambda: {'sales': 0, 'flips': 0, 'buy': [], 'sell': [], 'days': [], 'margin': [], 'gain': []})
+    groups = collections.defaultdict(lambda: {'sales': 0, 'flips': 0, 'loss': 0, 'buy': [], 'sell': [], 'days': [], 'margin': [], 'gain': []})
     for s in sales:
         if since and s['date'] < since:
             continue
@@ -66,6 +66,7 @@ def flips_from_sales(sales, group_key, min_price=10000, max_days=548, min_gain=0
                 continue
             m = b['price'] / a['price'] - 1
             if m <= min_gain:
+                groups[b[group_key]]['loss'] += 1   # bought and resold quickly for less: a losing (or non-flip) resale
                 continue
             g = groups[b[group_key]]
             g['flips'] += 1; g['buy'].append(a['price']); g['sell'].append(b['price']); g['days'].append(d); g['margin'].append(m); g['gain'].append(b['price'] - a['price'])
@@ -73,7 +74,9 @@ def flips_from_sales(sales, group_key, min_price=10000, max_days=548, min_gain=0
     for k, g in groups.items():
         out[k] = {'sales': g['sales'], 'flips': g['flips'], 'flipRate': round(100 * g['flips'] / g['sales'], 1) if g['sales'] else None,
                   'medBuy': med(g['buy']), 'medSell': med(g['sell']), 'medDays': med(g['days']),
-                  'medMargin': round(100 * med(g['margin']), 1) if g['margin'] else None, 'medGain': med(g['gain'])}
+                  'medMargin': round(100 * med(g['margin']), 1) if g['margin'] else None, 'medGain': med(g['gain']),
+                  'quickLosses': g['loss'], 'lossShare': round(100 * g['loss'] / (g['loss'] + g['flips']), 1) if g['loss'] + g['flips'] else None,
+                  'p25Margin': round(100 * sorted(g['margin'])[len(g['margin']) // 4], 1) if len(g['margin']) >= 8 else None}
     return out
 
 # ---------------- jobs ----------------
