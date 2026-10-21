@@ -51,11 +51,15 @@ def flips_from_sales(sales, group_key, min_price=10000, max_days=548, min_gain=0
     for s in sales:
         if since and s['date'] < since:
             continue
+        if not s.get('market', True):
+            continue
         groups[s[group_key]]['sales'] += 1
     for p, ss in byp.items():
         ss.sort(key=lambda s: s['date'])
         for a, b in zip(ss, ss[1:]):
             if since and b['date'] < since:
+                continue
+            if not b.get('market', True):
                 continue
             d = (b['date'] - a['date']).days
             if d < 30 or d > max_days or a['price'] < min_price:
@@ -126,16 +130,18 @@ def job_wprdc(out):
     head = rd.fieldnames; log('columns', head)
     sales, codes = [], collections.Counter()
     since_load = datetime.date(2021, 1, 1)
+    # purchase side: anything that changed hands for money (sheriff, bank, estate, not-yet-analyzed included);
+    # resale side: market sales only. Gifts, quit claims, corrective deeds, multi-parcel and corporate transfers are out.
+    NOT_SALE = {'3', '36', '99', 'H', '35', '13', '27', '16'}
+    MARKET = {'0', 'AA', '14', 'U', 'UR', 'Z', '28', 'ND', 'DT', '37', 'BK', 'N', '9'}
     for row in rd:
-        codes[(row.get('SALECODE') or '').strip() + '|' + (row.get('SALEDESC') or '').strip()] += 1
+        code = (row.get('SALECODE') or '').strip().upper()
+        codes[code + '|' + (row.get('SALEDESC') or '').strip()] += 1
         d = pdate(row.get('SALEDATE')); p = num(row.get('PRICE'))
-        if not d or not p or d < since_load or p < 1000:
+        if not d or not p or d < since_load or p < 1000 or code in NOT_SALE:
             continue
-        desc = (row.get('SALEDESC') or '').upper()
-        if desc and 'VALID' not in desc and 'OTHER' not in desc:
-            continue   # keep arm's-length style sales only
         sales.append({'parcel': row.get('PARID'), 'date': d, 'price': p, 'muni': (row.get('MUNIDESC') or '').strip(), 'zip': (row.get('PROPERTYZIP') or '').strip()[:5],
-                      'school': (row.get('SCHOOLDESC') or '').strip()})
+                      'school': (row.get('SCHOOLDESC') or '').strip(), 'market': code in MARKET, 'code': code})
     log('sales kept', len(sales))
     since = datetime.date(2024, 1, 1)
     res = {'source': url, 'columns': head, 'saleCodes': codes.most_common(40), 'since': str(since),
@@ -145,7 +151,10 @@ def job_wprdc(out):
     # price bands of the first sale
     for s in sales:
         s['band'] = 'under 50K' if s['price'] < 50000 else '50-100K' if s['price'] < 100000 else '100-150K' if s['price'] < 150000 else '150-250K' if s['price'] < 250000 else '250K+'
-    res['byBuyBand'] = flips_from_sales(sales, 'band', since=since)
+    res['byResaleBand'] = flips_from_sales(sales, 'band', since=since)
+    for s in sales:
+        s['area'] = 'Pittsburgh city' if 'PITTSBURGH' in s['muni'].upper() else 'Suburbs'
+    res['cityVsSuburbs'] = flips_from_sales(sales, 'area', since=since)
     json.dump(res, open(os.path.join(out, 'allegheny_flips.json'), 'w'), default=str)
 
 def carto(q):
