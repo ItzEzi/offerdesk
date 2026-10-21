@@ -172,7 +172,7 @@ function rsFill(wb){
         let r=xRows(zws,8,107).find(r=>xs(zws.getCell('B'+r))===o.z&&xs(zws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
         if(r&&!xs(zws.getCell('Q'+r)).startsWith(RS_TAG)){rep.zipsLocked++;continue}
         if(!r){r=xFirstEmpty(zws,8,107,['A','B']);if(!r){rep.warn.push('The ZIPs tab is full (100 rows).');break}}
-        const vals={A:label,B:o.z,C:o.city||'',D:o.price,E:o.sold,F:o.active,G:o.dom,H:o.stl!=null?o.stl/100:null,I:o.above!=null?o.above/100:null,J:o.priceYoy!=null?o.priceYoy/100:null,
+        const vals={A:label,B:o.z,C:o.city||'',D:o.price,E:o.sold,F:o.inv,G:o.dom,H:o.stl!=null?o.stl/100:null,I:o.above!=null?o.above/100:null,J:o.priceYoy!=null?o.priceYoy/100:null,
           K:mkRent(o),L:o.yb,M:o.own1,N:o.rent1,O:o.inc,Q:srcText};
         for(const [c,v] of Object.entries(vals))xSet(zws.getCell(c+r),v);
         rep.zips++;

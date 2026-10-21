@@ -37,7 +37,7 @@ function zipFood(o,D){
   const newMo=o.newl!=null?o.newl/3:o.sold!=null?o.sold/3*1.15:null;
   const off=o.off2w!=null?o.off2w:(moff[o.mk]!=null?moff[o.mk]:moff['']);
   const left=newMo!=null&&off!=null?newMo*(1-off/100):null;
-  const cut=o.active!=null&&o.pdPct!=null?o.active*o.pdPct/100:null;
+  const cut=o.inv!=null&&o.pdPct!=null?o.inv*o.pdPct/100:null;
   return {newMo,off,left,cut,estOff:o.off2w==null};
 }
 const exitOf=o=>wavg([[lin(o.dom,90,25),1],[o.mos==null?null:o.mos<=4?1:1-lin(o.mos,4,8),1],[lin(o.stl,92,99),1]],.34);
