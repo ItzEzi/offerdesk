@@ -45,13 +45,15 @@ async function loadDiscover(){
   DISC.loading=(async()=>{
     const idx=await marketIndex();const f=idx&&idx.discover&&idx.discover.file;
     if(!f){DISC.err=idx?'The market data job hasn’t published the national table yet. It runs every Wednesday.':'Couldn’t reach the market data. Check your connection and reload.';return null}
-    const cf=idx.census&&idx.census.file;
-    const [j,wk,cz]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?mktFetch(cf+'?v='+encodeURIComponent(idx.updated||'')):null]);
+    const cf=idx.census&&idx.census.file,xf=idx.crosscheck&&idx.crosscheck.file;
+    const [j,wk,cz,cx]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?mktFetch(cf+'?v='+encodeURIComponent(idx.updated||'')):null,xf?mktFetch(xf+'?v='+encodeURIComponent(idx.updated||'')).catch(()=>null):null]);
     if(!j||!Array.isArray(j.rows)){DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}
     const C=j.cols;const rows=[];const byZip={};
     for(const r of j.rows){const o={};for(let i=0;i<C.length;i++)o[C[i]]=r[i];o.metro=j.metros[o.mi]||'';o.mk=o.metro||'~'+o.st;byZip[o.z]=o;if(o.price)rows.push(o)}
     DISC.data={...j,rows};DISC.byZip=byZip;DISC.weekly=wk&&wk.metros||{};
     try{joinCensus(cz,byZip)}catch(e){console.warn('census',e)}
+    /* second opinion from Zillow: typical home value and its 12-month change (not skewed by which houses sold) */
+    try{if(cx&&Array.isArray(cx.rows)&&Array.isArray(cx.cols)){const iz=cx.cols.indexOf('zhvi'),iy=cx.cols.indexOf('zhviYoy');for(const r of cx.rows){const o=byZip[r[0]];if(!o)continue;if(iz>=0)o.zhvi=r[iz];if(iy>=0)o.zhviYoy=r[iy]}DISC.zhviMonth=cx.zhviMonth||null}}catch(e){console.warn('crosscheck',e)}
     return DISC.data;
   })().catch(()=>{DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}).finally(()=>{DISC.loading=null;render()});
   return DISC.loading;

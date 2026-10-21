@@ -1245,7 +1245,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261021-2012';
+const APP_V='20261022-0109';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -4226,13 +4226,15 @@ async function loadDiscover(){
   DISC.loading=(async()=>{
     const idx=await marketIndex();const f=idx&&idx.discover&&idx.discover.file;
     if(!f){DISC.err=idx?'The market data job hasn’t published the national table yet. It runs every Wednesday.':'Couldn’t reach the market data. Check your connection and reload.';return null}
-    const cf=idx.census&&idx.census.file;
-    const [j,wk,cz]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?mktFetch(cf+'?v='+encodeURIComponent(idx.updated||'')):null]);
+    const cf=idx.census&&idx.census.file,xf=idx.crosscheck&&idx.crosscheck.file;
+    const [j,wk,cz,cx]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?mktFetch(cf+'?v='+encodeURIComponent(idx.updated||'')):null,xf?mktFetch(xf+'?v='+encodeURIComponent(idx.updated||'')).catch(()=>null):null]);
     if(!j||!Array.isArray(j.rows)){DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}
     const C=j.cols;const rows=[];const byZip={};
     for(const r of j.rows){const o={};for(let i=0;i<C.length;i++)o[C[i]]=r[i];o.metro=j.metros[o.mi]||'';o.mk=o.metro||'~'+o.st;byZip[o.z]=o;if(o.price)rows.push(o)}
     DISC.data={...j,rows};DISC.byZip=byZip;DISC.weekly=wk&&wk.metros||{};
     try{joinCensus(cz,byZip)}catch(e){console.warn('census',e)}
+    /* second opinion from Zillow: typical home value and its 12-month change (not skewed by which houses sold) */
+    try{if(cx&&Array.isArray(cx.rows)&&Array.isArray(cx.cols)){const iz=cx.cols.indexOf('zhvi'),iy=cx.cols.indexOf('zhviYoy');for(const r of cx.rows){const o=byZip[r[0]];if(!o)continue;if(iz>=0)o.zhvi=r[iz];if(iy>=0)o.zhviYoy=r[iy]}DISC.zhviMonth=cx.zhviMonth||null}}catch(e){console.warn('crosscheck',e)}
     return DISC.data;
   })().catch(()=>{DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}).finally(()=>{DISC.loading=null;render()});
   return DISC.loading;
@@ -4908,10 +4910,11 @@ function rsZipsFor(key,n){
   const zs=m?m.zips.slice():Object.values(DISC.byZip).filter(o=>o.mk===key&&o.price).sort((a,b)=>(b.sold||0)-(a.sold||0));
   return zs.slice(0,n||rsZipsPer());
 }
-/* metro-level county jobs and population, weighted by sales across all its ZIPs */
+/* county jobs and population for the ZIPs he is researching (weighted by sales), not the whole metro:
+   a metro's booming suburbs can hide a shrinking city where the cheap houses are */
 function rsMetroFacts(key){
-  let wj=0,sj=0,wp=0,sp=0;
-  for(const o of Object.values(DISC.byZip)){if(o.mk!==key)continue;const w=Math.max(1,o.sold||1);const j=jobOf(o);if(j!=null){sj+=j*w;wj+=w}if(o.cPopG!=null){sp+=o.cPopG*w;wp+=w}}
+  let wj=0,sj=0,wp=0,sp=0;const zs=rsZipsFor(key);
+  for(const o of (zs.length?zs:Object.values(DISC.byZip).filter(o=>o.mk===key))){const w=Math.max(1,o.sold||1);const j=jobOf(o);if(j!=null){sj+=j*w;wj+=w}if(o.cPopG!=null){sp+=o.cPopG*w;wp+=w}}
   return {job:wj?sj/wj:null,popG:wp?sp/wp:null};
 }
 const rsDay=d=>{const x=d?new Date(d):new Date();return isNaN(x)?null:x.toISOString().slice(0,10)};
@@ -5108,7 +5111,7 @@ function rsFill(wb){
   const rep={metros:0,zips:0,zipsLocked:0,listings:0,listingsNew:0,cands:0,comp:0,warn:[]};
   const R=rsSt();const ms=rsMetros();const today=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()));
   const src=DISC.data&&DISC.data.sources||{};const cm=CENS.meta||{};
-  const srcText=`${RS_TAG}: Redfin 3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}`;
+  const srcText=`${RS_TAG}: Redfin 3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}${DISC.zhviMonth?` · home value Zillow ${DISC.zhviMonth}`:''}`;
   const sheet=n=>wb.getWorksheet(n);
   rep.pruned=rsPrune(wb,new Set(ms.map(t=>mkLabel(t.key).toLowerCase())));
   /* Metros */
@@ -5119,8 +5122,7 @@ function rsFill(wb){
       const label=mkLabel(t.key);let r=xRows(mws,8,end).find(r=>xs(mws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
       if(!r){r=xFirstEmpty(mws,8,end,['A']);if(!r){rep.warn.push(`No room for ${label} in the Metros tab (${end-7} metros max). Un-star one.`);continue}xSet(mws.getCell('A'+r),label);rep.metros++}
       const f=rsMetroFacts(t.key);
-      if(!xs(mws.getCell('T'+r))&&f.job!=null)xSet(mws.getCell('T'+r),Math.round(f.job*10)/1000);
-      if(!xs(mws.getCell('U'+r))&&f.popG!=null)xSet(mws.getCell('U'+r),Math.round(f.popG*10)/1000);
+      for(const [c,v] of [['T',f.job],['U',f.popG]]){const cell=mws.getCell(c+r);if(v!=null&&(!xs(cell)||xAuto(cell)))xSet(cell,Math.round(v*10)/1000)}
     }
   }
   /* ZIPs */
@@ -5132,7 +5134,7 @@ function rsFill(wb){
         let r=xRows(zws,8,107).find(r=>xs(zws.getCell('B'+r))===o.z&&xs(zws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
         if(r&&!xs(zws.getCell('Q'+r)).startsWith(RS_TAG)){rep.zipsLocked++;continue}
         if(!r){r=xFirstEmpty(zws,8,107,['A','B']);if(!r){rep.warn.push('The ZIPs tab is full (100 rows).');break}}
-        const vals={A:label,B:o.z,C:o.city||'',D:o.price,E:o.sold,F:o.inv,G:o.dom,H:o.stl!=null?o.stl/100:null,I:o.above!=null?o.above/100:null,J:o.priceYoy!=null?o.priceYoy/100:null,
+        const vals={A:label,B:o.z,C:o.city||'',D:o.price,E:o.sold,F:o.inv,G:o.dom,H:o.stl!=null?o.stl/100:null,I:o.above!=null?o.above/100:null,J:o.zhviYoy!=null?o.zhviYoy/100:o.priceYoy!=null?o.priceYoy/100:null,
           K:mkRent(o),L:o.yb,M:o.own1,N:o.rent1,O:o.inc,Q:srcText};
         for(const [c,v] of Object.entries(vals))xSet(zws.getCell(c+r),v);
         rep.zips++;

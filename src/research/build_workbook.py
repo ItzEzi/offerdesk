@@ -75,7 +75,7 @@ def note(ws, cell, text):
 
 # ============================ Start Here ============================
 ws = wb.active; ws.title = 'Start Here'
-ws['Z1'] = 'OfferDesk workbook v3'; ws['Z1'].font = font('FFFFFF', size=8)   # version marker: OfferDesk upgrades older workbooks on update
+ws['Z1'] = 'OfferDesk workbook v4'; ws['Z1'].font = font('FFFFFF', size=8)   # version marker: OfferDesk upgrades older workbooks on update
 ws.sheet_view.showGridLines = False
 ws.column_dimensions['A'].width = 4
 ws.column_dimensions['B'].width = 34
@@ -185,7 +185,7 @@ title(zs, 'ZIPs', 'One row per ZIP. Click the links on the right, copy the numbe
 zcols = [
     ('Metro', 20, 'in', 't'), ('ZIP', 8, 'in', 't'), ('City', 14, 'in', 't'),
     ('Median sale price ($)', 12, 'in', '$'), ('Homes sold, last 3 mo', 9, 'in', 'n'), ('Active listings now', 9, 'in', 'n'),
-    ('Median days on market', 9, 'in', 'n'), ('Sale-to-list', 8, 'in', '%'), ('Sold above list', 8, 'in', '%'), ('Price change, 1 yr', 8, 'in', '%'),
+    ('Median days on market', 9, 'in', 'n'), ('Sale-to-list', 8, 'in', '%'), ('Sold above list', 8, 'in', '%'), ('Home value change, 1 yr (Zillow)', 9, 'in', '%'),
     ('Typical rent, 3-bed ($/mo)', 10, 'in', '$'),
     ('Median year built', 8, 'in', 'yr'), ('Owner-occupied single-family homes (B25032 line 3)', 12, 'in', 'n'), ('Rented single-family homes (B25032 line 14)', 12, 'in', 'n'),
     ('Median household income ($)', 11, 'in', '$'),
@@ -216,6 +216,7 @@ for c in (24, 25, 26):
         zs.cell(row=r, column=c).font = font('0563C1', underline='single')
 zs.freeze_panes = zs.cell(row=Z0, column=3)
 note(zs, 'H7', 'Average sale price ÷ list price. 0.98 = homes sell for 98% of asking. Type 98% or 0.98.')
+note(zs, 'J7', 'Change in Zillow\'s typical home value over 12 months. Not the change in median sale price: that jumps when many renovated flips sell, even if a typical house is worth the same.')
 note(zs, 'R7', 'Active listings ÷ monthly sales. Under 3 = homes go fast (sellers\' market). Over 6 = slow (buyers\' market).')
 note(zs, 'T7', 'Rented single-family ÷ all occupied single-family homes. Most rented houses are owned by investors, so a high or rising share means more investors already here.')
 note(zs, 'V7', 'Flips you found in the last 12 months ÷ (3-month sales × 4). A rough flip rate. The US average is about 8%. Only meaningful once you have searched the sales history properly.')
@@ -467,7 +468,7 @@ P = lambda col: f"{PF}!${col}${P0}:${col}${P1}"
 C = lambda col: f"Calls!${col}${C0}:${col}${C1}"
 mcols = [('Metro (exact same name in every tab)', 20, 'in', 't'),
          ('ZIPs researched', 8, 'link', 'n'), ('Typical median price ($)', 11, 'link', '$'), ('Sales, last 3 mo (your ZIPs)', 9, 'link', 'n'),
-         ('Avg days on market', 8, 'link', 'n'), ('Avg price change, 1 yr', 8, 'link', '%'), ('Avg rent yield', 8, 'link', '%'), ('Avg share of houses rented out', 9, 'link', '%'),
+         ('Avg days on market', 8, 'link', 'n'), ('Avg home value change, 1 yr', 8, 'link', '%'), ('Avg rent yield', 8, 'link', '%'), ('Avg share of houses rented out', 9, 'link', '%'),
          ('Flips found, 12 mo', 8, 'link', 'n'), ('Flips as % of sales (est.)', 9, 'calc', '%'), ('Avg est. flip profit (% of resale)', 9, 'link', '%'),
          ('Listings watched', 8, 'link', 'n'), ('Avg days to pending', 8, 'link', 'n'), ('Share with a price cut', 8, 'link', '%'),
          ('Calls logged', 7, 'link', 'n'), ('Avg competition from calls (1–5)', 9, 'link', 'n1'), ('Avg renovated 3-bed price, calls ($)', 11, 'link', '$'), ('Avg cosmetic rehab $/sqft, calls', 9, 'link', '$'),

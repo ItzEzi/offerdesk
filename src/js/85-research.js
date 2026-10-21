@@ -16,10 +16,11 @@ function rsZipsFor(key,n){
   const zs=m?m.zips.slice():Object.values(DISC.byZip).filter(o=>o.mk===key&&o.price).sort((a,b)=>(b.sold||0)-(a.sold||0));
   return zs.slice(0,n||rsZipsPer());
 }
-/* metro-level county jobs and population, weighted by sales across all its ZIPs */
+/* county jobs and population for the ZIPs he is researching (weighted by sales), not the whole metro:
+   a metro's booming suburbs can hide a shrinking city where the cheap houses are */
 function rsMetroFacts(key){
-  let wj=0,sj=0,wp=0,sp=0;
-  for(const o of Object.values(DISC.byZip)){if(o.mk!==key)continue;const w=Math.max(1,o.sold||1);const j=jobOf(o);if(j!=null){sj+=j*w;wj+=w}if(o.cPopG!=null){sp+=o.cPopG*w;wp+=w}}
+  let wj=0,sj=0,wp=0,sp=0;const zs=rsZipsFor(key);
+  for(const o of (zs.length?zs:Object.values(DISC.byZip).filter(o=>o.mk===key))){const w=Math.max(1,o.sold||1);const j=jobOf(o);if(j!=null){sj+=j*w;wj+=w}if(o.cPopG!=null){sp+=o.cPopG*w;wp+=w}}
   return {job:wj?sj/wj:null,popG:wp?sp/wp:null};
 }
 const rsDay=d=>{const x=d?new Date(d):new Date();return isNaN(x)?null:x.toISOString().slice(0,10)};
@@ -216,7 +217,7 @@ function rsFill(wb){
   const rep={metros:0,zips:0,zipsLocked:0,listings:0,listingsNew:0,cands:0,comp:0,warn:[]};
   const R=rsSt();const ms=rsMetros();const today=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()));
   const src=DISC.data&&DISC.data.sources||{};const cm=CENS.meta||{};
-  const srcText=`${RS_TAG}: Redfin 3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}`;
+  const srcText=`${RS_TAG}: Redfin 3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}${DISC.zhviMonth?` · home value Zillow ${DISC.zhviMonth}`:''}`;
   const sheet=n=>wb.getWorksheet(n);
   rep.pruned=rsPrune(wb,new Set(ms.map(t=>mkLabel(t.key).toLowerCase())));
   /* Metros */
@@ -227,8 +228,7 @@ function rsFill(wb){
       const label=mkLabel(t.key);let r=xRows(mws,8,end).find(r=>xs(mws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
       if(!r){r=xFirstEmpty(mws,8,end,['A']);if(!r){rep.warn.push(`No room for ${label} in the Metros tab (${end-7} metros max). Un-star one.`);continue}xSet(mws.getCell('A'+r),label);rep.metros++}
       const f=rsMetroFacts(t.key);
-      if(!xs(mws.getCell('T'+r))&&f.job!=null)xSet(mws.getCell('T'+r),Math.round(f.job*10)/1000);
-      if(!xs(mws.getCell('U'+r))&&f.popG!=null)xSet(mws.getCell('U'+r),Math.round(f.popG*10)/1000);
+      for(const [c,v] of [['T',f.job],['U',f.popG]]){const cell=mws.getCell(c+r);if(v!=null&&(!xs(cell)||xAuto(cell)))xSet(cell,Math.round(v*10)/1000)}
     }
   }
   /* ZIPs */
@@ -240,7 +240,7 @@ function rsFill(wb){
         let r=xRows(zws,8,107).find(r=>xs(zws.getCell('B'+r))===o.z&&xs(zws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
         if(r&&!xs(zws.getCell('Q'+r)).startsWith(RS_TAG)){rep.zipsLocked++;continue}
         if(!r){r=xFirstEmpty(zws,8,107,['A','B']);if(!r){rep.warn.push('The ZIPs tab is full (100 rows).');break}}
-        const vals={A:label,B:o.z,C:o.city||'',D:o.price,E:o.sold,F:o.inv,G:o.dom,H:o.stl!=null?o.stl/100:null,I:o.above!=null?o.above/100:null,J:o.priceYoy!=null?o.priceYoy/100:null,
+        const vals={A:label,B:o.z,C:o.city||'',D:o.price,E:o.sold,F:o.inv,G:o.dom,H:o.stl!=null?o.stl/100:null,I:o.above!=null?o.above/100:null,J:o.zhviYoy!=null?o.zhviYoy/100:o.priceYoy!=null?o.priceYoy/100:null,
           K:mkRent(o),L:o.yb,M:o.own1,N:o.rent1,O:o.inc,Q:srcText};
         for(const [c,v] of Object.entries(vals))xSet(zws.getCell(c+r),v);
         rep.zips++;
