@@ -459,7 +459,7 @@ ks.freeze_panes = ks.cell(row=K0, column=2)
 # ============================ Metros ============================
 ms = wb.create_sheet('Metros', 1)
 title(ms, 'Metros', 'Your candidate metros side by side. Most columns fill themselves from the other tabs. Set your own weights in row 6; the score compares your metros to each other.')
-M0, M1 = 8, 13
+M0, M1 = 8, 17
 Z = lambda col: f"ZIPs!${col}${Z0}:${col}${Z1}"
 L = lambda col: f"{LW}!${col}${L0}:${col}${L1}"
 P = lambda col: f"{PF}!${col}${P0}:${col}${P1}"

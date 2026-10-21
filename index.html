@@ -1245,7 +1245,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261021-1822';
+const APP_V='20261021-1903';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -5038,18 +5038,74 @@ function rsClearExamples(wb){
     const row=ws.getRow(8);row.eachCell({includeEmpty:false},c=>{if(c.formula||(c.value&&typeof c.value==='object'&&'formula' in c.value))return;c.value=null});
   }
 }
+const RS_IN_FILL={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF2CC'}};
+const xArgb=c=>{const f=c&&c.style&&c.style.fill;return f&&f.fgColor&&f.fgColor.argb?String(f.fgColor.argb).toUpperCase().slice(-6):''};
+const xAuto=c=>xArgb(c)==='DDEBF7';
+const xIsF=c=>{if(c.type===6)return true;const v=c.value;return !!(v&&typeof v==='object'&&('formula' in v||'sharedFormula' in v))};
+const xEmpty=c=>{const v=c.value;return v==null||v===''};
+/* last metro row in the Metros tab (the Ready check table starts 3 rows below it) */
+function rsMetroEnd(ws){for(let r=8;r<=80;r++){if(xs(ws.getCell('A'+r)).startsWith('Ready check'))return r-3}return 13}
+/* Rows OfferDesk filled for metros he un-starred: clear them, unless he typed something in the row himself. */
+function rsPrune(wb,keep){
+  const gone=new Set(),kept=new Set();
+  for(const [name,to0] of [['Metros',0],['ZIPs',107],['Listing Watch',307],['Flip Candidates',207],['Competition',207]]){
+    const ws=wb.getWorksheet(name);if(!ws)continue;
+    const end=to0||rsMetroEnd(ws);
+    for(let r=8;r<=end;r++){
+      const label=xs(ws.getCell('A'+r));if(!label||keep.has(label.toLowerCase()))continue;
+      const row=ws.getRow(r);let auto=0,mine=0;
+      row.eachCell({includeEmpty:false},(c,col)=>{if(xEmpty(c)||xIsF(c))return;if(xAuto(c))auto++;else if(col!==1)mine++});
+      const ready=name==='Metros'?['B','E','H'].map(k=>ws.getCell(k+(end+5+r-8))):[];
+      if(ready.some(c=>!xEmpty(c)&&!xIsF(c)))mine++;
+      if(!auto)continue;/* a metro he typed in himself: not ours to remove */
+      if(mine){kept.add(label);continue}
+      row.eachCell({includeEmpty:false},c=>{if(xIsF(c))return;const a=xAuto(c);c.value=null;if(a)c.style=Object.assign({},c.style,{fill:RS_IN_FILL})});
+      gone.add(label);
+    }
+  }
+  return {gone:[...gone],kept:[...kept]};
+}
+/* Older workbook (Metros fits fewer rows, or a tab is missing): move everything he has into the current template. */
+async function rsTemplate(X){
+  const r=await fetch(RS_TPL+'?v='+encodeURIComponent(typeof APP_V!=='undefined'?APP_V:''),{cache:'no-cache'}).catch(()=>null);if(!r||!r.ok)return null;
+  const wb=new X.Workbook();await wb.xlsx.load(await r.arrayBuffer());rsClearExamples(wb);return wb;
+}
+function rsNeedsUpgrade(old,tpl){
+  const a=old.getWorksheet('Metros'),b=tpl.getWorksheet('Metros');if(!a||!b)return false;
+  return rsMetroEnd(a)!==rsMetroEnd(b)||tpl.worksheets.some(w=>!old.getWorksheet(w.name));
+}
+function rsUpgrade(old,tpl){
+  for(const ws of old.worksheets){
+    let t=tpl.getWorksheet(ws.name);const fresh=!t;
+    if(fresh){t=tpl.addWorksheet(ws.name);for(let i=1;i<=ws.columnCount;i++){const w=ws.getColumn(i).width;if(w)t.getColumn(i).width=w}}
+    const at=ws.name==='Metros'?rsMetroEnd(ws)+3:Infinity,by=ws.name==='Metros'?rsMetroEnd(t)-rsMetroEnd(ws):0;
+    ws.eachRow({includeEmpty:false},(row,r)=>{
+      const tr=r>=at?r+by:r;
+      row.eachCell({includeEmpty:false},(c,col)=>{
+        if(xEmpty(c))return;const d=t.getCell(tr,col);
+        if(!fresh&&xIsF(d))return;/* the template's formula wins */
+        if(!fresh&&!xEmpty(d)&&xArgb(d)!=='FFF2CC')return;/* headers and labels: keep the new ones */
+        if(xIsF(c)){const fx=c.formula;if(!fx)return;d.value={formula:fx}}else d.value=c.value;
+        if(fresh)d.style=c.style;else if(xAuto(c)||xArgb(c)==='FFF2CC')d.style=Object.assign({},d.style,{fill:c.style.fill});
+      });
+    });
+  }
+  return tpl;
+}
 function rsFill(wb){
   const rep={metros:0,zips:0,zipsLocked:0,listings:0,listingsNew:0,cands:0,comp:0,warn:[]};
   const R=rsSt();const ms=rsMetros();const today=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()));
   const src=DISC.data&&DISC.data.sources||{};const cm=CENS.meta||{};
   const srcText=`${RS_TAG}: Redfin 3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}`;
   const sheet=n=>wb.getWorksheet(n);
+  rep.pruned=rsPrune(wb,new Set(ms.map(t=>mkLabel(t.key).toLowerCase())));
   /* Metros */
   const mws=sheet('Metros');
   if(mws){
+    const end=rsMetroEnd(mws);
     for(const t of ms){
-      const label=mkLabel(t.key);let r=xRows(mws,8,13).find(r=>xs(mws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
-      if(!r){r=xFirstEmpty(mws,8,13,['A']);if(!r){rep.warn.push(`No room for ${label} in the Metros tab (6 metros max).`);continue}mws.getCell('A'+r).value=label;rep.metros++}
+      const label=mkLabel(t.key);let r=xRows(mws,8,end).find(r=>xs(mws.getCell('A'+r)).toLowerCase()===label.toLowerCase());
+      if(!r){r=xFirstEmpty(mws,8,end,['A']);if(!r){rep.warn.push(`No room for ${label} in the Metros tab (${end-7} metros max). Un-star one.`);continue}xSet(mws.getCell('A'+r),label);rep.metros++}
       const f=rsMetroFacts(t.key);
       if(!xs(mws.getCell('T'+r))&&f.job!=null)xSet(mws.getCell('T'+r),Math.round(f.job*10)/1000);
       if(!xs(mws.getCell('U'+r))&&f.popG!=null)xSet(mws.getCell('U'+r),Math.round(f.popG*10)/1000);
@@ -5119,9 +5175,10 @@ async function rsWorkbook(file){
   state.busy['rs-wb']={label:file?'Updating your workbook…':'Building your workbook…'};render();
   try{
     let X;try{X=await loadExcelJS()}catch(e){toast('Couldn’t load the Excel tools. Check your connection and try again.',5200);return}
-    const wb=new X.Workbook();
+    let wb=new X.Workbook();let upgraded=false;
     if(file){try{await wb.xlsx.load(await file.arrayBuffer())}catch(e){console.warn(e);toast('That file couldn’t be opened. Pick the .xlsx research workbook. If it still fails, open it in Excel or Google Sheets, save it, and try again.',7000);return}
-      if(!wb.getWorksheet('ZIPs')||!wb.getWorksheet('Metros')){toast('That isn’t the research workbook (it has no ZIPs and Metros tabs).',5200);return}}
+      if(!wb.getWorksheet('ZIPs')||!wb.getWorksheet('Metros')){toast('That isn’t the research workbook (it has no ZIPs and Metros tabs).',5200);return}
+      const tpl=await rsTemplate(X);if(tpl&&rsNeedsUpgrade(wb,tpl)){wb=rsUpgrade(wb,tpl);upgraded=true}}
     else{const r=await fetch(RS_TPL+'?v='+encodeURIComponent(typeof APP_V!=='undefined'?APP_V:''),{cache:'no-cache'}).catch(()=>null);if(!r||!r.ok){toast('Couldn’t download the workbook template. Check your connection.',5200);return}
       await wb.xlsx.load(await r.arrayBuffer());rsClearExamples(wb)}
     const rep=rsFill(wb);
@@ -5129,7 +5186,7 @@ async function rsWorkbook(file){
     const name=file?file.name.replace(/\.xlsx$/i,'')+'.xlsx':`Market Research Workbook ${isoDay()}.xlsx`;
     saveFile(name,new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
     const R=rsSt();R.lastWb={at:nowISO(),mode:file?'update':'new',rep};saveResearch(true);
-    toast(`${file?'Updated':'Built'} your workbook: ${rep.zips} ZIPs${rep.zipsLocked?` (${rep.zipsLocked} you edited were left alone)`:''}, ${rep.listings} listings, ${rep.cands} new flip candidates, ${rep.comp} companies.${rep.warn.length?' '+rep.warn[0]:''}`,7000);
+    toast(`${file?'Updated':'Built'} your workbook: ${rep.zips} ZIPs${rep.zipsLocked?` (${rep.zipsLocked} you edited were left alone)`:''}, ${rep.listings} listings, ${rep.cands} new flip candidates, ${rep.comp} companies.${upgraded?' Upgraded it to the newest workbook (room for 10 metros, nothing you typed is lost).':''}${rep.pruned.gone.length?` Removed ${rep.pruned.gone.join(' and ')} (not starred anymore).`:''}${rep.pruned.kept.length?` Kept ${rep.pruned.kept.join(' and ')}: it has rows you typed in.`:''}${rep.warn.length?' '+rep.warn[0]:''}`,9000);
   }catch(e){console.warn(e);toast('Something went wrong building the workbook. Try again.',5200)}
   finally{delete state.busy['rs-wb'];render()}
 }
