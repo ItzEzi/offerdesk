@@ -778,6 +778,22 @@ def job_pasda(out):
         res['_services'] = 'error ' + str(e)[:60]
     json.dump(res, open(os.path.join(out, 'pasda.json'), 'w'), indent=1)
 
+def job_bdagents(out):
+    """BatchData's top-agents pages (public): who sells the most homes in Allegheny and Philadelphia counties."""
+    import re, html as H
+    res = {}
+    for c in ('pa-allegheny', 'pa-philadelphia', 'pa-lackawanna'):
+        u = 'https://reports.batchdata.io/market-reports/top-agents/2026-07/county/%s/' % c
+        try:
+            t = get(u, 120).read().decode('utf-8', 'replace')
+        except Exception as e:
+            res[c] = 'error ' + str(e)[:60]; continue
+        body = re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S)
+        txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', body)))
+        i = txt.find('Report July 2026')
+        res[c] = {'url': u, 'text': txt[max(0, i - 100): i + 6000]}
+    json.dump(res, open(os.path.join(out, 'bdagents.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
