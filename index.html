@@ -1251,7 +1251,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261023-0106';
+const APP_V='20261023-0140';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1971,7 +1971,7 @@ Reply with only JSON:
 }
 const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
 
-Put up to 2 URLs that show each property (listing pages, Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Skip unsubscribe, social media, calendar and "upgrade" links. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
+Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Skip unsubscribe, social media, calendar and "upgrade" links. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
 
 Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
@@ -2678,17 +2678,17 @@ async function extractDeals(text,meta,busyKey,quiet){
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example)byKey[dealKey(o)]=o;
+  const made=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
     /* the same house in tomorrow's alert: update it instead of adding a copy */
-    const old=x.address?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
+    const old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
-      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false});
+      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false,linksOnly:list.length>1});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -2696,17 +2696,19 @@ async function extractDeals(text,meta,busyKey,quiet){
     logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
   }
   render();
-  /* deep research costs money: only deals at or under his research price cap (0 = all) */
-  const capR=+((state.settings.research||{}).maxPrice)||0;
-  if(state.settings.research&&state.settings.research.auto&&aiOn())made.filter(id=>{const d=state.deals[id];const p=d&&curList(d);return !capR||p==null||p<=capR}).forEach(queueResearch);
-  return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,w};
+  /* open each deal's links first (address, numbers, Drive photos), then research the ones at or under his buy box */
+  const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
+  made.forEach(afterNewDeal);
+  return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
 /* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
 function pullSummary(rs){
   const ok=rs.filter(r=>r&&!r.err);const add=ok.reduce((a,r)=>a+(r.deals||[]).length,0),upd=ok.reduce((a,r)=>a+(r.updated||0),0),over=ok.reduce((a,r)=>a+(r.over||0),0);
   const none=ok.filter(r=>!(r.deals||[]).length&&!r.updated).length;const bad=rs.filter(r=>r&&r.err);
   const parts=[];
+  const lk=ok.reduce((a,r)=>a+(r.linking||0),0);
   if(add)parts.push(`Added ${add} deal${add>1?'s':''}`+(over?` (${over} asking over ${moneyK(boxCap())}, tucked under the “Over ${moneyK(boxCap())}” button)`:''));
+  if(lk)parts.push(`${negName()} is opening the links to fill in ${lk===1?'the missing address or numbers':`missing details on ${lk} of them`}`);
   if(upd)parts.push(`${upd} already in OfferDesk, updated`);
   if(none)parts.push(`${none} email${none>1?'s':''} had no property in ${none>1?'them':'it'}`);
   if(bad.length)parts.push(`${bad.length} couldn’t be read: ${String(bad[0].err).replace(/[.\s]+$/,'')}`);
@@ -3152,7 +3154,7 @@ function viewDeal(){
   const dm=dom(d);
   const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${zipDom(d)?`<span class="bchip">ZIP median ${zipDom(d)} days</span>`:''}${dealTarget(d)?`<span class="bchip good">${ico('target')}Target market</span>`:''}${d.campaign&&state.campaigns[d.campaign.id]?`<a class="bchip" href="#campaigns" data-act="cp-open" data-id="${d.campaign.id}">${ico('send')}${esc(state.campaigns[d.campaign.id].name)}</a>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
-  const main=[historyCard(d),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
+  const main=[historyCard(d),linkCard(d),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
   return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${mayaPanel(d,c)}</aside></div></div>`;
 }
 function overviewCard(d,c){
@@ -3664,7 +3666,9 @@ const SKIP_LINK=/unsubscribe|optout|opt-out|manage.?preferences|facebook\.com|in
 function dealLinks(d){
   const set=new Set();const add=u=>{u=String(u||'').trim().replace(/[)>.,;]+$/,'');if(/^https?:\/\/\S+$/i.test(u)&&!SKIP_LINK.test(u)&&u.length<500)set.add(u)};
   (d.links||[]).forEach(add);if(d.listingUrl)add(d.listingUrl);
-  const first=(d.thread||[]).find(t=>t.dir==='in');if(first)(String(first.text||'').match(/https?:\/\/[^\s"'<>]+/g)||[]).forEach(add);
+  /* the email's other links only when the email was about this one house (an alert listing 8 houses has 8 houses' links) */
+  const multi=d.linksOnly||(d.seenMsgIds||[]).some(id=>((state.mail.emails[id]||{}).dealIds||[]).length>1);
+  const first=(d.thread||[]).find(t=>t.dir==='in');if(first&&!multi)(String(first.text||'').match(/https?:\/\/[^\s"'<>]+/g)||[]).forEach(add);
   return [...set].filter(u=>!/\.(jpe?g|png|webp|gif)(\?|$)/i.test(u)).slice(0,6);
 }
 function promptResearch(d,ctx){
@@ -3698,20 +3702,111 @@ Finish with only this JSON (no text after it):
 "redFlags":["..."],"couldNotOpen":["urls you could not read"],
 "summary":"three or four plain sentences for the investor: is this worth pursuing and why"}`;
 }
-async function openLinks(id,links){
-  const d=state.deals[id];const pages=[],blocked=[];let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos};
+const LINKCACHE=new Map();
+async function openLinks(id,links,opts){
+  opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[];let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess};
   for(const u of links.slice(0,5)){
-    let r;try{r=await bridge('fetch_url',{url:u})}catch(e){blocked.push(u);continue}
-    if(r.kind==='blocked'){blocked.push(u);continue}
+    let r;const hit=LINKCACHE.get(u);
+    if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});if(r.kind!=='blocked')LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
+    if(r.kind==='blocked'){blocked.push(u);if(r.status==='drive_no_access')noAccess.push(u);continue}
     if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){
-      const blobs=[];for(const im of r.images.slice(0,Math.max(0,16-photoCount(state.deals[id])))){try{const x=await bridge('drive_image',{id:im.id});if(x.data)blobs.push(b64ToBlob(x.data,x.type))}catch(e){}}
+      /* each Drive photo only once, even when research opens the same folder later */
+      const dd=state.deals[id];const seen=new Set(dd.driveSeen||[]);const todo=r.images.filter(im=>!seen.has(im.id)).slice(0,Math.max(0,16-photoCount(dd)));
+      const blobs=[];for(const im of todo){try{const x=await bridge('drive_image',{id:im.id});if(x.data){blobs.push(b64ToBlob(x.data,x.type));seen.add(im.id)}}catch(e){}}
+      if(state.deals[id])state.deals[id].driveSeen=[...seen].slice(-200);
       if(blobs.length)photos+=await addPhotoBlobs(id,blobs,'link');continue}
     if(r.kind==='image'){photos+=addPhotoUrls(id,[u]);continue}
     if(r.kind==='page'){if(r.text)pages.push({url:u,title:r.title||'',text:r.text});
       const imgs=(r.images||[]).filter(x=>!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis/i.test(x));
-      if(imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
+      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
   }
-  return {pages,blocked,photos};
+  return {pages,blocked,photos,noAccess};
+}
+/* ================= opening a new deal's links right away =================
+   Alert and wholesaler emails often leave things out (no street address, no ARV) and link to the property page or a Google Drive
+   photo folder instead. Maya opens those links through the Gmail script (it follows tracking redirects and can open Drive folders
+   shared with you or with anyone who has the link), pulls the photos, and fills in what the email left out from the page. */
+function hasStreet(d){const s=streetOf(d&&d.address);return /^\d+[a-z]?(-\d+)?\s+\S/i.test(s)&&!/unknown/i.test(s)}
+const missingInfo=d=>!hasStreet(d)||curList(d)==null||!/^\d{5}/.test(String(d.zip||''))||d.beds==null||d.sqft==null||d.arv==null;
+const P_LINKPAGE=(d,pages)=>`A wholesaler or deal-alert email linked to these pages about a property. Fill in what the email left out, using only what the pages actually say. Use null for anything not on the pages. Numbers are plain numbers in dollars or square feet. If a page shows several properties, use only the one that matches the email (same city, ZIP, price or details); if none clearly matches, set "samePropertyAsEmail" to false.
+
+What the email gave: ${JSON.stringify({address:d.address,city:d.city,state:d.state,zip:d.zip,asking:curList(d),arv:d.arv,rehab:d.rehab,beds:d.beds,baths:d.baths,sqft:d.sqft,year:d.year})}
+
+Reply with only JSON: {"samePropertyAsEmail":true|false,"address":"street address with the house number, or null","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"occupancy":"vacant|occupied|unknown","description":"one or two sentences on condition and the pitch, or null","photoLinks":["direct image URLs of this house, at most 12"]}
+
+${pages.map(p=>`Page: ${p.url}\nTitle: ${p.title}\n"""${String(p.text||'').slice(0,14000)}"""`).join('\n\n')}`;
+function applyLinkPage(d,j,src){
+  const filled=[];const num=k=>parseNum(j[k]);
+  const street=String(j.address||'').trim();
+  if(!hasStreet(d)&&hasStreet({address:street})){d.address=street;filled.push('address')}
+  if(!d.city&&j.city){d.city=String(j.city);filled.push('city')}
+  if(!/^\d{5}/.test(String(d.zip||''))&&/^\d{5}/.test(String(j.zip||''))){d.zip=String(j.zip).slice(0,5);filled.push('ZIP')}
+  if(!d.state)d.state=String(j.state||'').trim().toUpperCase().slice(0,2)||zipState(d.zip)||'';
+  if(/^\d{5}/.test(String(d.zip||''))&&zipState(d.zip)&&d.state!==zipState(d.zip)&&filled.includes('ZIP'))d.state=zipState(d.zip);
+  const ask=num('asking');if(curList(d)==null&&ask){d.listPrice=ask;d.priceHistory=[{date:nowISO(),price:ask}];d.wsClaims=Object.assign({},d.wsClaims,{asking:ask});filled.push('price')}
+  const arv=num('arv');if(d.arv==null&&arv){d.arv=arv;d.arvSource='wholesaler';d.wsClaims=Object.assign({},d.wsClaims,{arv});filled.push('ARV')}
+  const reh=num('rehab');if(d.rehab==null&&reh){d.rehab=reh;d.wsClaims=Object.assign({},d.wsClaims,{rehab:reh});filled.push('repairs')}
+  for(const [k,l] of [['beds','beds'],['baths','baths'],['sqft','sq ft'],['lotSqft','lot'],['year','year built'],['rent','rent']]){const v=num(k);if(d[k]==null&&v!=null){d[k]=v;filled.push(l)}}
+  if(!d.description&&j.description){d.description=String(j.description);filled.push('description')}
+  if(['vacant','occupied'].includes(j.occupancy)&&!(d.wsClaims||{}).occupancy)d.wsClaims=Object.assign({},d.wsClaims,{occupancy:j.occupancy});
+  const ph=(Array.isArray(j.photoLinks)?j.photoLinks:[]).map(String).filter(u=>/^https:\/\//i.test(u)&&!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|staticmap/i.test(u));
+  const n=ph.length?addPhotoUrls(d.id,ph.slice(0,12)):0;if(n)filled.push(n+' photo'+(n>1?'s':''));
+  return filled;
+}
+async function fillFromLinks(id,quiet){
+  const d=state.deals[id];if(!d||d.example)return null;
+  const links=dealLinks(d);
+  if(!links.length){d.linkFill={at:nowISO(),none:true};saveDeal(d,true);return d.linkFill}
+  if(!gmailOn()){d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
+  if(state.busy['links:'+id])return null;
+  state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
+  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:!quiet})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
+  let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
+  if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
+  if(got.pages.length&&missingInfo(dd)&&aiOn()){
+    const res=await runAI('links:'+id,`${negName()} is reading the property page…`,(ai,signal)=>ai.json(P_LINKPAGE(dd,got.pages),{signal,modelTier:'quick',maxTokens:2500}),true);
+    dd=state.deals[id];if(!dd)return null;
+    if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
+  }
+  dd.linkFill={at:nowISO(),opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  saveDeal(dd,true);
+  if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
+  render();
+  if(!quiet)toast(filled.length?`Filled in from the link: ${filled.join(', ')}.`:got.noAccess.length?'That Google Drive folder isn’t shared with you. Ask the wholesaler to share it.':got.pages.length?'Opened the link, but it didn’t add anything new.':'Couldn’t open the links (the site may block robots).',5200);
+  return dd.linkFill;
+}
+/* what happened when Maya opened the links, on the deal page (empty when there is nothing to say) */
+function linkCard(d){
+  if(d.example)return '';const lf=d.linkFill||{};const links=dealLinks(d);const n=esc(negName());const busy=state.busy['links:'+d.id];
+  const short=u=>esc(String(u).replace(/^https?:\/\/(www\.)?/,'').slice(0,48));const out=[];
+  const btn=label=>links.length?`<button class="btn sm" data-act="fill-links" ${busy||!aiOn()?'disabled':''}>${ico('link')}${label}</button>`:'';
+  if(!hasStreet(d))out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links and fill it in')}</div>`);
+  if(lf.pending&&!gmailOn())out.push(`<div class="note amber">Connect Gmail (Connect → Gmail) so ${n} can open this deal’s links. She opens them through your Gmail script.</div>`);
+  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the link: ${lf.filled.map(esc).join(', ')}.</div>`);
+  if(lf.other)out.push(`<p class="xs muted">The page showed a different house, so nothing was copied from it.</p>`);
+  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”, then press Try the links again.</div>`);
+  if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
+  if(!out.length&&!busy)return '';
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div>${hasStreet(d)&&links.length&&lf.at?`<div class="ch-r">${btn('Open again')}</div>`:''}</div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+}
+/* after a deal comes in: open its links first, then research (so research has the address) */
+const LQ={list:[],running:false};
+function afterNewDeal(id){
+  const d=state.deals[id];if(!d)return;
+  const capR=boxCap();const p=curList(d);const inBox=!capR||p==null||p<=capR;
+  if(inBox&&dealLinks(d).length&&!d.linkFill){if(WORKER.on||!gmailOn()){d.linkFill={pending:true};saveDeal(d,true);return}
+    if(!LQ.list.includes(id))LQ.list.push(id);drainLinks();return}
+  maybeResearch(id);
+}
+function maybeResearch(id){const d=state.deals[id];if(!d||d.research)return;const capR=boxCap();const p=curList(d);
+  if(state.settings.research&&state.settings.research.auto&&aiOn()&&(!capR||p==null||p<=capR))queueResearch(id)}
+async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();if(state.deals[id]){await fillFromLinks(id,true);maybeResearch(id)}}}finally{LQ.running=false}}
+/* deals the 24/7 worker brought in, and older deals still missing a street address: open their links on this device */
+function resumeLinks(){
+  if(WORKER.on||!gmailOn()||!aiOn())return;
+  for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d))continue;
+    const lf=d.linkFill;if((lf&&lf.pending)||(!lf&&!hasStreet(d)&&dealLinks(d).length)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}}
+  drainLinks();
 }
 async function researchDeal(id,quiet){
   const d=state.deals[id];if(!d)return;if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return}
@@ -5801,6 +5896,7 @@ A['comps-parse']=async()=>{const d=D();const t=(state.drafts['comps-text']||'').
   state.drafts['comps-text']='';state.compsPaste=false;saveDeal(dd);toast(`Added ${rows.length} comp${rows.length>1?'s':''}`)};
 A.deep=el=>aiDeep(el.dataset.id||state.dealId);
 A.research=()=>{const d=D();if(d)researchDeal(d.id)};
+A['fill-links']=()=>{const d=D();if(d)fillFromLinks(d.id)};
 A['ask-photos']=()=>{const d=D();if(d)askPhotosDraft(d.id)};
 A['hist-add-toggle']=()=>{state.histAdd=!state.histAdd;state.histPaste=false;render()};
 A['hist-paste-toggle']=()=>{state.histPaste=!state.histPaste;state.histAdd=false;render()};
@@ -6102,6 +6198,7 @@ async function boot(){
   state.loaded=true;route();
   if(cloudOn()){if(linked)toast('Linked. Pulling your desk from the cloud…',4000);cloudSync().then(ok=>{if(linked)toast(ok?'Your desk is here. This device now stays in sync.':'Couldn’t reach the cloud yet. It will keep trying.',4600)})}
   setTimeout(()=>tick(false),2500);
+  setTimeout(()=>{try{resumeLinks()}catch(e){}},6000);
   setInterval(()=>tick(false),3*60*1000);
   setInterval(()=>{if(document.visibilityState==='visible'&&cloudOn())cloudSync()},60*1000);
   checkUpdate();setInterval(checkUpdate,5*60*1000);

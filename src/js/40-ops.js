@@ -71,17 +71,17 @@ async function extractDeals(text,meta,busyKey,quiet){
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example)byKey[dealKey(o)]=o;
+  const made=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
     /* the same house in tomorrow's alert: update it instead of adding a copy */
-    const old=x.address?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
+    const old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
-      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false});
+      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false,linksOnly:list.length>1});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -89,17 +89,19 @@ async function extractDeals(text,meta,busyKey,quiet){
     logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
   }
   render();
-  /* deep research costs money: only deals at or under his research price cap (0 = all) */
-  const capR=+((state.settings.research||{}).maxPrice)||0;
-  if(state.settings.research&&state.settings.research.auto&&aiOn())made.filter(id=>{const d=state.deals[id];const p=d&&curList(d);return !capR||p==null||p<=capR}).forEach(queueResearch);
-  return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,w};
+  /* open each deal's links first (address, numbers, Drive photos), then research the ones at or under his buy box */
+  const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
+  made.forEach(afterNewDeal);
+  return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
 /* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
 function pullSummary(rs){
   const ok=rs.filter(r=>r&&!r.err);const add=ok.reduce((a,r)=>a+(r.deals||[]).length,0),upd=ok.reduce((a,r)=>a+(r.updated||0),0),over=ok.reduce((a,r)=>a+(r.over||0),0);
   const none=ok.filter(r=>!(r.deals||[]).length&&!r.updated).length;const bad=rs.filter(r=>r&&r.err);
   const parts=[];
+  const lk=ok.reduce((a,r)=>a+(r.linking||0),0);
   if(add)parts.push(`Added ${add} deal${add>1?'s':''}`+(over?` (${over} asking over ${moneyK(boxCap())}, tucked under the “Over ${moneyK(boxCap())}” button)`:''));
+  if(lk)parts.push(`${negName()} is opening the links to fill in ${lk===1?'the missing address or numbers':`missing details on ${lk} of them`}`);
   if(upd)parts.push(`${upd} already in OfferDesk, updated`);
   if(none)parts.push(`${none} email${none>1?'s':''} had no property in ${none>1?'them':'it'}`);
   if(bad.length)parts.push(`${bad.length} couldn’t be read: ${String(bad[0].err).replace(/[.\s]+$/,'')}`);

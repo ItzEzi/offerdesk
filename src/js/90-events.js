@@ -75,6 +75,7 @@ A['comps-parse']=async()=>{const d=D();const t=(state.drafts['comps-text']||'').
   state.drafts['comps-text']='';state.compsPaste=false;saveDeal(dd);toast(`Added ${rows.length} comp${rows.length>1?'s':''}`)};
 A.deep=el=>aiDeep(el.dataset.id||state.dealId);
 A.research=()=>{const d=D();if(d)researchDeal(d.id)};
+A['fill-links']=()=>{const d=D();if(d)fillFromLinks(d.id)};
 A['ask-photos']=()=>{const d=D();if(d)askPhotosDraft(d.id)};
 A['hist-add-toggle']=()=>{state.histAdd=!state.histAdd;state.histPaste=false;render()};
 A['hist-paste-toggle']=()=>{state.histPaste=!state.histPaste;state.histAdd=false;render()};
@@ -376,6 +377,7 @@ async function boot(){
   state.loaded=true;route();
   if(cloudOn()){if(linked)toast('Linked. Pulling your desk from the cloud…',4000);cloudSync().then(ok=>{if(linked)toast(ok?'Your desk is here. This device now stays in sync.':'Couldn’t reach the cloud yet. It will keep trying.',4600)})}
   setTimeout(()=>tick(false),2500);
+  setTimeout(()=>{try{resumeLinks()}catch(e){}},6000);
   setInterval(()=>tick(false),3*60*1000);
   setInterval(()=>{if(document.visibilityState==='visible'&&cloudOn())cloudSync()},60*1000);
   checkUpdate();setInterval(checkUpdate,5*60*1000);
