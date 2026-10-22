@@ -1251,7 +1251,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261023-0038';
+const APP_V='20261023-0052';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1457,6 +1457,9 @@ function route(){
 window.addEventListener('hashchange',route);
 
 /* ================= deal helpers ================= */
+/* buy box: emailed deals asking more than his cap are kept but tucked away (hidden by default, not researched, not counted as new) */
+const boxCap=()=>+((state.settings.research||{}).maxPrice)||0;
+const overBox=d=>{const c=boxCap();if(!c||!d||d.source!=='wholesaler'||d.example||d.starred||d.favorite||!['new','sent'].includes(d.stage||'new'))return false;const p=curList(d);return p!=null&&p>c};
 function curList(d){const h=d.priceHistory||[];return h.length?h[h.length-1].price:(d.listPrice??null)}
 function origList(d){const h=d.priceHistory||[];return h.length?h[0].price:(d.listPrice??null)}
 const priceDropped=d=>(d.priceHistory||[]).length>1&&curList(d)<origList(d);
@@ -1703,7 +1706,7 @@ function counts(){
     reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
     draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
     follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
-    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed).length,
+    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)).length,
     newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
     live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
     contract:ds.filter(d=>d.stage==='contract').length,
@@ -2922,7 +2925,7 @@ function viewDashboard(){
     if(d.draft&&!['dead','closed'].includes(d.stage))todo.push({d,c:d.needsYou?'orange':'purple',pri:d.needsYou?0:1,label:d.needsYou?`${negName()} needs your OK: ${d.needsYou}`:`Draft ready: ${ACTION_LABEL[d.draft.action||d.draft.kind]||'message'}${d.draft.price!=null?' at '+money(d.draft.price):''}`,btn:'Review'});
     else if(replyWaiting(d))todo.push({d,c:'blue',pri:0,label:`Reply waiting · ${(ins(d).slice(-1)[0]||{}).channel==='sms'?'text':'email'} ${ago(lastAt(ins(d)))}${d.autopilot&&state.settings.auto.enabled?` · ${negName()} will answer`:''}`,btn:`Ask ${negName()}`});
     const f=followDue(d);if(f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled))todo.push({d,c:'amber',pri:2,label:`Follow-up #${f.step+1} due · no reply in ${daysSince(lastAt(outs(d)))} days`,btn:'Draft follow-up'});
-    if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed)todo.push({d,c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
+    if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d))todo.push({d,c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
   }
   todo.sort((a,b)=>(a.d.example?1:0)-(b.d.example?1:0)||a.pri-b.pri);
   const todoHTML=todo.length?`<div class="todo">${todo.slice(0,12).map(t=>`<div class="todo-row${t.d.example?' is-ex':''}">${thumbHTML(t.d)}<div class="what"><b>${esc(streetOf(t.d.address)||'Untitled deal')}${t.d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="small"><span class="tag ${t.c}">${esc(t.label)}</span></span></div><button class="btn sm ${t.pri===0?'primary':''}" data-act="open" data-id="${t.d.id}">${esc(t.btn)}</button></div>`).join('')}</div>`:`<div class="note green">Nothing needs you right now. ${state.settings.auto.enabled?`${n} is working the pipeline.`:'Turn on autopilot and '+n+' works the pipeline for you.'}</div>`;
@@ -2973,7 +2976,7 @@ const SPECIAL=[
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(zipDom(d)||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
-  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}]];
+  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}],['over','Emailed deals over your buy box',d=>overBox(d)]];
 function listFilter(){
   const f=state.lf;const q=f.q.trim().toLowerCase();
   return Object.values(state.deals).filter(d=>{
@@ -2987,6 +2990,7 @@ function listFilter(){
     if(f.state!=='all'&&(d.state||'')!==f.state)return false;
     if(f.autopilot!=='all'&&(!!d.autopilot)!==(f.autopilot==='on'))return false;
     if(f.price!=='any'){const L=curList(d)||0;const [a,b]=f.price.split('-').map(Number);if(L<a||(b&&L>=b))return false}
+    if(f.special!=='over'&&overBox(d))return false;
     if(f.special!=='all'){const s=SPECIAL.find(x=>x[0]===f.special);if(s&&!s[2](d,calc(d)))return false}
     return true;
   }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
@@ -3064,6 +3068,7 @@ function leadList(){
   const L=state.leads;const q=L.q.trim().toLowerCase();
   return Object.values(state.deals).filter(d=>d.source==='wholesaler').filter(d=>{
     if(!L.showPassed&&d.stage==='dead')return false;
+    if(!L.showOver&&overBox(d))return false;
     if(q&&!([d.address,d.city,d.zip,d.wholesalerName].join(' ').toLowerCase().includes(q)))return false;
     if(L.fav&&!d.favorite)return false;
     if(L.type!=='all'&&(d.propertyType||'single_family')!==L.type)return false;
@@ -3083,8 +3088,8 @@ function viewLeads(){
   const textsHTML=texts.length?`<section class="card"><div class="card-head"><span class="ci teal">${ico('sms')}</span><div><h2>${texts.length} text${texts.length>1?'s':''} from unknown numbers</h2><p>Wholesalers often text deals. Pull them out the same way.</p></div></div><div class="mailbox">${texts.slice(-6).reverse().map(t=>`<div class="mail-row"><div style="min-width:0"><div class="row" style="gap:6px"><b class="tnum">${esc(t.from)}</b><span class="xs muted">${fmtWhen(t.at)}</span></div><div class="snip">${esc(t.body)}</div>${busyHTML('text:'+t.sid,false)}</div><div class="row"><button class="btn sm primary" data-act="text-import" data-id="${esc(t.sid)}">${ico('spark')}Pull out deal</button><button class="btn sm ghost" data-act="text-ignore" data-id="${esc(t.sid)}">Ignore</button></div></div>`).join('')}</div></section>`:'';
   const paste=`<details class="card" ${gmailOn()?'':'open'}><summary>${ico('doc')} Paste an email or text instead</summary><textarea class="input" id="inbox-paste" data-draft rows="5" placeholder="Paste the whole wholesaler email or text blast. ${n} pulls out the address, price, ARV and repair claims, terms and the deadline.">${esc(state.drafts['inbox-paste']||'')}</textarea><div class="row"><button class="btn primary" data-act="inbox-extract">${ico('spark')}Pull out the deal</button>${busyHTML('inbox',false)}</div></details>`;
   const tiles=`<div class="tagtiles">${TAGDEFS.map(t=>`<button class="ttile" data-act="lead-tag" data-v="${t.id}" aria-pressed="${state.leads.tag===t.id}"><span class="ic" style="background:var(--b-${t.c});color:var(--t-${t.c})">${ico(t.icon)}</span><b>${counts[t.id]||0}</b><span>${esc(t.label)}</span></button>`).join('')}</div>`;
-  const favN=all.filter(d=>d.favorite).length;
-  const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
+  const favN=all.filter(d=>d.favorite).length;const overN=all.filter(overBox).length;
+  const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${overN?`<button class="fchip" data-act="lead-over" aria-pressed="${!!state.leads.showOver}" title="Asking more than your buy box (${moneyK(boxCap())}); change it in Connect → Gmail">Over ${moneyK(boxCap())} <span class="cnt">${overN}</span></button>`:''}${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
   const rows=list.map(d=>{const c=calc(d);const tags=dealTags(d);const rent=d.rent||d.rentEst;const v=verdict(d,c);
     const arvSrc=d.arvSource==='maya'?'<span class="tag purple">'+n+'’s est</span>':d.arvSource==='comps'?'<span class="tag green">Comps</span>':d.arvSource==='wholesaler'?'<span class="tag orange">Wholesaler</span>':'';
     return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
@@ -4088,7 +4093,7 @@ function setConn(){
     <label class="check"><input type="checkbox" id="st-autoimport" data-fs="conn.autoImport" data-t="bool" ${S.conn.autoImport?'checked':''}><span>${n} pulls deals out of new wholesaler emails automatically</span></label>
     <label class="field"><span>Which emails count as wholesaler deals (Gmail search, optional)</span><input class="input" id="st-gq" data-fs="conn.gmailQuery" data-t="text" value="${esc(S.conn.gmailQuery)}" placeholder="${esc(buildQuery(true))}" spellcheck="false"></label>
     <p class="small muted">Blank means: your saved wholesalers, anything labeled <b>Wholesalers</b> in Gmail, buyer-list alerts (HouseCashin and similar), listing blasts with beds, baths and square feet, and emails mentioning ARV with assignment or off-market. Tip: make a Gmail filter that labels deal emails “Wholesalers”.</p>
-    <label class="field"><span>${n} researches new emailed deals on her own up to this asking price (0 = every deal; research costs a little each time)</span><input class="input" id="st-rmax" data-fs="research.maxPrice" data-t="num" inputmode="numeric" value="${esc(String(S.research.maxPrice??''))}" placeholder="175000"></label>`:''}
+    <label class="field"><span>Buy box: highest asking price for emailed deals. Deals above it are kept but hidden from Inbox Leads and Listings, and ${n} doesn’t research them (0 = show and research every deal)</span><input class="input" id="st-rmax" data-fs="research.maxPrice" data-t="num" inputmode="numeric" value="${esc(String(S.research.maxPrice??''))}" placeholder="175000"></label>`:''}
     <details id="gm-help" ${gm?'':'open'}><summary>How to connect a Gmail account (5 steps, once per account)</summary><ol class="steps" style="margin-top:8px">
       <li>Sign in to the Gmail you’re connecting (for ${n}’s sending inbox, your <b>company Gmail</b>), then open <a href="https://script.new" target="_blank" rel="noopener">script.new</a>. Name the project <b>OfferDesk Bridge</b>. If you’re signed in to several Google accounts, check the account picker at the top right of Apps Script.</li>
       <li>Delete the sample code and paste this. Your private secret is already filled in; the same code works for every account.<div class="row" style="margin-top:6px"><button class="btn sm" data-act="copy" data-src="bridge-code">${ico('copy')}Copy bridge code</button></div><textarea class="input code" id="bridge-code" readonly rows="4" spellcheck="false" style="margin-top:6px">${esc(code)}</textarea></li>
@@ -5837,6 +5842,7 @@ A['text-import']=async el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.da
   const r=await extractDeals(t.body||'',{phone:t.from,channel:'sms',at:t.at,msgId:t.sid,gvThreadId:t.threadId||null},'text:'+t.sid);if(!r)return;
   t.status=r.deals.length?'imported':'ignored';t.dealIds=r.deals;saveMail();render();toast(r.deals.length?'Deal added':'No property found in that text.')};
 A['text-ignore']=el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.dataset.id);if(t){t.status='ignored';saveMail();render()}};
+A['lead-over']=()=>{state.leads.showOver=!state.leads.showOver;render()};
 A['lead-tag']=el=>{state.leads.tag=state.leads.tag===el.dataset.v?null:el.dataset.v;render()};
 A['lead-fav']=()=>{state.leads.fav=!state.leads.fav;render()};
 A['lead-passed']=()=>{state.leads.showPassed=!state.leads.showPassed;render()};

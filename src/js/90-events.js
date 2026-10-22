@@ -150,6 +150,7 @@ A['text-import']=async el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.da
   const r=await extractDeals(t.body||'',{phone:t.from,channel:'sms',at:t.at,msgId:t.sid,gvThreadId:t.threadId||null},'text:'+t.sid);if(!r)return;
   t.status=r.deals.length?'imported':'ignored';t.dealIds=r.deals;saveMail();render();toast(r.deals.length?'Deal added':'No property found in that text.')};
 A['text-ignore']=el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.dataset.id);if(t){t.status='ignored';saveMail();render()}};
+A['lead-over']=()=>{state.leads.showOver=!state.leads.showOver;render()};
 A['lead-tag']=el=>{state.leads.tag=state.leads.tag===el.dataset.v?null:el.dataset.v;render()};
 A['lead-fav']=()=>{state.leads.fav=!state.leads.fav;render()};
 A['lead-passed']=()=>{state.leads.showPassed=!state.leads.showPassed;render()};

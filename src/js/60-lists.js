@@ -5,7 +5,7 @@ const SPECIAL=[
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(zipDom(d)||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
-  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}]];
+  ['photos','Has photos',d=>photoCount(d)>0],['noarv','Missing ARV',d=>!d.arv],['s80','Deal score 80+',d=>{const S=dealScore(d);return !!S&&S.score>=80}],['reject','Market rejection',d=>{const m=marketSignal(d);return !!m&&m.level==='rejection'}],['over','Emailed deals over your buy box',d=>overBox(d)]];
 function listFilter(){
   const f=state.lf;const q=f.q.trim().toLowerCase();
   return Object.values(state.deals).filter(d=>{
@@ -19,6 +19,7 @@ function listFilter(){
     if(f.state!=='all'&&(d.state||'')!==f.state)return false;
     if(f.autopilot!=='all'&&(!!d.autopilot)!==(f.autopilot==='on'))return false;
     if(f.price!=='any'){const L=curList(d)||0;const [a,b]=f.price.split('-').map(Number);if(L<a||(b&&L>=b))return false}
+    if(f.special!=='over'&&overBox(d))return false;
     if(f.special!=='all'){const s=SPECIAL.find(x=>x[0]===f.special);if(s&&!s[2](d,calc(d)))return false}
     return true;
   }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
@@ -96,6 +97,7 @@ function leadList(){
   const L=state.leads;const q=L.q.trim().toLowerCase();
   return Object.values(state.deals).filter(d=>d.source==='wholesaler').filter(d=>{
     if(!L.showPassed&&d.stage==='dead')return false;
+    if(!L.showOver&&overBox(d))return false;
     if(q&&!([d.address,d.city,d.zip,d.wholesalerName].join(' ').toLowerCase().includes(q)))return false;
     if(L.fav&&!d.favorite)return false;
     if(L.type!=='all'&&(d.propertyType||'single_family')!==L.type)return false;
@@ -115,8 +117,8 @@ function viewLeads(){
   const textsHTML=texts.length?`<section class="card"><div class="card-head"><span class="ci teal">${ico('sms')}</span><div><h2>${texts.length} text${texts.length>1?'s':''} from unknown numbers</h2><p>Wholesalers often text deals. Pull them out the same way.</p></div></div><div class="mailbox">${texts.slice(-6).reverse().map(t=>`<div class="mail-row"><div style="min-width:0"><div class="row" style="gap:6px"><b class="tnum">${esc(t.from)}</b><span class="xs muted">${fmtWhen(t.at)}</span></div><div class="snip">${esc(t.body)}</div>${busyHTML('text:'+t.sid,false)}</div><div class="row"><button class="btn sm primary" data-act="text-import" data-id="${esc(t.sid)}">${ico('spark')}Pull out deal</button><button class="btn sm ghost" data-act="text-ignore" data-id="${esc(t.sid)}">Ignore</button></div></div>`).join('')}</div></section>`:'';
   const paste=`<details class="card" ${gmailOn()?'':'open'}><summary>${ico('doc')} Paste an email or text instead</summary><textarea class="input" id="inbox-paste" data-draft rows="5" placeholder="Paste the whole wholesaler email or text blast. ${n} pulls out the address, price, ARV and repair claims, terms and the deadline.">${esc(state.drafts['inbox-paste']||'')}</textarea><div class="row"><button class="btn primary" data-act="inbox-extract">${ico('spark')}Pull out the deal</button>${busyHTML('inbox',false)}</div></details>`;
   const tiles=`<div class="tagtiles">${TAGDEFS.map(t=>`<button class="ttile" data-act="lead-tag" data-v="${t.id}" aria-pressed="${state.leads.tag===t.id}"><span class="ic" style="background:var(--b-${t.c});color:var(--t-${t.c})">${ico(t.icon)}</span><b>${counts[t.id]||0}</b><span>${esc(t.label)}</span></button>`).join('')}</div>`;
-  const favN=all.filter(d=>d.favorite).length;
-  const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
+  const favN=all.filter(d=>d.favorite).length;const overN=all.filter(overBox).length;
+  const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${overN?`<button class="fchip" data-act="lead-over" aria-pressed="${!!state.leads.showOver}" title="Asking more than your buy box (${moneyK(boxCap())}); change it in Connect → Gmail">Over ${moneyK(boxCap())} <span class="cnt">${overN}</span></button>`:''}${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
   const rows=list.map(d=>{const c=calc(d);const tags=dealTags(d);const rent=d.rent||d.rentEst;const v=verdict(d,c);
     const arvSrc=d.arvSource==='maya'?'<span class="tag purple">'+n+'’s est</span>':d.arvSource==='comps'?'<span class="tag green">Comps</span>':d.arvSource==='wholesaler'?'<span class="tag orange">Wholesaler</span>':'';
     return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
