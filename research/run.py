@@ -855,6 +855,21 @@ BD5 = ['in-saint-joseph', 'in-stjoseph', 'in-st.-joseph', 'in-elkhart', 'in-lapo
        'il-winnebago', 'il-peoria', 'il-will', 'il-kane', 'il-dupage', 'pa-erie', 'ny-broome', 'ny-oneida', 'ny-onondaga', 'ny-erie', 'ny-monroe',
        'wi-milwaukee', 'wi-racine', 'wi-kenosha', 'ia-scott', 'in-vanderburgh']
 
+BD6 = ['in-delaware', 'in-madison', 'in-howard', 'in-vigo', 'in-tippecanoe', 'in-grant', 'in-wayne', 'in-kosciusko', 'in-marshall', 'in-bartholomew',
+       'in-monroe', 'in-hamilton', 'in-hendricks', 'in-johnson', 'in-huntington', 'in-wabash', 'in-miami', 'in-cass', 'in-noble', 'in-dekalb',
+       'in-steuben', 'in-lagrange', 'in-starke', 'in-fulton', 'in-jackson', 'in-lawrence', 'in-henry', 'in-randolph', 'in-blackford', 'in-jay',
+       'in-clinton', 'in-montgomery', 'in-shelby', 'in-hancock', 'in-morgan', 'in-boone', 'in-vanderburgh', 'in-allen', 'in-lake', 'in-porter', 'in-laporte', 'in-elkhart', 'in-marion']
+
+def job_batchdata6(out):
+    """Indiana counties within a few hours of South Bend on BatchData's yardstick (same parser as batchdata5)."""
+    global BD5
+    keep = BD5; BD5 = BD6
+    try:
+        job_batchdata5(out)
+        os.replace(os.path.join(out, 'batchdata5.json'), os.path.join(out, 'batchdata6.json'))
+    finally:
+        BD5 = keep
+
 def job_batchdata5(out):
     """South Bend look-alikes on one yardstick: flips per 100 sales, ROI, days to flip, off-MLS share, corporate-owned (BatchData county pages)."""
     import re, html as H
