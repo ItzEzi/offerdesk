@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261022-0430: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261022-2135: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261022-0430';
+const APP_V='20261022-2135';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -909,8 +909,9 @@ function buildQuery(defaultOnly){
   const c=state.settings.conn;if(!defaultOnly&&c.gmailQuery&&c.gmailQuery.trim())return c.gmailQuery.trim();
   const emails=(state.settings.wholesalers||[]).map(w=>(w.email||'').trim()).filter(Boolean).slice(0,40);
   const parts=['label:wholesalers'];if(emails.length)parts.push('from:('+emails.join(' OR ')+')');
-  parts.push('("ARV" (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers"))');
-  return 'newer_than:14d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
+  parts.push('((ARV OR "after repair value" OR "after-repair value") (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers" OR asking OR rehab OR repairs OR "contract price" OR "buyers list"))');
+  parts.push('("assignment fee" OR "investor special" OR "off market deal" OR "off-market deal" OR "cash buyers only")');
+  return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
 const byUpdated=(a,b)=>String(b.updated).localeCompare(String(a.updated));
@@ -1370,6 +1371,11 @@ function newDeal(o){
   return d;
 }
 function pushMsg(d,m){d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m'),at:nowISO()},m))}
+/* A ZIP's first three digits give its state (USPS ranges), so a deal that only has a ZIP still gets the right state
+   (and the right ZIP market file). homeState() = the state of his first starred target market. */
+const ZIP3=[[5,5,'NY'],[6,9,'PR'],[10,27,'MA'],[28,29,'RI'],[30,38,'NH'],[39,49,'ME'],[50,59,'VT'],[60,69,'CT'],[70,89,'NJ'],[100,149,'NY'],[150,196,'PA'],[197,199,'DE'],[200,205,'DC'],[206,219,'MD'],[220,246,'VA'],[247,268,'WV'],[270,289,'NC'],[290,299,'SC'],[300,319,'GA'],[320,349,'FL'],[350,369,'AL'],[370,385,'TN'],[386,397,'MS'],[398,399,'GA'],[400,427,'KY'],[430,459,'OH'],[460,479,'IN'],[480,499,'MI'],[500,528,'IA'],[530,549,'WI'],[550,567,'MN'],[570,577,'SD'],[580,588,'ND'],[590,599,'MT'],[600,629,'IL'],[630,658,'MO'],[660,679,'KS'],[680,693,'NE'],[700,714,'LA'],[716,729,'AR'],[733,733,'TX'],[730,749,'OK'],[750,799,'TX'],[800,816,'CO'],[820,831,'WY'],[832,838,'ID'],[840,847,'UT'],[850,865,'AZ'],[870,884,'NM'],[885,885,'TX'],[889,898,'NV'],[900,961,'CA'],[967,968,'HI'],[970,979,'OR'],[980,994,'WA'],[995,999,'AK']];
+function zipState(z){const s=String(z||'').match(/\b\d{5}\b/);if(!s)return '';const n=+s[0].slice(0,3);const r=ZIP3.find(([a,b])=>n>=a&&n<=b);return r?r[2]:''}
+function homeState(){try{for(const t of (mkSet().targets||[])){if(t.type==='zip'){const s=zipState(t.key);if(s)return s}else{const k=String(t.key||'');if(k[0]==='~')return k.slice(1,3);const m=k.match(/,\s*([A-Z]{2})\b/);if(m)return m[1]}}}catch(e){}return ''}
 function ensureWholesaler(w){
   if(!w||!(w.email||w.name||w.phone))return;
   const list=state.settings.wholesalers=state.settings.wholesalers||[];
@@ -1417,7 +1423,7 @@ async function extractDeals(text,meta,busyKey,quiet){
   const made=[];
   for(const x of list){
     const asking=parseNum(x.asking);
-    const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:x.state||'TX',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
+    const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false});
@@ -1793,7 +1799,7 @@ async function loadMarketState(st){
   return MKT.loading[st];
 }
 function zipOf(d){const m=String(d.zip||'').match(/\d{5}/)||String(d.address||'').match(/\b(\d{5})(?:-\d{4})?\b\s*$/);return m?m[0].slice(0,5):null}
-function stateOf(d){const s=String(d.state||'').trim().toUpperCase();return /^[A-Z]{2}$/.test(s)?s:null}
+function stateOf(d){const zs=zipState(zipOf(d));if(zs)return zs;const s=String(d.state||'').trim().toUpperCase();return /^[A-Z]{2}$/.test(s)?s:null}
 function marketFor(d){const st=stateOf(d),z=zipOf(d);if(!st||!z)return null;const S=MKT.states[st];if(!S||!S.zips||!S.zips.zips)return null;const Z=S.zips.zips[z];if(!Z)return {none:true,zip:z,state:st,S};
   const metro=Z.metro&&S.metros&&S.metros.metros?S.metros.metros[Z.metro]:null;return {zip:z,state:st,Z,metro,S}}
 async function ensureMarket(d){if(!d)return;const st=stateOf(d);if(!st||MKT.states[st])return;const r=await loadMarketState(st);if(r){const m=marketFor(d);if(m&&m.Z&&m.Z.l&&m.Z.l.dom!=null&&d.zipAvgDom==null&&d.zipDomAuto!==m.Z.l.dom){d.zipDomAuto=m.Z.l.dom;saveDeal(d,true)}render()}}

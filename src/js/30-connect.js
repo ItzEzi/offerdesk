@@ -100,8 +100,9 @@ function buildQuery(defaultOnly){
   const c=state.settings.conn;if(!defaultOnly&&c.gmailQuery&&c.gmailQuery.trim())return c.gmailQuery.trim();
   const emails=(state.settings.wholesalers||[]).map(w=>(w.email||'').trim()).filter(Boolean).slice(0,40);
   const parts=['label:wholesalers'];if(emails.length)parts.push('from:('+emails.join(' OR ')+')');
-  parts.push('("ARV" (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers"))');
-  return 'newer_than:14d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
+  parts.push('((ARV OR "after repair value" OR "after-repair value") (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers" OR asking OR rehab OR repairs OR "contract price" OR "buyers list"))');
+  parts.push('("assignment fee" OR "investor special" OR "off market deal" OR "off-market deal" OR "cash buyers only")');
+  return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
 const byUpdated=(a,b)=>String(b.updated).localeCompare(String(a.updated));

@@ -21,7 +21,7 @@ async function loadMarketState(st){
   return MKT.loading[st];
 }
 function zipOf(d){const m=String(d.zip||'').match(/\d{5}/)||String(d.address||'').match(/\b(\d{5})(?:-\d{4})?\b\s*$/);return m?m[0].slice(0,5):null}
-function stateOf(d){const s=String(d.state||'').trim().toUpperCase();return /^[A-Z]{2}$/.test(s)?s:null}
+function stateOf(d){const zs=zipState(zipOf(d));if(zs)return zs;const s=String(d.state||'').trim().toUpperCase();return /^[A-Z]{2}$/.test(s)?s:null}
 function marketFor(d){const st=stateOf(d),z=zipOf(d);if(!st||!z)return null;const S=MKT.states[st];if(!S||!S.zips||!S.zips.zips)return null;const Z=S.zips.zips[z];if(!Z)return {none:true,zip:z,state:st,S};
   const metro=Z.metro&&S.metros&&S.metros.metros?S.metros.metros[Z.metro]:null;return {zip:z,state:st,Z,metro,S}}
 async function ensureMarket(d){if(!d)return;const st=stateOf(d);if(!st||MKT.states[st])return;const r=await loadMarketState(st);if(r){const m=marketFor(d);if(m&&m.Z&&m.Z.l&&m.Z.l.dom!=null&&d.zipAvgDom==null&&d.zipDomAuto!==m.Z.l.dom){d.zipDomAuto=m.Z.l.dom;saveDeal(d,true)}render()}}
