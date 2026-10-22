@@ -341,6 +341,9 @@ def in_year(z, yr, sales, heads):
         if i_price is None:
             i_price = col('price')
         i_val = col('valuable')
+        flags = {n: (h.index(n) if n in h else None) for n in ('C1_Sheriff_Sale', 'C3_Quitclaim', 'B8_Court_Order', 'E4_Relationship_Discount', 'G11_Special_Relationship', 'B9_Partition', 'B6_Partial_Interest')}
+        i_valid = h.index('P2_16_Valid_Trending') if 'P2_16_Valid_Trending' in h else None
+        vt = collections.Counter()
         log(yr, 'date col', h[i_date] if i_date is not None else None, 'price col', h[i_price] if i_price is not None else None)
         disc = {}
         for r in it:
@@ -354,7 +357,10 @@ def in_year(z, yr, sales, heads):
             d = pdate(r[i_date]); p = num(r[i_price])
             if not d or not p:
                 continue
-            disc[r[i_id]] = (cty, d, p)
+            v = r[i_valid].strip().upper() if i_valid is not None and len(r) > i_valid else ''
+            vt[v] += 1
+            odd = any(i is not None and len(r) > i and r[i].strip().upper() in ('Y', 'YES', '1', 'TRUE') for i in flags.values())
+            disc[r[i_id]] = (cty, d, p, (v == 'Y') if v in ('Y', 'N') else not odd)
         it = utf16_rows(z, 'SALEPARCEL.txt'); h2 = [c.strip() for c in next(it)]; heads['SALEPARCEL'] = h2
         j_id = h2.index('SDF_ID'); j_par = h2.index('A1_Parcel_Number')
         j_zip = next((i for i, c in enumerate(h2) if c.lower() == 'a5_zipcode'), None)
@@ -364,7 +370,8 @@ def in_year(z, yr, sales, heads):
             if len(r) > j_id and r[j_id] in disc:
                 par[r[j_id]].append((r[j_par].strip(), r[j_zip].strip()[:5] if j_zip is not None and len(r) > j_zip else '', r[j_cls].strip() if j_cls is not None and len(r) > j_cls else ''))
         kept = 0
-        for sid, (cty, d, p) in disc.items():
+        log(yr, 'valid-for-trending values', vt.most_common(5))
+        for sid, (cty, d, p, mk) in disc.items():
             ps = par.get(sid, [])
             if len(ps) != 1:
                 continue
@@ -372,7 +379,7 @@ def in_year(z, yr, sales, heads):
             if cls and cls[:3] not in ('510', '511', '520'):
                 continue
             pr = p / 100 if p > 5_000_000 and p % 100 == 0 else p   # some years give cents
-            sales.append({'parcel': cty + ':' + pn, 'date': d, 'price': pr, 'county': IN_COUNTIES[cty], 'zip': zp}); kept += 1
+            sales.append({'parcel': cty + ':' + pn, 'date': d, 'price': pr, 'county': IN_COUNTIES[cty], 'zip': zp, 'market': mk}); kept += 1
         log(yr, 'disclosures in counties', len(disc), 'single-parcel homes kept', kept, 'class col', h2[j_cls] if j_cls is not None else None)
 
 def finish_indiana(out, sales, heads):
@@ -565,7 +572,8 @@ def job_maryland(out):
             if not dt or not pr:
                 continue
             hw = str(r.get(C[h]) or '').strip(); hows[hw] += 1
-            sales.append({'parcel': r.get(C['acct']), 'date': dt, 'price': pr, 'zip': zp, 'all': 'Baltimore City', 'market': hw[:1] in ('1', '3', '')})
+            code = hw[hw.rfind('(') + 1:hw.rfind(')')] if '(' in hw else hw[:1]
+            sales.append({'parcel': r.get(C['acct']), 'date': dt, 'price': pr, 'zip': zp, 'all': 'Baltimore City', 'market': code in ('1', '3')})
     since = datetime.date(2024, 1, 1)
     res = {'rows': len(rows), 'sales': len(sales), 'columns': C, 'howConveyed': hows.most_common(12),
            'note': 'Only the last two transfers per property are kept by SDAT, so older sales are missing; recent flips are complete.',
