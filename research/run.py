@@ -614,6 +614,37 @@ def job_maryland(out):
     res.update(extras(sales, since))
     json.dump(res, open(os.path.join(out, 'maryland_flips.json'), 'w'), default=str)
 
+# ---------------- Detroit (city assessor sales, 2018-) ----------------
+def job_detroit(out):
+    """City of Detroit assessor property sales (ArcGIS Hub d26fda1e...). Flips by ZIP; NW Detroit borders the Oak Park / Southfield Orthodox community."""
+    url = 'https://data.detroitmi.gov/api/download/v1/items/d26fda1e80b04630a6e56627e6fbceb8/csv?layers=0'
+    rows = list(csv.DictReader(io.TextIOWrapper(open_retry([url])[1], encoding='utf-8-sig', errors='replace', newline='')))
+    heads = list(rows[0].keys()) if rows else []
+    log('rows', len(rows), 'cols', heads)
+    low = {h.lower(): h for h in heads}
+    def pick(*cands):
+        for c in cands:
+            for h in heads:
+                if c in h.lower():
+                    return h
+        return None
+    k_id = pick('parcel_number', 'parcel_num', 'parcel_id', 'parcelno', 'parcel'); k_d = pick('sale_date', 'saledate'); k_p = pick('sale_price', 'saleprice')
+    k_t = pick('sale_terms', 'terms'); k_i = pick('sale_instrument', 'instrument'); k_z = pick('zip'); k_c = pick('property_class', 'class', 'use_code')
+    log('using', k_id, k_d, k_p, k_t, k_i, k_z, k_c)
+    terms = collections.Counter(); sales = []
+    for r in rows:
+        d = pdate(str(r.get(k_d) or '')[:10]); pr = num(r.get(k_p))
+        if not d or not pr or pr < 1000:
+            continue
+        t = (r.get(k_t) or '').upper(); terms[t] += 1
+        sales.append({'parcel': r.get(k_id), 'date': d, 'price': pr, 'zip': str(r.get(k_z) or '')[:5], 'all': 'Detroit city',
+                      'market': ('ARM' in t and 'NOT' not in t and 'NON' not in t) if t else True})
+    since = datetime.date(2024, 1, 1)
+    res = {'rows': len(rows), 'heads': heads, 'fields': [k_id, k_d, k_p, k_t, k_i, k_z, k_c], 'terms': terms.most_common(20),
+           'city': flips_from_sales(sales, 'all', since=since), 'byBand': with_bands(sales, since), 'byZip': flips_from_sales(sales, 'zip', since=since)}
+    res.update(extras(sales, since))
+    json.dump(res, open(os.path.join(out, 'detroit_flips.json'), 'w'), default=str)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
