@@ -71,11 +71,20 @@ async function extractDeals(text,meta,busyKey,quiet){
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
+  const made=[],relinked=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
     /* the same house in tomorrow's alert: update it instead of adding a copy */
+    /* reading an email again: a house already pulled from this same email (same ZIP and price) is that deal, never a copy */
+    const xs=hasStreet({address:String(x.address||'')});
+    const twin=meta.msgId?Object.values(state.deals).find(o=>o.source==='wholesaler'&&!o.example&&!made.includes(o.id)&&(o.seenMsgIds||[]).includes(meta.msgId)&&String(o.zip||'').slice(0,5)===String(x.zip||'').slice(0,5)&&curList(o)===(asking??null)&&(!xs||!hasStreet(o)||dealKey(o)===dealKey({address:String(x.address),zip:String(x.zip||'')}))):null;
+    if(twin&&hasStreet(twin)){updated++;continue}
+    if(twin){if(xs)twin.address=String(x.address);
+      const nl=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].filter(u=>/^https?:/i.test(u));
+      if(nl.length){twin.links=nl.slice(0,8);twin.linksOnly=list.length>1}
+      for(const k of ['beds','baths','sqft','year']){const v=parseNum(x[k]);if(twin[k]==null&&v!=null)twin[k]=v}
+      delete twin.linkFill;saveDeal(twin,true);relinked.push(twin.id);updated++;continue}
     const old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
@@ -91,8 +100,8 @@ async function extractDeals(text,meta,busyKey,quiet){
   render();
   /* open each deal's links first (address, numbers, Drive photos), then research the ones at or under his buy box */
   const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
-  made.forEach(afterNewDeal);
-  return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
+  made.forEach(afterNewDeal);relinked.forEach(afterNewDeal);
+  return {deals:made,relinked,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
 /* what Maya did with the last 30 days of wholesaler emails, so "0 new" never looks like nothing happened */
 function mailStats(){
@@ -127,7 +136,7 @@ function pullSummary(rs){
 async function importEmail(id,quiet){
   const m=state.mail.emails[id];if(!m)return;const f=parseFrom(m.from);
   const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email'},'mail:'+id,quiet);
-  if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated?'imported':'nodeal';mm.dealIds=r.deals}saveMail();
+  if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated||(mm.dealIds||[]).length?'imported':'nodeal';mm.dealIds=[...new Set([...(mm.dealIds||[]),...r.deals,...(r.relinked||[])])]}saveMail();
   if(r.deals.length===1&&(m.atts||0)>0){try{const a=await bridge('attachments',{id:m.id,max:8},m.acct||undefined);const blobs=(a.files||[]).map(x=>b64ToBlob(x.data,x.type));if(blobs.length)await addPhotoBlobs(r.deals[0],blobs,'email')}catch(e){}}
   render();if(!quiet)toast(pullSummary([r]),6000);
   return r;

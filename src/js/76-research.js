@@ -73,7 +73,7 @@ function historyCard(d){
 /* ================= Maya's research (links, web, comps, claims check) ================= */
 const SKIP_LINK=/unsubscribe|optout|opt-out|manage.?preferences|facebook\.com|instagram\.com|linkedin\.com|twitter\.com|\/\/(?:www\.)?x\.com\/|tiktok\.com|youtube\.com\/(?:channel|@)|calendly\.com|mailto:|list-manage\.com\/(?:unsubscribe|profile)/i;
 function dealLinks(d){
-  const set=new Set();const add=u=>{u=String(u||'').trim().replace(/[)>.,;]+$/,'');if(/^https?:\/\/\S+$/i.test(u)&&!SKIP_LINK.test(u)&&u.length<500)set.add(u)};
+  const set=new Set();const add=u=>{u=String(u||'').trim().replace(/[)>.,;]+$/,'');if(/^https?:\/\/\S+$/i.test(u)&&!SKIP_LINK.test(u)&&u.length<2000)set.add(u)};
   (d.links||[]).forEach(add);if(d.listingUrl)add(d.listingUrl);
   /* the email's other links only when the email was about this one house (an alert listing 8 houses has 8 houses' links) */
   const multi=d.linksOnly||(d.seenMsgIds||[]).some(id=>((state.mail.emails[id]||{}).dealIds||[]).length>1);
@@ -177,7 +177,7 @@ async function fillFromLinks(id,quiet,fresh){
     return (zip5&&lt.includes(zip5))||(city&&lt.includes(city))||(ask&&(t.includes(String(ask))||t.includes(Number(ask).toLocaleString('en-US'))))||(!zip5&&!city&&!ask)};
   const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
   if(!useful.length&&got.pages.some(p=>String(p.text||'').length>=120))other=true;
-  const sig=useful.map(p=>p.url+':'+p.text.length+':'+p.text.slice(0,200)).join('|');const prevSig=(dd.linkFill||{}).sig;
+  const sig=(s=>{let x=0;for(let i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))|0;return x.toString(36)})(useful.map(p=>p.url+':'+p.text).join('|'));const prevSig=(dd.linkFill||{}).sig;
   if(useful.length&&missingInfo(dd)&&aiOn()&&sig!==prevSig){
     const res=await runAI('links:'+id,`${negName()} is reading the property page…`,(ai,signal)=>ai.json(P_LINKPAGE(dd,useful),{signal,modelTier:'quick',maxTokens:2000}),true);
     dd=state.deals[id];if(!dd)return null;
@@ -234,15 +234,19 @@ function maybeResearch(id){const d=state.deals[id];if(!d||d.research||WORKER.on)
   if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
 async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();const d=state.deals[id];if(d){const retry=!!(d.linkFill&&d.linkFill.at);await fillFromLinks(id,true,retry);if(state.deals[id]&&state.deals[id].checking){delete state.deals[id].checking;saveDeal(state.deals[id],true)}maybeResearch(id)}}}finally{LQ.running=false;render()}}
 /* deals the 24/7 worker brought in, and older deals still missing a street address: open their links on this device */
+async function relinkEmails(ids){for(const id of ids){const m=state.mail.emails[id];if(!m||m.relinked)continue;m.relinked=nowISO();saveMail();try{await importEmail(id,true)}catch(e){}}}
 function resumeLinks(){
   if(WORKER.on)return;
   if(!gmailOn()||!aiOn()){for(const d of Object.values(state.deals))if(d.checking){delete d.checking;saveDeal(d,true)}return}
+  const reread=[];
   for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d)){if(d.checking){delete d.checking;saveDeal(d,true)}continue}
     const lf=d.linkFill;const links=dealLinks(d).length;
     const due=lf&&lf.at&&(lf.tries||1)<3&&Date.now()-new Date(lf.at).getTime()>12*3600*1000&&(!hasStreet(d)||(lf.noAccess||[]).length);
     if(links&&((lf&&lf.pending)||d.checking||(!lf&&!hasStreet(d))||due)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}
-    else if(d.checking){delete d.checking;saveDeal(d,true)}}
+    else{if(d.checking){delete d.checking;saveDeal(d,true)}
+      if(!hasStreet(d)&&(!links||(lf&&lf.at)))for(const mid of d.seenMsgIds||[]){const m=state.mail.emails[mid];if(m&&m.body&&!m.relinked&&!reread.includes(mid))reread.push(mid)}}}
   drainLinks();
+  if(reread.length)relinkEmails(reread.slice(0,10));
 }
 async function researchDeal(id,quiet,auto){
   const d=state.deals[id];if(!d)return;if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return}
