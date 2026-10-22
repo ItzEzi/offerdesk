@@ -419,7 +419,7 @@ def socrata_all(base, select, where, order, page=50000, cap=2000000):
         off += page
     return rows
 
-def flips_by_buy_band(sales, since, max_days=548, min_price=10000):
+def flips_by_buy_band(sales, since, max_days=548, min_price=10000, keyfn=None):
     """Group real flips by what the flipper PAID (his budget is a buy price). Also count losing quick resales."""
     byp = collections.defaultdict(list)
     for s_ in sales:
@@ -433,7 +433,7 @@ def flips_by_buy_band(sales, since, max_days=548, min_price=10000):
             d = (b['date'] - a['date']).days
             if d < 30 or d > max_days or a['price'] < min_price:
                 continue
-            k = band_of(a['price']); m = b['price'] / a['price'] - 1
+            k = keyfn(a) if keyfn else band_of(a['price']); m = b['price'] / a['price'] - 1
             if m <= 0:
                 g[k]['loss'] += 1; continue
             g[k]['flips'] += 1; g[k]['sell'].append(b['price']); g[k]['days'].append(d); g[k]['margin'].append(m); g[k]['gain'].append(b['price'] - a['price'])
@@ -444,7 +444,8 @@ def flips_by_buy_band(sales, since, max_days=548, min_price=10000):
 
 def extras(sales, since):
     return {'byYear': flips_from_sales([dict(s_, yr=str(s_['date'].year)) for s_ in sales], 'yr', since=datetime.date(2022, 1, 1)),
-            'byBuyBand': flips_by_buy_band(sales, since)}
+            'byBuyBand': flips_by_buy_band(sales, since),
+            'byBuyType': flips_by_buy_band(sales, since, keyfn=lambda a: ('market buy ' if a.get('market', True) else 'other buy ') + band_of(a['price']))}
 
 # ---------------- Cook County (Chicago) ----------------
 COOK_TWP = {'10': 'Barrington', '11': 'Berwyn', '12': 'Bloom', '13': 'Bremen', '14': 'Calumet', '15': 'Cicero', '16': 'Elk Grove', '17': 'Evanston',
