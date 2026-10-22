@@ -975,6 +975,25 @@ def job_nyprobe2(out):
             res['catalog ' + q] = 'error %s' % str(e)[:120]
     json.dump(res, open(os.path.join(out, 'nyprobe2.json'), 'w'), indent=1)
 
+def job_nyprobe3(out):
+    """Save NY Municipal Data Portal page + script bundle raw, to find how Sales Web lists and downloads files."""
+    import re
+    ctx, added = _ctx_with_aia('pad.tax.ny.gov')
+    def fetch(u):
+        r = urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0 research'}), context=ctx, timeout=120)
+        return r.read()
+    res = {}
+    idx = fetch('https://pad.tax.ny.gov/index').decode('utf-8', 'replace')
+    open(os.path.join(out, 'index.html'), 'w').write(idx)
+    for m in sorted(set(re.findall(r'(?:src|href)=["\']([^"\']+)["\']', idx))):
+        u = urllib.parse.urljoin('https://pad.tax.ny.gov/index', m)
+        try:
+            b = fetch(u); fn = re.sub(r'[^A-Za-z0-9._-]', '_', m)[-80:]
+            open(os.path.join(out, fn), 'wb').write(b); res[u] = len(b)
+        except Exception as e:
+            res[u] = 'error %s' % str(e)[:100]
+    json.dump(res, open(os.path.join(out, 'nyprobe3.json'), 'w'), indent=1)
+
 NRI_FIPS = {'18141': 'St. Joseph IN (South Bend)', '36029': 'Erie NY (Buffalo)', '42003': 'Allegheny PA (Pittsburgh)', '18039': 'Elkhart IN',
             '18091': 'LaPorte IN', '26021': 'Berrien MI', '26077': 'Kalamazoo MI', '42049': 'Erie PA', '36067': 'Onondaga NY (Syracuse)',
             '40143': 'Tulsa OK', '18097': 'Marion IN (Indianapolis)', '42069': 'Lackawanna PA (Scranton)'}
