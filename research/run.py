@@ -711,6 +711,23 @@ def job_batchdata(out):
             log(key, month, r.get('flips'), r.get('roi'))
     json.dump(res, open(os.path.join(out, 'batchdata.json'), 'w'), indent=1)
 
+def job_batchdata2(out):
+    """BatchData's other county pages (sales on/off market, ownership) to put flips on one yardstick: flips per sale and investor ownership."""
+    import re, html as H
+    res = {}
+    for rtype in ('on-market-off-market', 'property-ownership'):
+        for c in ['pa-allegheny', 'pa-lackawanna', 'pa-luzerne', 'pa-philadelphia', 'in-marion', 'in-lake', 'mi-wayne', 'il-cook', 'oh-cuyahoga', 'ny-erie', 'ny-monroe', 'md-baltimore']:
+            u = 'https://reports.batchdata.io/market-reports/%s/2026-07/county/%s/' % (rtype, c)
+            try:
+                t = get(u, 120).read().decode('utf-8', 'replace')
+            except Exception as e:
+                res['%s|%s' % (rtype, c)] = {'error': str(e)[:80]}; continue
+            body = re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S)
+            txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', body)))
+            i = txt.find('Report July 2026')
+            res['%s|%s' % (rtype, c)] = {'url': u, 'text': txt[max(0, i - 100): i + 3500]}
+    json.dump(res, open(os.path.join(out, 'batchdata2.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
