@@ -711,6 +711,26 @@ def job_batchdata(out):
             log(key, month, r.get('flips'), r.get('roi'))
     json.dump(res, open(os.path.join(out, 'batchdata.json'), 'w'), indent=1)
 
+def job_batchdata3(out):
+    """More counties with Orthodox communities, same BatchData yardstick: flips, ROI, days, total sales, off-MLS share, corporate-owned."""
+    import re, html as H
+    res = {}
+    for c in ['oh-hamilton', 'wi-milwaukee', 'ga-dekalb', 'tn-shelby', 'ny-albany', 'ct-new-haven', 'mo-st-louis', 'mo-st-louis-city', 'ky-jefferson',
+              'oh-franklin', 'va-richmond-city', 'va-henrico', 'la-orleans', 'pa-dauphin', 'pa-lehigh', 'nj-camden', 'oh-summit', 'oh-montgomery', 'ny-onondaga', 'md-baltimore-city', 'in-st-joseph']:
+        r = {}
+        for rtype in ('flip-activity', 'on-market-off-market', 'property-ownership'):
+            u = 'https://reports.batchdata.io/market-reports/%s/2026-07/county/%s/' % (rtype, c)
+            try:
+                t = get(u, 120).read().decode('utf-8', 'replace')
+            except Exception as e:
+                r[rtype] = 'error ' + str(e)[:40]; continue
+            body = re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S)
+            txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', body)))
+            i = txt.find('Report July 2026')
+            r[rtype] = txt[i: i + 400] if i >= 0 else txt[:300]
+        res[c] = r
+    json.dump(res, open(os.path.join(out, 'batchdata3.json'), 'w'), indent=1)
+
 def job_batchdata2(out):
     """BatchData's other county pages (sales on/off market, ownership) to put flips on one yardstick: flips per sale and investor ownership."""
     import re, html as H
