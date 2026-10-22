@@ -849,6 +849,43 @@ def job_batchdata4(out):
         log(c, [k for k in r if not '_err_' in k])
     json.dump(res, open(os.path.join(out, 'batchdata4.json'), 'w'), indent=1)
 
+BD5 = ['in-saint-joseph', 'in-stjoseph', 'in-st.-joseph', 'in-elkhart', 'in-laporte', 'in-la-porte', 'in-porter', 'in-allen', 'in-lake', 'in-marion',
+       'mi-berrien', 'mi-kalamazoo', 'mi-kent', 'mi-ingham', 'mi-genesee', 'mi-calhoun', 'mi-saginaw', 'mi-muskegon', 'mi-oakland', 'mi-macomb',
+       'oh-stark', 'oh-lucas', 'oh-mahoning', 'oh-trumbull', 'oh-lorain', 'oh-lake', 'oh-cuyahoga', 'oh-summit', 'oh-montgomery',
+       'il-winnebago', 'il-peoria', 'il-will', 'il-kane', 'il-dupage', 'pa-erie', 'ny-broome', 'ny-oneida', 'ny-onondaga', 'ny-erie', 'ny-monroe',
+       'wi-milwaukee', 'wi-racine', 'wi-kenosha', 'ia-scott', 'in-vanderburgh']
+
+def job_batchdata5(out):
+    """South Bend look-alikes on one yardstick: flips per 100 sales, ROI, days to flip, off-MLS share, corporate-owned (BatchData county pages)."""
+    import re, html as H
+    pats = {'flip-activity': (r'([\d,]+) Homes Flipped \(12 mo\.\) \$([\d.,]+)([KM]?) Avg Gross Profit ([\d.\-]+)% Avg ROI ([\d,]+) days', ('flips', 'profit', 'unit', 'roi', 'days')),
+            'on-market-off-market': (r'([\d,]+) Total Sales ([\d.]+)% Off-Market Share', ('sales', 'offMkt')),
+            'property-ownership': (r'([\d,]+) Properties Analyzed ([\d.]+)% Corporate-Owned', ('props', 'corp'))}
+    res = {}
+    for c in BD5:
+        r = {}
+        for rtype, (pat, names) in pats.items():
+            for month in ('2026-09', '2026-08', '2026-07'):
+                u = 'https://reports.batchdata.io/market-reports/%s/%s/county/%s/' % (rtype, month, c)
+                try:
+                    t = get(u, 90).read().decode('utf-8', 'replace')
+                except Exception as e:
+                    r.setdefault('err', []).append('%s %s %s' % (rtype, month, str(e)[:30])); continue
+                txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S))))
+                m = re.search(pat, txt)
+                if m:
+                    for n, v in zip(names, m.groups()):
+                        r[n] = v if n == 'unit' else float(v.replace(',', ''))
+                    r[rtype + '_month'] = month
+                else:
+                    r[rtype + '_nomatch'] = txt[:200]
+                break
+        if r.get('flips') and r.get('sales'):
+            r['per100'] = round(100 * r['flips'] / r['sales'], 1)
+        res[c] = r
+        log(c, r.get('per100'), r.get('roi'), r.get('days'))
+    json.dump(res, open(os.path.join(out, 'batchdata5.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
