@@ -191,7 +191,8 @@ async function syncAll(manual){
     if(fails.length)logActivity(null,'warn','Gmail check failed for '+fails.join(' / '));
     const t=(smsOn()||gvOn())?await syncTexts():0;
     state.mail.lastSync=nowISO();saveMail();persist('deals');
-    if(manual||r||t)toast(`Checked: ${r} new repl${r===1?'y':'ies'}, ${e} new wholesaler email${e===1?'':'s'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}`,3800);
+    if(manual||r||t){const head=`Checked Gmail: ${e?`${e} new wholesaler email${e===1?'':'s'}`:'no new wholesaler emails since the last check'}, ${r} new repl${r===1?'y':'ies'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}.`;
+      toast(manual?head+' '+mailRecap():head,manual?9000:3800)}
   }catch(err){if(manual)toast(bridgeErr(err),5200);else logActivity(null,'warn','Gmail check failed: '+bridgeErr(err))}
   finally{state.syncing=false;render()}
 }

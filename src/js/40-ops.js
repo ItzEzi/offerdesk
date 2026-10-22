@@ -94,6 +94,23 @@ async function extractDeals(text,meta,busyKey,quiet){
   made.forEach(afterNewDeal);
   return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
+/* what Maya did with the last 30 days of wholesaler emails, so "0 new" never looks like nothing happened */
+function mailStats(){
+  const since=Date.now()-30*DAY;const ms=Object.values(state.mail.emails).filter(m=>new Date(m.date||0).getTime()>=since);
+  const st={read:0,withDeals:0,noDeal:0,waiting:0,deals:0,over:0,passed:0,gone:0};
+  for(const m of ms){if(m.status==='new'){st.waiting++;continue}if(m.status==='ignored')continue;st.read++;
+    if(m.status==='nodeal'){st.noDeal++;continue}st.withDeals++;
+    for(const id of m.dealIds||[]){const d=state.deals[id];if(!d){st.gone++;continue}st.deals++;if(d.stage==='dead')st.passed++;else if(overBox(d))st.over++}}
+  return st;
+}
+function mailRecap(st){st=st||mailStats();
+  if(!st.read&&!st.waiting)return 'No wholesaler emails found in the last 30 days.';
+  const p=[`Last 30 days: ${st.read} wholesaler email${st.read===1?'':'s'} read`];
+  if(st.deals)p.push(`${st.deals} deal${st.deals===1?'':'s'} pulled out`+(st.over?` (${st.over} over ${moneyK(boxCap())}, under the “Over ${moneyK(boxCap())}” button)`:'')+(st.passed?`, ${st.passed} passed`:''));
+  if(st.noDeal)p.push(`${st.noDeal} had no property ${negName()} could find`);
+  if(st.waiting)p.push(`${st.waiting} waiting: press Pull out all`);
+  return p.join(' · ')+'.';
+}
 /* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
 function pullSummary(rs){
   const ok=rs.filter(r=>r&&!r.err);const add=ok.reduce((a,r)=>a+(r.deals||[]).length,0),upd=ok.reduce((a,r)=>a+(r.updated||0),0),over=ok.reduce((a,r)=>a+(r.over||0),0);

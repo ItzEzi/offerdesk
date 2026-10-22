@@ -145,6 +145,12 @@ A['delete-deal']=()=>{state.modal={type:'confirm',title:'Delete this deal?',text
 
 /* leads */
 A['mail-import']=el=>importEmail(el.dataset.id);
+/* read again: emails where Maya found no property, or whose deals were deleted (last 30 days) */
+A['mail-reread']=async()=>{const since=Date.now()-30*DAY;let n=0;
+  for(const m of Object.values(state.mail.emails)){if(new Date(m.date||0).getTime()<since)continue;
+    const gone=m.status==='imported'&&(m.dealIds||[]).length&&(m.dealIds||[]).every(id=>!state.deals[id]);
+    if(m.status==='nodeal'||gone){m.status='new';n++}}
+  saveMail();if(!n){toast('Nothing to read again.');return}await A['mail-import-all']()};
 A['mail-import-all']=async()=>{if(state.pullAll)return;const ids=Object.values(state.mail.emails).filter(m=>m.status==='new').sort(byDate).reverse().slice(0,10).map(m=>m.id);const rs=[];
   try{for(let i=0;i<ids.length;i++){state.pullAll={i:i+1,n:ids.length};render();rs.push(await importEmail(ids[i],true))}}finally{state.pullAll=null;render()}
   toast(pullSummary(rs),9000)};

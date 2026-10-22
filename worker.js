@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261023-0140: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261023-0213: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261023-0140';
+const APP_V='20261023-0213';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1005,7 +1005,8 @@ async function syncAll(manual){
     if(fails.length)logActivity(null,'warn','Gmail check failed for '+fails.join(' / '));
     const t=(smsOn()||gvOn())?await syncTexts():0;
     state.mail.lastSync=nowISO();saveMail();persist('deals');
-    if(manual||r||t)toast(`Checked: ${r} new repl${r===1?'y':'ies'}, ${e} new wholesaler email${e===1?'':'s'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}`,3800);
+    if(manual||r||t){const head=`Checked Gmail: ${e?`${e} new wholesaler email${e===1?'':'s'}`:'no new wholesaler emails since the last check'}, ${r} new repl${r===1?'y':'ies'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}.`;
+      toast(manual?head+' '+mailRecap():head,manual?9000:3800)}
   }catch(err){if(manual)toast(bridgeErr(err),5200);else logActivity(null,'warn','Gmail check failed: '+bridgeErr(err))}
   finally{state.syncing=false;render()}
 }
@@ -1477,6 +1478,23 @@ async function extractDeals(text,meta,busyKey,quiet){
   const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
   made.forEach(afterNewDeal);
   return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
+}
+/* what Maya did with the last 30 days of wholesaler emails, so "0 new" never looks like nothing happened */
+function mailStats(){
+  const since=Date.now()-30*DAY;const ms=Object.values(state.mail.emails).filter(m=>new Date(m.date||0).getTime()>=since);
+  const st={read:0,withDeals:0,noDeal:0,waiting:0,deals:0,over:0,passed:0,gone:0};
+  for(const m of ms){if(m.status==='new'){st.waiting++;continue}if(m.status==='ignored')continue;st.read++;
+    if(m.status==='nodeal'){st.noDeal++;continue}st.withDeals++;
+    for(const id of m.dealIds||[]){const d=state.deals[id];if(!d){st.gone++;continue}st.deals++;if(d.stage==='dead')st.passed++;else if(overBox(d))st.over++}}
+  return st;
+}
+function mailRecap(st){st=st||mailStats();
+  if(!st.read&&!st.waiting)return 'No wholesaler emails found in the last 30 days.';
+  const p=[`Last 30 days: ${st.read} wholesaler email${st.read===1?'':'s'} read`];
+  if(st.deals)p.push(`${st.deals} deal${st.deals===1?'':'s'} pulled out`+(st.over?` (${st.over} over ${moneyK(boxCap())}, under the “Over ${moneyK(boxCap())}” button)`:'')+(st.passed?`, ${st.passed} passed`:''));
+  if(st.noDeal)p.push(`${st.noDeal} had no property ${negName()} could find`);
+  if(st.waiting)p.push(`${st.waiting} waiting: press Pull out all`);
+  return p.join(' · ')+'.';
 }
 /* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
 function pullSummary(rs){
