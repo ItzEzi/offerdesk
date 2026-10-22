@@ -751,6 +751,33 @@ def job_batchdata2(out):
             res['%s|%s' % (rtype, c)] = {'url': u, 'text': txt[max(0, i - 100): i + 3500]}
     json.dump(res, open(os.path.join(out, 'batchdata2.json'), 'w'), indent=1)
 
+# ---------------- PASDA (Pennsylvania spatial data) probe: do Luzerne / Lackawanna parcels carry sale prices? ----------------
+def job_pasda(out):
+    res = {}
+    for host in ('https://services.pasda.psu.edu/server/rest/services/pasda/', 'https://mapservices.pasda.psu.edu/server/rest/services/pasda/'):
+        for svc in ('LuzerneCounty', 'LackawannaCounty', 'Lackawanna', 'WayneCounty'):
+            u = host + svc + '/MapServer?f=pjson'
+            try:
+                d = json.loads(get(u, 60).read().decode('utf-8', 'replace'))
+            except Exception as e:
+                res[u] = 'error ' + str(e)[:60]; continue
+            layers = {}
+            for L in d.get('layers', []):
+                try:
+                    ld = json.loads(get(host + svc + '/MapServer/%d?f=pjson' % L['id'], 60).read().decode('utf-8', 'replace'))
+                    layers[L['name']] = {'id': L['id'], 'fields': [f['name'] for f in ld.get('fields') or []][:80]}
+                except Exception as e:
+                    layers[L['name']] = 'error ' + str(e)[:60]
+            res[u] = {'description': (d.get('serviceDescription') or '')[:300], 'layers': layers}
+        if any(isinstance(v, dict) for v in res.values()):
+            break
+    try:
+        d = json.loads(get('https://services.pasda.psu.edu/server/rest/services/pasda?f=pjson', 60).read().decode('utf-8', 'replace'))
+        res['_services'] = [x['name'] for x in d.get('services', []) if any(w in x['name'].lower() for w in ('lack', 'luzern', 'allegh', 'philad', 'parcel'))]
+    except Exception as e:
+        res['_services'] = 'error ' + str(e)[:60]
+    json.dump(res, open(os.path.join(out, 'pasda.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
