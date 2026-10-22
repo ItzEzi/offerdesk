@@ -826,6 +826,28 @@ def job_bdagents(out):
         res[c] = {'url': u, 'text': txt[max(0, i - 100): i + 6000]}
     json.dump(res, open(os.path.join(out, 'bdagents.json'), 'w'), indent=1)
 
+def job_batchdata4(out):
+    """Tulsa vs South Bend on BatchData's yardstick: flips, ROI, days, total sales, off-MLS share, corporate-owned (latest month that exists)."""
+    import re, html as H
+    res = {}
+    for c in ['ok-tulsa', 'ok-oklahoma', 'in-st-joseph', 'in-st-joseph-county', 'in-elkhart']:
+        r = {}
+        for rtype in ('flip-activity', 'on-market-off-market', 'property-ownership'):
+            for month in ('2026-09', '2026-08', '2026-07'):
+                u = 'https://reports.batchdata.io/market-reports/%s/%s/county/%s/' % (rtype, month, c)
+                try:
+                    t = get(u, 120).read().decode('utf-8', 'replace')
+                except Exception as e:
+                    r[rtype + '_err_' + month] = str(e)[:60]; continue
+                body = re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S)
+                txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', body)))
+                i = txt.find('Report ')
+                r[rtype] = {'month': month, 'url': u, 'text': txt[max(0, i - 100): i + 3500]}
+                break
+        res[c] = r
+        log(c, [k for k in r if not '_err_' in k])
+    json.dump(res, open(os.path.join(out, 'batchdata4.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
