@@ -886,6 +886,71 @@ def job_batchdata5(out):
         log(c, r.get('per100'), r.get('roi'), r.get('days'))
     json.dump(res, open(os.path.join(out, 'batchdata5.json'), 'w'), indent=1)
 
+def _links(html_text, base):
+    import re
+    out = []
+    for h in re.findall(r'href=["\']([^"\']+)["\']', html_text, flags=re.I):
+        out.append(urllib.parse.urljoin(base, h))
+    return out
+
+def job_nyprobe(out):
+    """Where can Buffalo / Erie County NY sale records be downloaded? NY ORPTS SalesWeb pages and open-data catalogues."""
+    res = {}
+    pages = ['https://pad.tax.ny.gov/index', 'https://pad.tax.ny.gov/', 'https://www.tax.ny.gov/research/property/assess/sales/salesweb.htm',
+             'https://www.tax.ny.gov/research/property/assess/sales/', 'https://www.tax.ny.gov/pit/property/munidataportal.htm']
+    for u in pages:
+        try:
+            r = get(u, 90); t = r.read().decode('utf-8', 'replace')
+            links = _links(t, r.geturl())
+            res[u] = {'final': r.geturl(), 'len': len(t), 'title': t[t.find('<title>'):t.find('</title>')][:120],
+                      'links': [l for l in links if any(k in l.lower() for k in ('sale', 'download', '.zip', '.csv', '.exe', 'pad.', 'data'))][:120],
+                      'scripts': [l for l in links if l.lower().endswith('.js')][:20]}
+        except Exception as e:
+            res[u] = 'error %s' % str(e)[:120]
+    for dom, q in (('data.buffalony.gov', 'sales'), ('data.buffalony.gov', 'assessment'), ('data.buffalony.gov', 'property'), ('data.ny.gov', 'sales'), ('data.ny.gov', 'real property')):
+        try:
+            u = 'https://api.us.socrata.com/api/catalog/v1?' + urllib.parse.urlencode({'domains': dom, 'q': q, 'limit': 15})
+            d = json.loads(get(u, 90).read().decode('utf-8'))
+            res['catalog %s %s' % (dom, q)] = [{'id': x['resource']['id'], 'name': x['resource']['name'], 'cols': x['resource'].get('columns_field_name', [])[:60],
+                                               'updated': x['resource'].get('data_updated_at')} for x in d.get('results', [])]
+        except Exception as e:
+            res['catalog %s %s' % (dom, q)] = 'error %s' % str(e)[:120]
+    json.dump(res, open(os.path.join(out, 'nyprobe.json'), 'w'), indent=1)
+
+NRI_FIPS = {'18141': 'St. Joseph IN (South Bend)', '36029': 'Erie NY (Buffalo)', '42003': 'Allegheny PA (Pittsburgh)', '18039': 'Elkhart IN',
+            '18091': 'LaPorte IN', '26021': 'Berrien MI', '26077': 'Kalamazoo MI', '42049': 'Erie PA', '36067': 'Onondaga NY (Syracuse)',
+            '40143': 'Tulsa OK', '18097': 'Marion IN (Indianapolis)', '42069': 'Lackawanna PA (Scranton)'}
+
+def job_nri(out):
+    """FEMA National Risk Index, county level: overall risk and each natural hazard's expected yearly loss to buildings."""
+    import zipfile, io, csv
+    rows = {}; src = None; errs = []
+    for u in ('https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload//NRI_Table_Counties/NRI_Table_Counties.zip',
+              'https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload/NRI_Table_Counties/NRI_Table_Counties.zip'):
+        try:
+            b = get(u, 300).read(); z = zipfile.ZipFile(io.BytesIO(b))
+            name = [n for n in z.namelist() if n.lower().endswith('.csv') and 'counties' in n.lower()][0]
+            rd = csv.DictReader(io.TextIOWrapper(z.open(name), encoding='utf-8-sig', errors='replace'))
+            for r in rd:
+                f = (r.get('STCOFIPS') or '').zfill(5)
+                if f in NRI_FIPS:
+                    rows[f] = r
+            src = u; break
+        except Exception as e:
+            errs.append('%s %s' % (u, str(e)[:120]))
+    if not rows:
+        try:
+            q = urllib.parse.urlencode({'where': "STCOFIPS IN (%s)" % ','.join("'%s'" % f for f in NRI_FIPS), 'outFields': '*', 'f': 'json'})
+            u = 'https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_Counties/FeatureServer/0/query?' + q
+            d = json.loads(get(u, 120).read().decode('utf-8'))
+            for ft in d.get('features', []):
+                a = ft['attributes']; rows[str(a.get('STCOFIPS')).zfill(5)] = a
+            src = u
+        except Exception as e:
+            errs.append('arcgis %s' % str(e)[:120])
+    json.dump({'source': src, 'errors': errs, 'names': NRI_FIPS, 'rows': rows}, open(os.path.join(out, 'nri.json'), 'w'), indent=1)
+    log('nri rows', len(rows), errs)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
