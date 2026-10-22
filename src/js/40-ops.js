@@ -118,7 +118,7 @@ function pullSummary(rs){
   const parts=[];
   const lk=ok.reduce((a,r)=>a+(r.linking||0),0);
   if(add)parts.push(`Added ${add} deal${add>1?'s':''}`+(over?` (${over} asking over ${moneyK(boxCap())}, tucked under the “Over ${moneyK(boxCap())}” button)`:''));
-  if(lk)parts.push(`${negName()} is opening the links to fill in ${lk===1?'the missing address or numbers':`missing details on ${lk} of them`}`);
+  if(lk)parts.push(`${negName()} is opening the links on ${lk===1?'one of them':lk+' of them'} to get the missing address and numbers. ${lk===1?'It shows':'They show'} up in Inbox Leads when she’s done`);
   if(upd)parts.push(`${upd} already in OfferDesk, updated`);
   if(none)parts.push(`${none} email${none>1?'s':''} had no property in ${none>1?'them':'it'}`);
   if(bad.length)parts.push(`${bad.length} couldn’t be read: ${String(bad[0].err).replace(/[.\s]+$/,'')}`);

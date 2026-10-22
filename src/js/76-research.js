@@ -162,14 +162,14 @@ function applyLinkPage(d,j,src){
   const n=ph.length?addPhotoUrls(d.id,ph.slice(0,12)):0;if(n)filled.push(n+' photo'+(n>1?'s':''));
   return filled;
 }
-async function fillFromLinks(id,quiet){
+async function fillFromLinks(id,quiet,fresh){
   const d=state.deals[id];if(!d||d.example)return null;
   const links=dealLinks(d);
-  if(!links.length){d.linkFill={at:nowISO(),none:true};saveDeal(d,true);return d.linkFill}
-  if(!gmailOn()){d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
+  if(!links.length){delete d.checking;d.linkFill={at:nowISO(),none:true};saveDeal(d,true);return d.linkFill}
+  if(!gmailOn()){delete d.checking;d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
   if(state.busy['links:'+id])return null;
   state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
-  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:!quiet})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
+  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
   if(got.pages.length&&missingInfo(dd)&&aiOn()){
@@ -177,7 +177,8 @@ async function fillFromLinks(id,quiet){
     dd=state.deals[id];if(!dd)return null;
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
-  dd.linkFill={at:nowISO(),opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
+  dd.linkFill={at:nowISO(),tries,opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -196,25 +197,32 @@ function linkCard(d){
   if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”, then press Try the links again.</div>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
   if(!out.length&&!busy)return '';
-  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div>${hasStreet(d)&&links.length&&lf.at?`<div class="ch-r">${btn('Open again')}</div>`:''}</div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
 }
 /* after a deal comes in: open its links first, then research (so research has the address) */
 const LQ={list:[],running:false};
 function afterNewDeal(id){
   const d=state.deals[id];if(!d)return;
   const capR=boxCap();const p=curList(d);const inBox=!capR||p==null||p<=capR;
-  if(inBox&&dealLinks(d).length&&!d.linkFill){if(WORKER.on||!gmailOn()){d.linkFill={pending:true};saveDeal(d,true);return}
-    if(!LQ.list.includes(id))LQ.list.push(id);drainLinks();return}
+  if(inBox&&dealLinks(d).length&&!d.linkFill){
+    if(!gmailOn()){d.linkFill={pending:true};saveDeal(d,true);return}
+    if(missingInfo(d))d.checking=Date.now();
+    if(WORKER.on){d.linkFill={pending:true};saveDeal(d,true);return}
+    saveDeal(d,true);if(!LQ.list.includes(id))LQ.list.push(id);drainLinks();return}
   maybeResearch(id);
 }
 function maybeResearch(id){const d=state.deals[id];if(!d||d.research)return;const capR=boxCap();const p=curList(d);
   if(state.settings.research&&state.settings.research.auto&&aiOn()&&(!capR||p==null||p<=capR))queueResearch(id)}
-async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();if(state.deals[id]){await fillFromLinks(id,true);maybeResearch(id)}}}finally{LQ.running=false}}
+async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();const d=state.deals[id];if(d){const retry=!!(d.linkFill&&d.linkFill.at);await fillFromLinks(id,true,retry);if(state.deals[id]&&state.deals[id].checking){delete state.deals[id].checking;saveDeal(state.deals[id],true)}maybeResearch(id)}}}finally{LQ.running=false;render()}}
 /* deals the 24/7 worker brought in, and older deals still missing a street address: open their links on this device */
 function resumeLinks(){
-  if(WORKER.on||!gmailOn()||!aiOn())return;
-  for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d))continue;
-    const lf=d.linkFill;if((lf&&lf.pending)||(!lf&&!hasStreet(d)&&dealLinks(d).length)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}}
+  if(WORKER.on)return;
+  if(!gmailOn()||!aiOn()){for(const d of Object.values(state.deals))if(d.checking){delete d.checking;saveDeal(d,true)}return}
+  for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d)){if(d.checking){delete d.checking;saveDeal(d,true)}continue}
+    const lf=d.linkFill;const links=dealLinks(d).length;
+    const due=lf&&lf.at&&(lf.tries||1)<3&&Date.now()-new Date(lf.at).getTime()>12*3600*1000&&(!hasStreet(d)||(lf.noAccess||[]).length);
+    if(links&&((lf&&lf.pending)||d.checking||(!lf&&!hasStreet(d))||due)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}
+    else if(d.checking){delete d.checking;saveDeal(d,true)}}
   drainLinks();
 }
 async function researchDeal(id,quiet){

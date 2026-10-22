@@ -1251,7 +1251,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261023-0213';
+const APP_V='20261023-0222';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1459,6 +1459,7 @@ window.addEventListener('hashchange',route);
 /* ================= deal helpers ================= */
 /* buy box: emailed deals asking more than his cap are kept but tucked away (hidden by default, not researched, not counted as new) */
 const boxCap=()=>+((state.settings.research||{}).maxPrice)||0;
+const checking=d=>!!(d&&d.checking&&Date.now()-d.checking<30*60*1000);
 const overBox=d=>{const c=boxCap();if(!c||!d||d.source!=='wholesaler'||d.example||d.starred||d.favorite||!['new','sent'].includes(d.stage||'new'))return false;const p=curList(d);return p!=null&&p>c};
 function curList(d){const h=d.priceHistory||[];return h.length?h[h.length-1].price:(d.listPrice??null)}
 function origList(d){const h=d.priceHistory||[];return h.length?h[0].price:(d.listPrice??null)}
@@ -1706,7 +1707,7 @@ function counts(){
     reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
     draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
     follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
-    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)).length,
+    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d)).length,
     newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
     live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
     contract:ds.filter(d=>d.stage==='contract').length,
@@ -2726,7 +2727,7 @@ function pullSummary(rs){
   const parts=[];
   const lk=ok.reduce((a,r)=>a+(r.linking||0),0);
   if(add)parts.push(`Added ${add} deal${add>1?'s':''}`+(over?` (${over} asking over ${moneyK(boxCap())}, tucked under the “Over ${moneyK(boxCap())}” button)`:''));
-  if(lk)parts.push(`${negName()} is opening the links to fill in ${lk===1?'the missing address or numbers':`missing details on ${lk} of them`}`);
+  if(lk)parts.push(`${negName()} is opening the links on ${lk===1?'one of them':lk+' of them'} to get the missing address and numbers. ${lk===1?'It shows':'They show'} up in Inbox Leads when she’s done`);
   if(upd)parts.push(`${upd} already in OfferDesk, updated`);
   if(none)parts.push(`${none} email${none>1?'s':''} had no property in ${none>1?'them':'it'}`);
   if(bad.length)parts.push(`${bad.length} couldn’t be read: ${String(bad[0].err).replace(/[.\s]+$/,'')}`);
@@ -2979,7 +2980,7 @@ function viewDashboard(){
     if(d.draft&&!['dead','closed'].includes(d.stage))todo.push({d,c:d.needsYou?'orange':'purple',pri:d.needsYou?0:1,label:d.needsYou?`${negName()} needs your OK: ${d.needsYou}`:`Draft ready: ${ACTION_LABEL[d.draft.action||d.draft.kind]||'message'}${d.draft.price!=null?' at '+money(d.draft.price):''}`,btn:'Review'});
     else if(replyWaiting(d))todo.push({d,c:'blue',pri:0,label:`Reply waiting · ${(ins(d).slice(-1)[0]||{}).channel==='sms'?'text':'email'} ${ago(lastAt(ins(d)))}${d.autopilot&&state.settings.auto.enabled?` · ${negName()} will answer`:''}`,btn:`Ask ${negName()}`});
     const f=followDue(d);if(f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled))todo.push({d,c:'amber',pri:2,label:`Follow-up #${f.step+1} due · no reply in ${daysSince(lastAt(outs(d)))} days`,btn:'Draft follow-up'});
-    if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d))todo.push({d,c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
+    if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d))todo.push({d,c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
   }
   todo.sort((a,b)=>(a.d.example?1:0)-(b.d.example?1:0)||a.pri-b.pri);
   const todoHTML=todo.length?`<div class="todo">${todo.slice(0,12).map(t=>`<div class="todo-row${t.d.example?' is-ex':''}">${thumbHTML(t.d)}<div class="what"><b>${esc(streetOf(t.d.address)||'Untitled deal')}${t.d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="small"><span class="tag ${t.c}">${esc(t.label)}</span></span></div><button class="btn sm ${t.pri===0?'primary':''}" data-act="open" data-id="${t.d.id}">${esc(t.btn)}</button></div>`).join('')}</div>`:`<div class="note green">Nothing needs you right now. ${state.settings.auto.enabled?`${n} is working the pipeline.`:'Turn on autopilot and '+n+' works the pipeline for you.'}</div>`;
@@ -3045,6 +3046,7 @@ function listFilter(){
     if(f.autopilot!=='all'&&(!!d.autopilot)!==(f.autopilot==='on'))return false;
     if(f.price!=='any'){const L=curList(d)||0;const [a,b]=f.price.split('-').map(Number);if(L<a||(b&&L>=b))return false}
     if(f.special!=='over'&&overBox(d))return false;
+    if(checking(d))return false;
     if(f.special!=='all'){const s=SPECIAL.find(x=>x[0]===f.special);if(s&&!s[2](d,calc(d)))return false}
     return true;
   }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
@@ -3123,6 +3125,7 @@ function leadList(){
   return Object.values(state.deals).filter(d=>d.source==='wholesaler').filter(d=>{
     if(!L.showPassed&&d.stage==='dead')return false;
     if(!L.showOver&&overBox(d))return false;
+    if(checking(d))return false;
     if(q&&!([d.address,d.city,d.zip,d.wholesalerName].join(' ').toLowerCase().includes(q)))return false;
     if(L.fav&&!d.favorite)return false;
     if(L.type!=='all'&&(d.propertyType||'single_family')!==L.type)return false;
@@ -3139,6 +3142,8 @@ function viewLeads(){
   const head=hero('g-leads','Inbox Leads (off market)',`Wholesale deals from your inbox — ${n} extracts and analyzes each one`,meta,right,`<span class="tagcount">${ico('tag')}${all.length} deal${all.length===1?'':'s'}</span>`);
   const mailHTML=newMail.length?`<section class="card"><div class="card-head"><span class="ci orange">${ico('mail')}</span><div><h2>${newMail.length} new email${newMail.length>1?'s':''} to process</h2><p>From your wholesaler search in Gmail</p></div><div class="ch-r"><button class="btn primary sm" data-act="mail-import-all"${state.pullAll?' disabled':''}>${state.pullAll?`<span class="spin"></span>Reading ${state.pullAll.i} of ${state.pullAll.n}…`:`${ico('spark')}Pull out all`}</button></div></div><div class="mailbox">${newMail.slice(0,6).map(m=>{const f=parseFrom(m.from);return `<div class="mail-row"><div style="min-width:0"><div class="row" style="gap:6px"><b>${esc(f.name||f.email)}</b><span class="xs muted">${fmtWhen(m.date)}</span>${m.atts?`<span class="tag blue">${ico('image')}${m.atts} photo${m.atts>1?'s':''}</span>`:''}</div><div class="subj">${esc(m.subject||'(no subject)')}</div><div class="small muted snip">${esc((m.body||'').replace(/\s+/g,' ').slice(0,170))}</div>${busyHTML('mail:'+m.id,false)}</div><div class="row"><button class="btn sm primary" data-act="mail-import" data-id="${esc(m.id)}">${ico('spark')}Pull out deal</button><button class="btn sm ghost" data-act="mail-ignore" data-id="${esc(m.id)}">Ignore</button></div></div>`}).join('')}${newMail.length>6?`<p class="small muted">and ${newMail.length-6} more…</p>`:''}</div></section>`:'';
   const ms=gmailOn()?mailStats():null;
+  const chk=Object.values(state.deals).filter(checking).length;
+  const chkHTML=chk?`<div class="note purple row" style="gap:10px"><span class="spin"></span><span class="small">${n} is opening the links on ${chk} new deal${chk>1?'s':''} to get the address and numbers. ${chk>1?'They show':'It shows'} up here when she’s done.</span></div>`:'';
   const recapHTML=ms&&(ms.read||ms.waiting)?`<div class="note blue row" id="mail-recap" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small">${ico('mail')} ${esc(mailRecap(ms))}</span>${ms.noDeal||ms.gone?`<button class="btn sm" data-act="mail-reread" ${state.pullAll||!aiOn()?'disabled':''}>${ico('refresh')}Read the ones with no deal again</button>`:''}</div>`:'';
   const texts=(state.mail.texts||[]).filter(t=>t.status==='new');
   const textsHTML=texts.length?`<section class="card"><div class="card-head"><span class="ci teal">${ico('sms')}</span><div><h2>${texts.length} text${texts.length>1?'s':''} from unknown numbers</h2><p>Wholesalers often text deals. Pull them out the same way.</p></div></div><div class="mailbox">${texts.slice(-6).reverse().map(t=>`<div class="mail-row"><div style="min-width:0"><div class="row" style="gap:6px"><b class="tnum">${esc(t.from)}</b><span class="xs muted">${fmtWhen(t.at)}</span></div><div class="snip">${esc(t.body)}</div>${busyHTML('text:'+t.sid,false)}</div><div class="row"><button class="btn sm primary" data-act="text-import" data-id="${esc(t.sid)}">${ico('spark')}Pull out deal</button><button class="btn sm ghost" data-act="text-ignore" data-id="${esc(t.sid)}">Ignore</button></div></div>`).join('')}</div></section>`:'';
@@ -3157,7 +3162,7 @@ function viewLeads(){
     <td>${esc((d.wholesalerName||'').replace(/\s*\(example\)/i,''))}</td><td class="tnum">${fmtDate(d.receivedAt||d.created)}</td>
     <td><div class="row" style="flex-wrap:nowrap;gap:2px"><button class="btn ghost sm" data-act="fav" data-id="${d.id}" aria-label="Favorite" style="color:${d.favorite?'var(--s-amber)':'var(--muted)'}">${d.favorite?icoFill('star'):ico('star')}</button><button class="btn ghost sm" data-act="deep" data-id="${d.id}" aria-label="Analyze with ${n}" title="Analyze photos and condition">${ico('bolt')}</button><button class="btn ghost sm" data-act="ws-pass" data-id="${d.id}" aria-label="Pass" title="Pass on this deal">${ico('trash')}</button></div>${busyHTML('deep:'+d.id,false)}</td></tr>`}).join('');
   const table=list.length?`<div class="tbl-wrap" id="leads-wrap" data-keep-scroll><table class="tbl" style="min-width:1180px"><thead><tr><th>Property</th><th class="r">Asking price</th><th class="r">ARV</th><th class="r">Rehab</th><th class="r">Est. rent</th><th class="r">Your ceiling</th><th>Deal tags</th><th>Wholesaler</th><th>Received</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`:emptyHTML('leads',all.length?'No leads match':'No wholesaler deals yet',all.length?'Try clearing the filters.':gmailOn()?'Check Gmail, or label deal emails “Wholesalers” in Gmail so they get picked up.':'Connect Gmail and deals land here automatically, or paste an email above.','');
-  return `<div class="wrap page">${head}${recapHTML}${mailHTML}${textsHTML}${paste}${tiles}${filt}${table}</div><button class="fab" data-act="ask-fab">${ico('spark')}Ask ${n}</button>`;
+  return `<div class="wrap page">${head}${chkHTML}${recapHTML}${mailHTML}${textsHTML}${paste}${tiles}${filt}${table}</div><button class="fab" data-act="ask-fab">${ico('spark')}Ask ${n}</button>`;
 }
 
 /* ================= Deal page ================= */
@@ -3773,14 +3778,14 @@ function applyLinkPage(d,j,src){
   const n=ph.length?addPhotoUrls(d.id,ph.slice(0,12)):0;if(n)filled.push(n+' photo'+(n>1?'s':''));
   return filled;
 }
-async function fillFromLinks(id,quiet){
+async function fillFromLinks(id,quiet,fresh){
   const d=state.deals[id];if(!d||d.example)return null;
   const links=dealLinks(d);
-  if(!links.length){d.linkFill={at:nowISO(),none:true};saveDeal(d,true);return d.linkFill}
-  if(!gmailOn()){d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
+  if(!links.length){delete d.checking;d.linkFill={at:nowISO(),none:true};saveDeal(d,true);return d.linkFill}
+  if(!gmailOn()){delete d.checking;d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
   if(state.busy['links:'+id])return null;
   state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
-  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:!quiet})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
+  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
   if(got.pages.length&&missingInfo(dd)&&aiOn()){
@@ -3788,7 +3793,8 @@ async function fillFromLinks(id,quiet){
     dd=state.deals[id];if(!dd)return null;
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
-  dd.linkFill={at:nowISO(),opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
+  dd.linkFill={at:nowISO(),tries,opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -3807,25 +3813,32 @@ function linkCard(d){
   if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”, then press Try the links again.</div>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
   if(!out.length&&!busy)return '';
-  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div>${hasStreet(d)&&links.length&&lf.at?`<div class="ch-r">${btn('Open again')}</div>`:''}</div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
 }
 /* after a deal comes in: open its links first, then research (so research has the address) */
 const LQ={list:[],running:false};
 function afterNewDeal(id){
   const d=state.deals[id];if(!d)return;
   const capR=boxCap();const p=curList(d);const inBox=!capR||p==null||p<=capR;
-  if(inBox&&dealLinks(d).length&&!d.linkFill){if(WORKER.on||!gmailOn()){d.linkFill={pending:true};saveDeal(d,true);return}
-    if(!LQ.list.includes(id))LQ.list.push(id);drainLinks();return}
+  if(inBox&&dealLinks(d).length&&!d.linkFill){
+    if(!gmailOn()){d.linkFill={pending:true};saveDeal(d,true);return}
+    if(missingInfo(d))d.checking=Date.now();
+    if(WORKER.on){d.linkFill={pending:true};saveDeal(d,true);return}
+    saveDeal(d,true);if(!LQ.list.includes(id))LQ.list.push(id);drainLinks();return}
   maybeResearch(id);
 }
 function maybeResearch(id){const d=state.deals[id];if(!d||d.research)return;const capR=boxCap();const p=curList(d);
   if(state.settings.research&&state.settings.research.auto&&aiOn()&&(!capR||p==null||p<=capR))queueResearch(id)}
-async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();if(state.deals[id]){await fillFromLinks(id,true);maybeResearch(id)}}}finally{LQ.running=false}}
+async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();const d=state.deals[id];if(d){const retry=!!(d.linkFill&&d.linkFill.at);await fillFromLinks(id,true,retry);if(state.deals[id]&&state.deals[id].checking){delete state.deals[id].checking;saveDeal(state.deals[id],true)}maybeResearch(id)}}}finally{LQ.running=false;render()}}
 /* deals the 24/7 worker brought in, and older deals still missing a street address: open their links on this device */
 function resumeLinks(){
-  if(WORKER.on||!gmailOn()||!aiOn())return;
-  for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d))continue;
-    const lf=d.linkFill;if((lf&&lf.pending)||(!lf&&!hasStreet(d)&&dealLinks(d).length)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}}
+  if(WORKER.on)return;
+  if(!gmailOn()||!aiOn()){for(const d of Object.values(state.deals))if(d.checking){delete d.checking;saveDeal(d,true)}return}
+  for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d)){if(d.checking){delete d.checking;saveDeal(d,true)}continue}
+    const lf=d.linkFill;const links=dealLinks(d).length;
+    const due=lf&&lf.at&&(lf.tries||1)<3&&Date.now()-new Date(lf.at).getTime()>12*3600*1000&&(!hasStreet(d)||(lf.noAccess||[]).length);
+    if(links&&((lf&&lf.pending)||d.checking||(!lf&&!hasStreet(d))||due)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}
+    else if(d.checking){delete d.checking;saveDeal(d,true)}}
   drainLinks();
 }
 async function researchDeal(id,quiet){

@@ -1,6 +1,7 @@
 /* ================= deal helpers ================= */
 /* buy box: emailed deals asking more than his cap are kept but tucked away (hidden by default, not researched, not counted as new) */
 const boxCap=()=>+((state.settings.research||{}).maxPrice)||0;
+const checking=d=>!!(d&&d.checking&&Date.now()-d.checking<30*60*1000);
 const overBox=d=>{const c=boxCap();if(!c||!d||d.source!=='wholesaler'||d.example||d.starred||d.favorite||!['new','sent'].includes(d.stage||'new'))return false;const p=curList(d);return p!=null&&p>c};
 function curList(d){const h=d.priceHistory||[];return h.length?h[h.length-1].price:(d.listPrice??null)}
 function origList(d){const h=d.priceHistory||[];return h.length?h[0].price:(d.listPrice??null)}
@@ -248,7 +249,7 @@ function counts(){
     reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
     draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
     follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
-    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)).length,
+    ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d)).length,
     newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
     live:ds.filter(d=>['sent','negotiating'].includes(d.stage)).length,
     contract:ds.filter(d=>d.stage==='contract').length,
