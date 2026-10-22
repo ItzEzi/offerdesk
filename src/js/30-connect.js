@@ -104,6 +104,10 @@ function buildQuery(defaultOnly){
   const parts=['label:wholesalers'];if(emails.length)parts.push('from:('+emails.join(' OR ')+')');
   parts.push('((ARV OR "after repair value" OR "after-repair value") (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers" OR asking OR rehab OR repairs OR "contract price" OR "buyers list"))');
   parts.push('("assignment fee" OR "investor special" OR "off market deal" OR "off-market deal" OR "cash buyers only")');
+  /* deal-alert emails from buyer lists (HouseCashin, InvestorLift, etc.) and plain listing blasts: beds + baths + sqft, or alert wording */
+  parts.push('("property alert" OR "deal alert" OR "new properties" OR "buying criteria" OR "new deal" OR "new listing" OR "price reduced")');
+  parts.push('((bed OR beds OR bedroom OR bedrooms OR bd) (bath OR baths OR ba) (sqft OR "sq ft" OR "square feet"))');
+  parts.push('from:(realestatebees.com OR housecashin.com OR investorlift.com OR davebuyshousesindiana.com)');
   return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));

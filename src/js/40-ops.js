@@ -69,7 +69,9 @@ async function extractDeals(text,meta,busyKey,quiet){
     logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
   }
   render();
-  if(state.settings.research&&state.settings.research.auto&&aiOn())made.forEach(queueResearch);
+  /* deep research costs money: only deals at or under his research price cap (0 = all) */
+  const capR=+((state.settings.research||{}).maxPrice)||0;
+  if(state.settings.research&&state.settings.research.auto&&aiOn())made.filter(id=>{const d=state.deals[id];const p=d&&curList(d);return !capR||p==null||p<=capR}).forEach(queueResearch);
   return {deals:made,w};
 }
 async function importEmail(id,quiet){

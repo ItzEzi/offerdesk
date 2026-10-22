@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261022-2308: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261023-0038: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261022-2308';
+const APP_V='20261023-0038';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -48,7 +48,7 @@ const DEFAULTS={
   auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
-  research:{auto:true},
+  research:{auto:true,maxPrice:175000},
   ai:{bigModel:'claude-opus-5-5'},
   brief:{on:true,hour:8,tz:''},
   rehab:{costs:{},notes:''},
@@ -913,6 +913,10 @@ function buildQuery(defaultOnly){
   const parts=['label:wholesalers'];if(emails.length)parts.push('from:('+emails.join(' OR ')+')');
   parts.push('((ARV OR "after repair value" OR "after-repair value") (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers" OR asking OR rehab OR repairs OR "contract price" OR "buyers list"))');
   parts.push('("assignment fee" OR "investor special" OR "off market deal" OR "off-market deal" OR "cash buyers only")');
+  /* deal-alert emails from buyer lists (HouseCashin, InvestorLift, etc.) and plain listing blasts: beds + baths + sqft, or alert wording */
+  parts.push('("property alert" OR "deal alert" OR "new properties" OR "buying criteria" OR "new deal" OR "new listing" OR "price reduced")');
+  parts.push('((bed OR beds OR bedroom OR bedrooms OR bd) (bath OR baths OR ba) (sqft OR "sq ft" OR "square feet"))');
+  parts.push('from:(realestatebees.com OR housecashin.com OR investorlift.com OR davebuyshousesindiana.com)');
   return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
@@ -1444,7 +1448,9 @@ async function extractDeals(text,meta,busyKey,quiet){
     logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
   }
   render();
-  if(state.settings.research&&state.settings.research.auto&&aiOn())made.forEach(queueResearch);
+  /* deep research costs money: only deals at or under his research price cap (0 = all) */
+  const capR=+((state.settings.research||{}).maxPrice)||0;
+  if(state.settings.research&&state.settings.research.auto&&aiOn())made.filter(id=>{const d=state.deals[id];const p=d&&curList(d);return !capR||p==null||p<=capR}).forEach(queueResearch);
   return {deals:made,w};
 }
 async function importEmail(id,quiet){
