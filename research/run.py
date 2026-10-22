@@ -445,7 +445,10 @@ def flips_by_buy_band(sales, since, max_days=548, min_price=10000, keyfn=None):
 def extras(sales, since):
     return {'byYear': flips_from_sales([dict(s_, yr=str(s_['date'].year)) for s_ in sales], 'yr', since=datetime.date(2022, 1, 1)),
             'byBuyBand': flips_by_buy_band(sales, since),
-            'byBuyType': flips_by_buy_band(sales, since, keyfn=lambda a: ('market buy ' if a.get('market', True) else 'other buy ') + band_of(a['price']))}
+            'byBuyType': flips_by_buy_band(sales, since, keyfn=lambda a: ('market buy ' if a.get('market', True) else 'other buy ') + band_of(a['price'])),
+            'within12': flips_from_sales([dict(s_, all='all', band=band_of(s_['price'])) for s_ in sales], 'all', since=since, max_days=365),
+            'within12Band': flips_from_sales([dict(s_, band=band_of(s_['price'])) for s_ in sales], 'band', since=since, max_days=365),
+            'within6': flips_from_sales([dict(s_, all='all') for s_ in sales], 'all', since=since, max_days=183)}
 
 # ---------------- Cook County (Chicago) ----------------
 COOK_TWP = {'10': 'Barrington', '11': 'Berwyn', '12': 'Bloom', '13': 'Bremen', '14': 'Calumet', '15': 'Cicero', '16': 'Elk Grove', '17': 'Evanston',
