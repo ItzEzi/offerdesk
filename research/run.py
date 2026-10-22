@@ -158,6 +158,8 @@ def job_wprdc(out):
     for s in sales:
         s['area'] = 'Pittsburgh city' if 'PITTSBURGH' in s['muni'].upper() else 'Suburbs'
     res['cityVsSuburbs'] = flips_from_sales(sales, 'area', since=since)
+    res.update(extras(sales, since))
+    res['areaBand'] = {a: with_bands([s_ for s_ in sales if s_['area'] == a], since) for a in ('Pittsburgh city', 'Suburbs')}
     json.dump(res, open(os.path.join(out, 'allegheny_flips.json'), 'w'), default=str)
 
 def carto(q):
@@ -185,6 +187,7 @@ def job_philly(out):
     companyShare = {z: {'sales': a, 'companyBuyers': b, 'share': round(100 * b / a, 1)} for z, (a, b) in comp.items() if a >= 20}
     res = {'rows': len(rows), 'since': str(since), 'byZip': flips_from_sales(sales, 'zip', since=since), 'companyBuyersByZip': companyShare,
            'city': flips_from_sales([dict(s, all='Philadelphia') for s in sales], 'all', since=since), 'byBand': with_bands(sales, since)}
+    res.update(extras(sales, since))
     json.dump(res, open(os.path.join(out, 'philly_flips.json'), 'w'), default=str)
 
 FHFA_URLS = ['https://www.fhfa.gov/hpi/download/quarterly_datasets/hpi_at_metro.csv',
@@ -396,6 +399,7 @@ def finish_indiana(out, sales, heads):
     for c in set(s_['county'] for s_ in sales):
         sub = [dict(s_, band=band(s_['price'])) for s_ in sales if s_['county'] == c]
         res['byCountyBand'][c] = flips_from_sales(sub, 'band', since=since)
+        res.setdefault('byCountyExtras', {})[c] = extras([s_ for s_ in sales if s_['county'] == c], since)
     json.dump(res, open(os.path.join(out, 'indiana_flips.json'), 'w'), default=str)
 
 def band_of(p):
@@ -414,6 +418,33 @@ def socrata_all(base, select, where, order, page=50000, cap=2000000):
             break
         off += page
     return rows
+
+def flips_by_buy_band(sales, since, max_days=548, min_price=10000):
+    """Group real flips by what the flipper PAID (his budget is a buy price). Also count losing quick resales."""
+    byp = collections.defaultdict(list)
+    for s_ in sales:
+        byp[s_['parcel']].append(s_)
+    g = collections.defaultdict(lambda: {'flips': 0, 'loss': 0, 'sell': [], 'days': [], 'margin': [], 'gain': []})
+    for p_, ss in byp.items():
+        ss.sort(key=lambda x: x['date'])
+        for a, b in zip(ss, ss[1:]):
+            if b['date'] < since or not b.get('market', True):
+                continue
+            d = (b['date'] - a['date']).days
+            if d < 30 or d > max_days or a['price'] < min_price:
+                continue
+            k = band_of(a['price']); m = b['price'] / a['price'] - 1
+            if m <= 0:
+                g[k]['loss'] += 1; continue
+            g[k]['flips'] += 1; g[k]['sell'].append(b['price']); g[k]['days'].append(d); g[k]['margin'].append(m); g[k]['gain'].append(b['price'] - a['price'])
+    return {k: {'flips': v['flips'], 'lossShare': round(100 * v['loss'] / (v['loss'] + v['flips']), 1) if v['loss'] + v['flips'] else None,
+                'medSell': med(v['sell']), 'medDays': med(v['days']), 'medMargin': round(100 * med(v['margin']), 1) if v['margin'] else None,
+                'p25Margin': round(100 * sorted(v['margin'])[len(v['margin']) // 4], 1) if len(v['margin']) >= 8 else None, 'medGain': med(v['gain'])}
+            for k, v in g.items()}
+
+def extras(sales, since):
+    return {'byYear': flips_from_sales([dict(s_, yr=str(s_['date'].year)) for s_ in sales], 'yr', since=datetime.date(2022, 1, 1)),
+            'byBuyBand': flips_by_buy_band(sales, since)}
 
 # ---------------- Cook County (Chicago) ----------------
 COOK_TWP = {'10': 'Barrington', '11': 'Berwyn', '12': 'Bloom', '13': 'Bremen', '14': 'Calumet', '15': 'Cicero', '16': 'Elk Grove', '17': 'Evanston',
@@ -453,6 +484,7 @@ def job_cook(out):
            'county': flips_from_sales(sales, 'all', since=since), 'cityVsSuburbs': flips_from_sales(sales, 'city', since=since),
            'byTownship': flips_from_sales(sales, 'twp', since=since), 'byBand': with_bands(sales, since),
            'companyBuyersByTownship': {k: {'sales': a, 'share': round(100 * b / a, 1)} for k, (a, b) in comp.items() if a >= 50}}
+    res.update(extras(sales, since))
     json.dump(res, open(os.path.join(out, 'cook_flips.json'), 'w'), default=str)
 
 # ---------------- Milwaukee (city arm's-length sales) ----------------
@@ -578,6 +610,7 @@ def job_maryland(out):
     res = {'rows': len(rows), 'sales': len(sales), 'columns': C, 'howConveyed': hows.most_common(12),
            'note': 'Only the last two transfers per property are kept by SDAT, so older sales are missing; recent flips are complete.',
            'city': flips_from_sales(sales, 'all', since=since), 'byBand': with_bands(sales, since), 'byZip': flips_from_sales(sales, 'zip', since=since)}
+    res.update(extras(sales, since))
     json.dump(res, open(os.path.join(out, 'maryland_flips.json'), 'w'), default=str)
 
 def main():
