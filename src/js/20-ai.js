@@ -69,19 +69,21 @@ function aiErr(e){
   if(c==='bad_model')return 'That model isn’t available on your API key. Pick another in Connect.';
   if(c==='network')return 'Couldn’t reach Anthropic. If your internet works, the usual cause is an Anthropic account with no credits or a key that was turned off: check console.anthropic.com → Billing and API keys.';
   if(c==='rate_limited')return 'Anthropic says slow down for a minute. Try again shortly.';
-  if(c==='invalid_json')return `${n}’s answer came back garbled. Try again.`;
+  if(c==='invalid_json')return `${n}’s answer came back in a shape OfferDesk couldn’t read, so nothing was added from that email.`;
   if(c==='image_rejected')return 'One of the photos couldn’t be read. Remove it and try again.';
   if(c==='empty_completion')return 'Claude sent back an empty answer. Try again.';
   if(c==='upstream_error')return `Anthropic’s servers had a problem${e.status?' (HTTP '+e.status+')':''}. Try again in a minute.`;
   return (e&&e.message)?`Claude error${e.status?' (HTTP '+e.status+')':''}: ${e.message}`:`Couldn’t reach Claude${c?' ('+c+')':''}. Try again.`;
 }
 async function runAI(key,label,fn,quiet){
-  if(state.busy[key])return null;
-  if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return null}
+  const errs=state.aiErrs||(state.aiErrs={});
+  if(state.busy[key]){errs[key]='Maya was already reading that one.';return null}
+  if(!aiOn()){errs[key]=aiErr({code:'no_ai'});if(!quiet)toast(errs[key],5200);return null}
   const ctl=new AbortController();
   state.busy[key]={label,ctl};render();
+  delete errs[key];
   try{return await fn(AI,ctl.signal)}
-  catch(e){const m=aiErr(e);if(m&&!quiet)toast(m,5200);if(quiet&&m)logActivity(null,'warn',m);return null}
+  catch(e){const m=aiErr(e);errs[key]=m||'Stopped.';if(m&&!quiet)toast(m,5200);if(quiet&&m)logActivity(null,'warn',m);return null}
   finally{delete state.busy[key];render()}
 }
 function busyHTML(key,stop=true){const b=state.busy[key];if(!b)return '';return `<div class="busy"><div class="spin"></div><span>${esc(b.label)}</span>${stop&&b.ctl?`<button class="btn ghost sm" data-act="stop-ai" data-key="${esc(key)}">Stop</button>`:''}</div>`}
@@ -253,7 +255,7 @@ Reply with only JSON:
 }
 const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
 
-Put every URL that could show the property (listing pages, Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and direct image URLs in "photoLinks". Skip unsubscribe, social media and calendar links.
+Put up to 2 URLs that show each property (listing pages, Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Skip unsubscribe, social media, calendar and "upgrade" links. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
 
 Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 

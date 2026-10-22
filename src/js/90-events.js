@@ -144,7 +144,9 @@ A['delete-deal']=()=>{state.modal={type:'confirm',title:'Delete this deal?',text
 
 /* leads */
 A['mail-import']=el=>importEmail(el.dataset.id);
-A['mail-import-all']=async()=>{const ids=Object.values(state.mail.emails).filter(m=>m.status==='new').sort(byDate).reverse().slice(0,10).map(m=>m.id);for(const id of ids)await importEmail(id,true);toast('Done pulling out deals')};
+A['mail-import-all']=async()=>{if(state.pullAll)return;const ids=Object.values(state.mail.emails).filter(m=>m.status==='new').sort(byDate).reverse().slice(0,10).map(m=>m.id);const rs=[];
+  try{for(let i=0;i<ids.length;i++){state.pullAll={i:i+1,n:ids.length};render();rs.push(await importEmail(ids[i],true))}}finally{state.pullAll=null;render()}
+  toast(pullSummary(rs),9000)};
 A['mail-ignore']=el=>{const m=state.mail.emails[el.dataset.id];if(m){m.status='ignored';saveMail();render()}};
 A['text-import']=async el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.dataset.id);if(!t)return;
   const r=await extractDeals(t.body||'',{phone:t.from,channel:'sms',at:t.at,msgId:t.sid,gvThreadId:t.threadId||null},'text:'+t.sid);if(!r)return;

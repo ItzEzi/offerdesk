@@ -418,7 +418,7 @@ details summary{cursor:pointer;padding:4px 0;font-weight:700}
 .modal-scrim{position:fixed;inset:0;background:var(--scrim);z-index:60}
 .modal-box{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(680px,calc(100% - 32px));max-height:calc(100% - 48px);overflow:auto;background:var(--surface);border-radius:16px;z-index:61;box-shadow:var(--shadow);padding:22px;display:grid;gap:14px}
 .modal-box h2{font-size:19px;font-weight:800}
-.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:11px;font-weight:650;z-index:80;max-width:calc(100% - 32px);box-shadow:var(--shadow)}
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:11px;font-weight:650;z-index:80;max-width:min(560px,calc(100% - 32px));line-height:1.45;text-wrap:pretty;box-shadow:var(--shadow)}
 
 @media (max-width:1180px){.deal-grid{grid-template-columns:minmax(0,1fr)}.rail-col{position:static;max-height:none;overflow:visible;order:-1}}
 @media (max-width:900px){

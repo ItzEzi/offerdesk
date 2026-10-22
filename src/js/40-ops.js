@@ -46,18 +46,38 @@ function exampleDeals(){
 function applyAnalysisFlags(d){}
 
 /* ---------- extraction ---------- */
+/* if a long answer gets cut off, keep every property that came through whole */
+function salvageDeals(t){
+  const i=String(t||'').indexOf('"deals"');if(i<0)return null;const a=t.indexOf('[',i);if(a<0)return null;
+  const out=[];let depth=0,start=-1,inStr=false,esc=false;
+  for(let k=a+1;k<t.length;k++){const ch=t[k];
+    if(inStr){if(esc)esc=false;else if(ch==='\\')esc=true;else if(ch==='"')inStr=false;continue}
+    if(ch==='"'){inStr=true;continue}
+    if(ch==='{'){if(depth===0)start=k;depth++}
+    else if(ch==='}'){depth--;if(depth===0&&start>=0){try{out.push(JSON.parse(t.slice(start,k+1)))}catch(e){}start=-1}}
+    else if(ch===']'&&depth===0)break;}
+  return out.length?{deals:out,wholesaler:{}}:null;
+}
+function shrinkLinks(t){const map={};let n=0;
+  const text=String(t||'').replace(/https?:\/\/[^\s<>"'()\[\]]+/g,u=>{if(u.length<=70||/\.(jpe?g|png|webp)(\?|$)/i.test(u))return u;const k='[link'+(++n)+']';map[k]=u;return k});
+  return {text,map,back:v=>{const s=String(v||'').trim();const m=s.match(/^\[?link(\d+)\]?$/i);return m&&map['[link'+m[1]+']']?map['[link'+m[1]+']']:s}};}
+const dealKey=d=>(String(streetOf(d.address)||'').toLowerCase().replace(/[^a-z0-9]/g,'')+'|'+String(d.zip||'').slice(0,5));
 async function extractDeals(text,meta,busyKey,quiet){
-  meta=meta||{};
-  const res=await runAI(busyKey,`${negName()} is reading that message…`,(ai,signal)=>ai.json(P_WHOLESALE(text),{signal,modelTier:'quick'}),quiet);
+  meta=meta||{};const sl=shrinkLinks(text);
+  const res=await runAI(busyKey,`${negName()} is reading that message…`,async(ai,signal)=>{const r=await apiText(P_WHOLESALE(sl.text),{signal,modelTier:'quick',maxTokens:8000});try{return parseLoose(r.text)}catch(e){const s=salvageDeals(r.text);if(s)return s;throw e}},quiet);
   if(!res)return null;
   const list=Array.isArray(res.deals)?res.deals:res.address?[res]:[];
   const w=Object.assign({},res.wholesaler||{});
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[];
+  const made=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example)byKey[dealKey(o)]=o;
   for(const x of list){
+    x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
+    /* the same house in tomorrow's alert: update it instead of adding a copy */
+    const old=x.address?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
+    if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
@@ -72,14 +92,26 @@ async function extractDeals(text,meta,busyKey,quiet){
   /* deep research costs money: only deals at or under his research price cap (0 = all) */
   const capR=+((state.settings.research||{}).maxPrice)||0;
   if(state.settings.research&&state.settings.research.auto&&aiOn())made.filter(id=>{const d=state.deals[id];const p=d&&curList(d);return !capR||p==null||p<=capR}).forEach(queueResearch);
-  return {deals:made,w};
+  return {deals:made,updated,over:made.filter(id=>overBox(state.deals[id])).length,w};
+}
+/* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
+function pullSummary(rs){
+  const ok=rs.filter(r=>r&&!r.err);const add=ok.reduce((a,r)=>a+(r.deals||[]).length,0),upd=ok.reduce((a,r)=>a+(r.updated||0),0),over=ok.reduce((a,r)=>a+(r.over||0),0);
+  const none=ok.filter(r=>!(r.deals||[]).length&&!r.updated).length;const bad=rs.filter(r=>r&&r.err);
+  const parts=[];
+  if(add)parts.push(`Added ${add} deal${add>1?'s':''}`+(over?` (${over} asking over ${moneyK(boxCap())}, tucked under the “Over ${moneyK(boxCap())}” button)`:''));
+  if(upd)parts.push(`${upd} already in OfferDesk, updated`);
+  if(none)parts.push(`${none} email${none>1?'s':''} had no property in ${none>1?'them':'it'}`);
+  if(bad.length)parts.push(`${bad.length} couldn’t be read: ${String(bad[0].err).replace(/[.\s]+$/,'')}`);
+  return parts.length?parts.join('. ')+'.':'No new emails to pull from. Press Check Gmail first.';
 }
 async function importEmail(id,quiet){
   const m=state.mail.emails[id];if(!m)return;const f=parseFrom(m.from);
   const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email'},'mail:'+id,quiet);
-  if(!r)return;const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length?'imported':'nodeal';mm.dealIds=r.deals}saveMail();
+  if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated?'imported':'nodeal';mm.dealIds=r.deals}saveMail();
   if(r.deals.length===1&&(m.atts||0)>0){try{const a=await bridge('attachments',{id:m.id,max:8},m.acct||undefined);const blobs=(a.files||[]).map(x=>b64ToBlob(x.data,x.type));if(blobs.length)await addPhotoBlobs(r.deals[0],blobs,'email')}catch(e){}}
-  render();if(!quiet)toast(r.deals.length?`Added ${r.deals.length} deal${r.deals.length>1?'s':''}`:'No property found in that email.');
+  render();if(!quiet)toast(pullSummary([r]),6000);
+  return r;
 }
 
 /* ---------- Maya's drafts ---------- */
