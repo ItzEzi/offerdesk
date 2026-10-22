@@ -62,8 +62,10 @@ const unseenCount=()=>state.activity.filter(a=>!state.conn.seenAt||a.at>state.co
 
 /* ================= Gmail + texting bridge ================= */
 /* Several Gmail accounts can be connected (e.g. company + personal). Maya reads from all of them and sends from one. */
+/* removed inboxes: {id: time removed}; an inbox added again later (newer 'at') wins */
+function goneMap(g){if(Array.isArray(g))return {};return g&&typeof g==='object'?Object.assign({},g):{}}
 function acctList(){const s=secrets();let a=Array.isArray(s.accounts)?s.accounts:null;if(!a){a=[];if(s.bridgeUrl)a.push({id:'g1',url:s.bridgeUrl})}return a}
-function saveAccts(a){const s=secrets();s.accounts=a;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s));cloudTrack('secrets')}
+function saveAccts(a){const s=secrets();const now=Date.now();const keep=new Set(a.map(x=>x.id));const gone=goneMap(s.goneAccts);for(const x of acctList())if(!keep.has(x.id))gone[x.id]=now;for(const x of a){if(!x.at)x.at=now;delete gone[x.id]}s.goneAccts=gone;s.accounts=a;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s));cloudTrack('secrets')}
 const acctInfo=id=>(state.conn.accounts||{})[id]||null;
 const connectedAccts=()=>acctList().filter(a=>a.url&&acctInfo(a.id)&&acctInfo(a.id).email);
 function sendAcct(){const c=connectedAccts();return c.find(a=>a.id===state.settings.conn.sendAccount)||c[0]||null}

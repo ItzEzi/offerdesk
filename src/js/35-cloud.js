@@ -16,12 +16,18 @@ const COLS={
 };
 const WHOLES={
   settings:{key:'settings',get:()=>state.settings,set:v=>{state.settings=deepMerge(DEFAULTS,v||{})}},
-  conn:{key:'conn',get:()=>state.conn,set:v=>{state.conn=v&&typeof v==='object'?v:{}}},
+  conn:{key:'conn',get:()=>state.conn,set:v=>{const L=state.conn||{};const n=v&&typeof v==='object'?Object.assign({},v):{};n.accounts=Object.assign({},L.accounts||{},n.accounts||{});state.conn=n}},  /* keep inboxes this device knows that the cloud copy doesn't */
   research:{key:'research',get:()=>state.research||{},set:v=>{state.research=v&&typeof v==='object'?v:{}}},
-  secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',elevenKey:s.elevenKey||'',accounts:acctList()}},
-    set:v=>{v=v||{};const s=secrets();if(v.apiKey)s.apiKey=v.apiKey;else delete s.apiKey;if(v.model)s.model=v.model;else delete s.model;if(v.elevenKey)s.elevenKey=v.elevenKey;else delete s.elevenKey;
-      const acc=(Array.isArray(v.accounts)?v.accounts:[]).filter(a=>a&&a.id);const mine=acctList().find(a=>a.id===cm().acct);if(mine&&!acc.some(a=>a.id===mine.id))acc.unshift(mine);
-      s.accounts=acc;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
+  /* keys and Gmail links: a blank in the cloud copy never wipes a key or inbox this device has (that used to log devices out);
+     only an inbox removed on purpose (goneAccts) is removed everywhere */
+  secrets:{key:'secrets',get:()=>{const s=secrets();return {apiKey:s.apiKey||'',model:s.model||'',elevenKey:s.elevenKey||'',accounts:acctList(),goneAccts:goneMap(s.goneAccts)}},
+    set:v=>{v=v||{};const s=secrets();for(const k of ['apiKey','model','elevenKey'])if(v[k])s[k]=v[k];
+      const gone=goneMap(s.goneAccts);for(const [id,t] of Object.entries(goneMap(v.goneAccts)))if(!(gone[id]>=t))gone[id]=t;const local=acctList();
+      const acc=(Array.isArray(v.accounts)?v.accounts:[]).filter(a=>a&&a.id).map(a=>Object.assign({},a));
+      for(const a of acc){const l=local.find(x=>x.id===a.id);if(!a.url&&l&&l.url)a.url=l.url}
+      const mine=local.find(a=>a.id===cm().acct);if(mine&&!acc.some(a=>a.id===mine.id))acc.unshift(Object.assign({},mine));
+      for(const a of local)if(!acc.some(x=>x.id===a.id))acc.push(Object.assign({},a));
+      s.accounts=acc.filter(a=>!(gone[a.id]>(a.at||0)));for(const a of s.accounts)if(gone[a.id]!=null)delete gone[a.id];s.goneAccts=gone;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
 };
 const range=(p,n)=>Array.from({length:n},(_,i)=>p+i);
 const PARTS=[...range('deals',8),'practice','campaigns',...range('emails',4),'texts','settings','conn','research','secrets','mailmeta','activity'];
@@ -109,7 +115,9 @@ function mergeApply(P,R,dropEx){
     if(!R||typeof R!=='object'||R.t==null)return {changed:false,push:true};
     if(lt>R.t)return {changed:false,push:true};
     let changed=false;if(hashOf(R.v)!==CM.h[c]){W.set(R.v);changed=true}
-    CM.h[c]=hashOf(W.get());CM.s[c]=R.t;return {changed,push:false};
+    CM.h[c]=hashOf(W.get());CM.s[c]=R.t;
+    if((c==='secrets'||c==='conn')&&CM.h[c]!==hashOf(R.v)){CM.s[c]=Date.now();return {changed,push:true}}  /* we kept something the cloud copy was missing: send it back */
+    return {changed,push:false};
   }
   if(c==='mailmeta'){
     R=R||{};const L=mailMeta();const mx=(a,b)=>String(a||'')>String(b||'')?a:b;

@@ -49,9 +49,12 @@ function bellHTML(){
   return `<div class="bell-pop" role="dialog" aria-label="Activity"><div class="bh"><b>${esc(negName())}’s activity</b>${state.settings.auto.enabled?'<span class="tag purple">Autopilot on</span>':'<span class="tag">Autopilot off</span>'}</div>
   ${list.length?list.map(a=>{const s=ACT_STYLE[a.kind]||ACT_STYLE.info;return `<button class="act-row" ${a.dealId&&state.deals[a.dealId]?`data-act="open" data-id="${a.dealId}"`:''}><span class="ai" style="background:${s[1]}">${ico(s[0])}</span><span><span class="small" style="display:block">${esc(a.text)}</span><span class="xs muted">${ago(a.at)}</span></span></button>`}).join(''):`<p class="small muted" style="padding:16px">Nothing yet. When ${esc(negName())} sends offers or agents reply, it shows up here.</p>`}</div>`;
 }
+/* opened anywhere other than the real site (a Claude preview, another host): keys saved there don't reach the real app */
+const otherCopy=()=>/^https?:$/.test(location.protocol)&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)&&location.href.indexOf(ONLINE_URL)!==0&&location.href.indexOf(ONLINE_URL.replace(/\/$/,''))!==0;
 function alertHTML(){
   const k=counts();const n=esc(negName());const parts=[];
   if(location.protocol==='file:')return `<div class="alertbar"><div class="wrap">${ico('refresh')} This is a downloaded copy that won\u2019t update. Use the online version instead: <a href="${ONLINE_URL}" target="_blank" rel="noopener" style="text-transform:none;letter-spacing:0">${ONLINE_URL.replace('https://','')}</a></div></div>`;
+  if(otherCopy())return `<div class="alertbar"><div class="wrap">${ico('refresh')} This copy of OfferDesk keeps its own keys and Gmail links, separate from your real one. Use the online version instead: <a href="${ONLINE_URL}" target="_blank" rel="noopener" style="text-transform:none;letter-spacing:0">${ONLINE_URL.replace('https://','')}</a></div></div>`;
   if(!aiOn())return `<div class="alertbar"><div class="wrap">${ico('bolt')} ${n} needs your Anthropic API key before she can work. <a href="#settings/connections">Connect ›</a></div></div>`;
   if(k.reply)parts.push(`${k.reply} agent${k.reply>1?'s':''} replied — your turn to respond`);
   const needs=Object.values(state.deals).filter(d=>d.needsYou&&d.draft).length;
