@@ -917,6 +917,64 @@ def job_nyprobe(out):
             res['catalog %s %s' % (dom, q)] = 'error %s' % str(e)[:120]
     json.dump(res, open(os.path.join(out, 'nyprobe.json'), 'w'), indent=1)
 
+def _ctx_with_aia(host):
+    """Some state sites don't send their intermediate certificate. Fetch it from the leaf certificate's AIA link
+    (what browsers do) and add it, so the connection is still fully verified."""
+    import ssl, re
+    pem = ssl.get_server_certificate((host, 443))
+    der = ssl.PEM_cert_to_DER_cert(pem)
+    urls = [u.decode() for u in re.findall(rb'http://[\x21-\x7e]+?\.(?:crt|cer|der|p7c)', der)]
+    ctx = ssl.create_default_context()
+    added = []
+    for u in urls:
+        try:
+            b = urllib.request.urlopen(u, timeout=60).read()
+            ctx.load_verify_locations(cadata=ssl.DER_cert_to_PEM_cert(b)); added.append(u)
+        except Exception:
+            pass
+    return ctx, added
+
+def job_nyprobe2(out):
+    """NY SalesWeb (pad.tax.ny.gov): find the bulk sales download. Also: does the statewide assessment-roll dataset carry sale fields?"""
+    import re
+    res = {}
+    try:
+        ctx, added = _ctx_with_aia('pad.tax.ny.gov'); res['aia'] = added
+        seen = {}
+        def fetch(u):
+            r = urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0 research'}), context=ctx, timeout=90)
+            return r.geturl(), r.headers.get('content-type'), r.read()
+        todo = ['https://pad.tax.ny.gov/index', 'https://pad.tax.ny.gov/']
+        while todo and len(seen) < 25:
+            u = todo.pop(0)
+            if u in seen: continue
+            try:
+                fu, ct, b = fetch(u); t = b.decode('utf-8', 'replace')
+                hits = sorted(set(re.findall(r'["\'`]([^"\'`\s]{0,160}(?:[Ss]ale|[Dd]ownload|\.zip|\.exe|\.csv|/api/)[^"\'`\s]{0,160})["\'`]', t)))[:200]
+                seen[u] = {'final': fu, 'ct': ct, 'len': len(b), 'hits': hits, 'head': t[:600] if 'html' in (ct or '') else ''}
+                for l in _links(t, fu) + [urllib.parse.urljoin(fu, s) for s in re.findall(r'src=["\']([^"\']+\.js[^"\']*)["\']', t)]:
+                    if 'pad.tax.ny.gov' in l and l not in seen and (l.endswith('.js') or 'sale' in l.lower() or 'download' in l.lower()):
+                        todo.append(l)
+            except Exception as e:
+                seen[u] = 'error %s' % str(e)[:150]
+        res['pages'] = seen
+    except Exception as e:
+        res['error'] = str(e)[:300]
+    try:
+        meta = json.loads(get('https://data.ny.gov/api/views/7vem-aaz7/columns.json', 90).read().decode('utf-8'))
+        res['rollColumns'] = [c['fieldName'] for c in meta]
+    except Exception as e:
+        res['rollColumns'] = 'error %s' % str(e)[:120]
+    for q in ('Erie County property sales', 'Buffalo assessment roll', 'Buffalo real property sales', 'New York real property sales'):
+        try:
+            u = 'https://api.us.socrata.com/api/catalog/v1?' + urllib.parse.urlencode({'q': q, 'limit': 10})
+            d = json.loads(get(u, 90).read().decode('utf-8'))
+            res['catalog ' + q] = [{'domain': x['metadata'].get('domain'), 'id': x['resource']['id'], 'name': x['resource']['name'],
+                                    'cols': x['resource'].get('columns_field_name', [])[:40]} for x in d.get('results', [])]
+        except Exception as e:
+            res['catalog ' + q] = 'error %s' % str(e)[:120]
+    json.dump(res, open(os.path.join(out, 'nyprobe2.json'), 'w'), indent=1)
+
 NRI_FIPS = {'18141': 'St. Joseph IN (South Bend)', '36029': 'Erie NY (Buffalo)', '42003': 'Allegheny PA (Pittsburgh)', '18039': 'Elkhart IN',
             '18091': 'LaPorte IN', '26021': 'Berrien MI', '26077': 'Kalamazoo MI', '42049': 'Erie PA', '36067': 'Onondaga NY (Syracuse)',
             '40143': 'Tulsa OK', '18097': 'Marion IN (Indianapolis)', '42069': 'Lackawanna PA (Scranton)'}
