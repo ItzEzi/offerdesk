@@ -645,6 +645,26 @@ def job_detroit(out):
     res.update(extras(sales, since))
     json.dump(res, open(os.path.join(out, 'detroit_flips.json'), 'w'), default=str)
 
+# ---------------- BatchData flip reports (probe) ----------------
+def job_batchprobe(out):
+    """Save the raw HTML of BatchData's flip-activity report pages to see whether they carry county data (Lackawanna = Scranton)."""
+    urls = ['https://reports.batchdata.io/market-reports/flip-activity/2026-07/state/mi/',
+            'https://reports.batchdata.io/market-reports/flip-activity/2026-07/state/pa/',
+            'https://reports.batchdata.io/market-reports/flip-activity/2026-07/county/pa/lackawanna/',
+            'https://reports.batchdata.io/market-reports/flip-activity/2026-07/county/pa/lackawanna-county/',
+            'https://reports.batchdata.io/market-reports/flip-activity/2026-07/county/42069/',
+            'https://reports.batchdata.io/sitemap.xml', 'https://reports.batchdata.io/robots.txt']
+    res = {}
+    for i, u in enumerate(urls):
+        try:
+            b = get(u, 120).read()
+            fn = 'page%d.html' % i
+            open(os.path.join(out, fn), 'wb').write(b)
+            res[u] = {'file': fn, 'bytes': len(b)}
+        except Exception as e:
+            res[u] = {'error': str(e)}
+    json.dump(res, open(os.path.join(out, 'batchprobe.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
