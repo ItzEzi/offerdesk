@@ -164,7 +164,7 @@ async function cloudRound(changed){
   const rr=meta.revs||{};
   const pull=PARTS.filter(P=>(rr[P]||0)!==(CM.revs[P]||0));const got={};
   for(let i=0;i<pull.length;i+=4){const r=await bridge('cloud_get',{names:pull.slice(i,i+4)},CM.acct);Object.assign(got,r.parts||{})}
-  const dropEx=!CM.joined&&Object.keys(got).some(P=>/^deals\d/.test(P)&&got[P]&&got[P].data&&Object.keys(got[P].data.items||{}).length);
+  const dropEx=false&&!CM.joined&&Object.keys(got).some(P=>/^deals\d/.test(P)&&got[P]&&got[P].data&&Object.keys(got[P].data.items||{}).length);
   const toPush=[];const touched=new Set();
   for(const P of PARTS){
     const g=got[P];

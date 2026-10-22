@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261022-2229: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261022-2308: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261022-2229';
+const APP_V='20261022-2308';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1266,7 +1266,7 @@ async function cloudRound(changed){
   const rr=meta.revs||{};
   const pull=PARTS.filter(P=>(rr[P]||0)!==(CM.revs[P]||0));const got={};
   for(let i=0;i<pull.length;i+=4){const r=await bridge('cloud_get',{names:pull.slice(i,i+4)},CM.acct);Object.assign(got,r.parts||{})}
-  const dropEx=!CM.joined&&Object.keys(got).some(P=>/^deals\d/.test(P)&&got[P]&&got[P].data&&Object.keys(got[P].data.items||{}).length);
+  const dropEx=false&&!CM.joined&&Object.keys(got).some(P=>/^deals\d/.test(P)&&got[P]&&got[P].data&&Object.keys(got[P].data.items||{}).length);
   const toPush=[];const touched=new Set();
   for(const P of PARTS){
     const g=got[P];

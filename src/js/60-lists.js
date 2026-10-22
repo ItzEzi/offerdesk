@@ -21,7 +21,7 @@ function listFilter(){
     if(f.price!=='any'){const L=curList(d)||0;const [a,b]=f.price.split('-').map(Number);if(L<a||(b&&L>=b))return false}
     if(f.special!=='all'){const s=SPECIAL.find(x=>x[0]===f.special);if(s&&!s[2](d,calc(d)))return false}
     return true;
-  }).sort((a,b)=>(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
+  }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
 }
 function fsel(id,val,opts,label){const on=val!=='all'&&val!=='any';return `<select class="fsel ${on?'on':''}" id="${id}" data-lf="${id.replace('lf-','')}" aria-label="${esc(label)}">${opts.map(([v,l])=>`<option value="${esc(v)}" ${String(val)===String(v)?'selected':''}>${esc(l)}</option>`).join('')}</select>`}
 function viewListings(){
@@ -57,9 +57,9 @@ function tableHTML(list){
   const pager=`<div class="pager"><span>Showing ${slice.length?((pg-1)*per+1)+'–'+((pg-1)*per+slice.length):0} of ${list.length} listing${list.length===1?'':'s'}</span>${pages>1?`<div class="pg">${Array.from({length:pages},(_,i)=>`<button data-act="page" data-v="${i+1}" aria-current="${i+1===pg}">${i+1}</button>`).join('')}</div>`:''}</div>`;
   if(!list.length)return pager+`<div class="note">No listings match these filters.</div>`;
   const rows=slice.map(d=>{const c=calc(d);const os=offerStatus(d);const ms=mlsOf(d);const sent=firstOfferAt(d);const nIn=ins(d).length;const sn=SENTIMENT[d.sentiment];
-    return `<tr data-act="open" data-id="${d.id}">
+    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}>
     <td class="c">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot for '+streetOf(d.address))}</td>
-    <td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address)||'Untitled')}${d.starred?`<span style="color:var(--s-amber)">${icoFill('star')}</span>`:''}${nIn?`<span class="cnt" title="${nIn} message${nIn>1?'s':''} from them">${nIn}</span>`:''}</b><span class="ps">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.source==='wholesaler'?' · wholesaler':''}${d.example?' · example':''}</span></div></div></td>
+    <td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address)||'Untitled')}${d.example?'<span class="tag ex">Fake · practice</span>':''}${d.starred?`<span style="color:var(--s-amber)">${icoFill('star')}</span>`:''}${nIn?`<span class="cnt" title="${nIn} message${nIn>1?'s':''} from them">${nIn}</span>`:''}</b><span class="ps">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.source==='wholesaler'?' · wholesaler':''}</span></div></div></td>
     <td><b style="font-weight:650">${esc(((d.agent&&d.agent.name)||d.wholesalerName||'—').replace(/\s*\(example\)/i,''))}</b><div class="xs muted">${esc((d.agent&&d.agent.email)||(d.agent&&d.agent.phone)||'')}</div></td>
     <td class="r ask tnum">${money(curList(d))}${priceDropped(d)?`<span class="drop-ic" title="Price dropped from ${money(origList(d))}">${ico('down')}</span>`:''}</td>
     <td class="r offer tnum">${money(lastOurPrice(d)??(d.draft&&d.draft.price))}</td>
@@ -79,9 +79,9 @@ function kanbanHTML(list){
 }
 function kcardHTML(d){
   const c=calc(d);const ms=mlsOf(d);const their=lastTheirPrice(d);const lastC=lastAt(d.thread||[]);
-  return `<article class="kcard" draggable="true" data-id="${d.id}">
+  return `<article class="kcard${d.example?' is-ex':''}" draggable="true" data-id="${d.id}">
     <div class="k1"><button class="addr" data-act="open" data-id="${d.id}" title="${esc(d.address)}">${esc(streetOf(d.address)||'Untitled')}${d.city?', '+esc(d.city):''}</button><button class="btn ghost sm" data-act="star" data-id="${d.id}" aria-label="Star" style="padding:2px;color:${d.starred?'var(--s-amber)':'var(--muted)'}">${d.starred?icoFill('star'):ico('star')}</button></div>
-    <div class="meta">${d.beds??'?'} bd • ${d.baths??'?'} ba • ${numFmt(d.sqft)} sqft <span class="mini-tag" style="background:var(--b-${ms[1]});color:var(--t-${ms[1]})">${ms[0]}</span>${d.example?'<span class="tag ex">Example</span>':''}</div>
+    <div class="meta">${d.beds??'?'} bd • ${d.baths??'?'} ba • ${numFmt(d.sqft)} sqft <span class="mini-tag" style="background:var(--b-${ms[1]});color:var(--t-${ms[1]})">${ms[0]}</span>${d.example?'<span class="tag ex">Fake · practice</span>':''}</div>
     <div class="meta">${d.source==='wholesaler'?'Wholesaler':'Agent'}: <b style="color:var(--ink-2)">${esc(((d.agent&&d.agent.name)||d.wholesalerName||'—').replace(/\s*\(example\)/i,''))}</b></div>
     <div class="metrics"><div class="metric"><span>${their!=null?'Agent':'Asking'}</span><b>${moneyK(their??curList(d))}</b>${their!=null?`<em>orig ${moneyK(curList(d))}</em>`:''}</div><div class="metric offer"><span>Offer</span><b>${moneyK(lastOurPrice(d)??(c.ready?c.opening:null))}</b>${lastOurPrice(d)==null&&c.ready?'<em>planned</em>':''}</div><div class="metric mao"><span>MAO</span><b>${c.ready?moneyK(c.mao):'—'}</b></div></div>
     ${d.needsYou?`<div class="knote">${ico('bolt')} Needs you: ${esc(d.needsYou)}</div>`:d.draft?`<div class="knote" style="background:var(--b-purple);color:var(--t-purple)">Draft ready: ${esc(ACTION_LABEL[d.draft.action||d.draft.kind]||'message')}</div>`:replyWaiting(d)?`<div class="knote" style="background:var(--b-blue);color:var(--t-blue)">Reply waiting</div>`:''}
@@ -101,7 +101,7 @@ function leadList(){
     if(L.type!=='all'&&(d.propertyType||'single_family')!==L.type)return false;
     if(L.tag&&!dealTags(d).includes(L.tag))return false;
     return true;
-  }).sort((a,b)=>String(b.receivedAt||b.created).localeCompare(String(a.receivedAt||a.created)));
+  }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||String(b.receivedAt||b.created).localeCompare(String(a.receivedAt||a.created)));
 }
 function viewLeads(){
   const all=Object.values(state.deals).filter(d=>d.source==='wholesaler'&&d.stage!=='dead');const list=leadList();const n=esc(negName());
@@ -119,7 +119,7 @@ function viewLeads(){
   const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
   const rows=list.map(d=>{const c=calc(d);const tags=dealTags(d);const rent=d.rent||d.rentEst;const v=verdict(d,c);
     const arvSrc=d.arvSource==='maya'?'<span class="tag purple">'+n+'’s est</span>':d.arvSource==='comps'?'<span class="tag green">Comps</span>':d.arvSource==='wholesaler'?'<span class="tag orange">Wholesaler</span>':'';
-    return `<tr data-act="open" data-id="${d.id}"><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Example</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
+    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
     <td class="r tnum"><b>${money(curList(d))}</b></td>
     <td class="r tnum">${d.arv?`<b>${money(d.arv)}</b><div>${arvSrc}</div>`:'<span class="tag amber">No data</span>'}</td>
     <td class="r tnum">${money(d.rehab)}</td><td class="r tnum">${rent?money(rent):'—'}</td>

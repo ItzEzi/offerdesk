@@ -164,7 +164,13 @@ textarea.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;f
 .pill.green{background:var(--s-green)} .pill.blue{background:var(--s-blue)} .pill.red{background:var(--s-red)} .pill.orange{background:var(--s-orange)} .pill.purple{background:var(--s-purple)} .pill.slate{background:var(--s-slate)} .pill.pink{background:var(--s-pink)} .pill.teal{background:var(--s-teal)} .pill.amber{background:var(--s-amber)}
 .tag{display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:3px 8px;font-size:11.5px;font-weight:700;white-space:nowrap;background:var(--b-slate);color:var(--t-slate)}
 .tag.green{background:var(--b-green);color:var(--t-green)} .tag.blue{background:var(--b-blue);color:var(--t-blue)} .tag.red{background:var(--b-red);color:var(--t-red)} .tag.orange{background:var(--b-orange);color:var(--t-orange)} .tag.purple{background:var(--b-purple);color:var(--t-purple)} .tag.pink{background:var(--b-pink);color:var(--t-pink)} .tag.teal{background:var(--b-teal);color:var(--t-teal)} .tag.amber{background:var(--b-amber);color:var(--t-amber)}
-.tag.ex{background:none;border:1px dashed var(--line-strong);color:var(--muted)}
+.tag.ex{background:var(--b-pink);border:1px dashed var(--t-pink);color:var(--t-pink);font-weight:800;letter-spacing:.02em}
+/* fake practice deals: striped pink so they never blend in with real ones */
+tr.is-ex>td{background-image:repeating-linear-gradient(135deg,var(--b-pink) 0 10px,transparent 10px 20px)}
+tr.is-ex>td:first-child{box-shadow:inset 4px 0 0 var(--t-pink)}
+.kcard.is-ex{border:1.5px dashed var(--t-pink);background-image:repeating-linear-gradient(135deg,var(--b-pink) 0 10px,transparent 10px 20px)}
+.todo-row.is-ex{box-shadow:inset 4px 0 0 var(--t-pink);background-image:repeating-linear-gradient(135deg,var(--b-pink) 0 10px,transparent 10px 20px)}
+.ex-banner{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:12px;border:1.5px dashed var(--t-pink);background:var(--b-pink);color:var(--t-pink);font-weight:700;margin:10px 0 0}
 .mini-tag{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:5px}
 .ask{color:var(--t-green);font-weight:750} .offer{color:var(--t-blue);font-weight:750} .ceil{color:var(--ceiling);font-weight:750}
 .drop-ic{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--s-red);color:#fff;vertical-align:-3px;margin-left:5px}
@@ -1245,7 +1251,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261022-2229';
+const APP_V='20261022-2308';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -2483,7 +2489,7 @@ async function cloudRound(changed){
   const rr=meta.revs||{};
   const pull=PARTS.filter(P=>(rr[P]||0)!==(CM.revs[P]||0));const got={};
   for(let i=0;i<pull.length;i+=4){const r=await bridge('cloud_get',{names:pull.slice(i,i+4)},CM.acct);Object.assign(got,r.parts||{})}
-  const dropEx=!CM.joined&&Object.keys(got).some(P=>/^deals\d/.test(P)&&got[P]&&got[P].data&&Object.keys(got[P].data.items||{}).length);
+  const dropEx=false&&!CM.joined&&Object.keys(got).some(P=>/^deals\d/.test(P)&&got[P]&&got[P].data&&Object.keys(got[P].data.items||{}).length);
   const toPush=[];const touched=new Set();
   for(const P of PARTS){
     const g=got[P];
@@ -2912,8 +2918,8 @@ function viewDashboard(){
     const f=followDue(d);if(f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled))todo.push({d,c:'amber',pri:2,label:`Follow-up #${f.step+1} due · no reply in ${daysSince(lastAt(outs(d)))} days`,btn:'Draft follow-up'});
     if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed)todo.push({d,c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
   }
-  todo.sort((a,b)=>a.pri-b.pri);
-  const todoHTML=todo.length?`<div class="todo">${todo.slice(0,12).map(t=>`<div class="todo-row">${thumbHTML(t.d)}<div class="what"><b>${esc(streetOf(t.d.address)||'Untitled deal')}</b><span class="small"><span class="tag ${t.c}">${esc(t.label)}</span></span></div><button class="btn sm ${t.pri===0?'primary':''}" data-act="open" data-id="${t.d.id}">${esc(t.btn)}</button></div>`).join('')}</div>`:`<div class="note green">Nothing needs you right now. ${state.settings.auto.enabled?`${n} is working the pipeline.`:'Turn on autopilot and '+n+' works the pipeline for you.'}</div>`;
+  todo.sort((a,b)=>(a.d.example?1:0)-(b.d.example?1:0)||a.pri-b.pri);
+  const todoHTML=todo.length?`<div class="todo">${todo.slice(0,12).map(t=>`<div class="todo-row${t.d.example?' is-ex':''}">${thumbHTML(t.d)}<div class="what"><b>${esc(streetOf(t.d.address)||'Untitled deal')}${t.d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="small"><span class="tag ${t.c}">${esc(t.label)}</span></span></div><button class="btn sm ${t.pri===0?'primary':''}" data-act="open" data-id="${t.d.id}">${esc(t.btn)}</button></div>`).join('')}</div>`:`<div class="note green">Nothing needs you right now. ${state.settings.auto.enabled?`${n} is working the pipeline.`:'Turn on autopilot and '+n+' works the pipeline for you.'}</div>`;
   const acts=state.activity.slice(0,8);
   const feed=acts.length?`<div class="todo">${acts.map(a=>{const s=ACT_STYLE[a.kind]||ACT_STYLE.info;return `<button class="act-row" style="border:1px solid var(--line);border-radius:12px" ${a.dealId&&state.deals[a.dealId]?`data-act="open" data-id="${a.dealId}"`:''}><span class="ai" style="background:${s[1]}">${ico(s[0])}</span><span><span class="small" style="display:block">${esc(a.text)}</span><span class="xs muted">${ago(a.at)}</span></span></button>`}).join('')}</div>`:`<p class="small muted">${n}’s sends, agents’ replies and new deals show up here.</p>`;
   const live=ds.filter(d=>['sent','negotiating'].includes(d.stage));
@@ -2977,7 +2983,7 @@ function listFilter(){
     if(f.price!=='any'){const L=curList(d)||0;const [a,b]=f.price.split('-').map(Number);if(L<a||(b&&L>=b))return false}
     if(f.special!=='all'){const s=SPECIAL.find(x=>x[0]===f.special);if(s&&!s[2](d,calc(d)))return false}
     return true;
-  }).sort((a,b)=>(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
+  }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||(b.starred?1:0)-(a.starred?1:0)||String(b.updated).localeCompare(String(a.updated)));
 }
 function fsel(id,val,opts,label){const on=val!=='all'&&val!=='any';return `<select class="fsel ${on?'on':''}" id="${id}" data-lf="${id.replace('lf-','')}" aria-label="${esc(label)}">${opts.map(([v,l])=>`<option value="${esc(v)}" ${String(val)===String(v)?'selected':''}>${esc(l)}</option>`).join('')}</select>`}
 function viewListings(){
@@ -3013,9 +3019,9 @@ function tableHTML(list){
   const pager=`<div class="pager"><span>Showing ${slice.length?((pg-1)*per+1)+'–'+((pg-1)*per+slice.length):0} of ${list.length} listing${list.length===1?'':'s'}</span>${pages>1?`<div class="pg">${Array.from({length:pages},(_,i)=>`<button data-act="page" data-v="${i+1}" aria-current="${i+1===pg}">${i+1}</button>`).join('')}</div>`:''}</div>`;
   if(!list.length)return pager+`<div class="note">No listings match these filters.</div>`;
   const rows=slice.map(d=>{const c=calc(d);const os=offerStatus(d);const ms=mlsOf(d);const sent=firstOfferAt(d);const nIn=ins(d).length;const sn=SENTIMENT[d.sentiment];
-    return `<tr data-act="open" data-id="${d.id}">
+    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}>
     <td class="c">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot for '+streetOf(d.address))}</td>
-    <td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address)||'Untitled')}${d.starred?`<span style="color:var(--s-amber)">${icoFill('star')}</span>`:''}${nIn?`<span class="cnt" title="${nIn} message${nIn>1?'s':''} from them">${nIn}</span>`:''}</b><span class="ps">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.source==='wholesaler'?' · wholesaler':''}${d.example?' · example':''}</span></div></div></td>
+    <td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address)||'Untitled')}${d.example?'<span class="tag ex">Fake · practice</span>':''}${d.starred?`<span style="color:var(--s-amber)">${icoFill('star')}</span>`:''}${nIn?`<span class="cnt" title="${nIn} message${nIn>1?'s':''} from them">${nIn}</span>`:''}</b><span class="ps">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.source==='wholesaler'?' · wholesaler':''}</span></div></div></td>
     <td><b style="font-weight:650">${esc(((d.agent&&d.agent.name)||d.wholesalerName||'—').replace(/\s*\(example\)/i,''))}</b><div class="xs muted">${esc((d.agent&&d.agent.email)||(d.agent&&d.agent.phone)||'')}</div></td>
     <td class="r ask tnum">${money(curList(d))}${priceDropped(d)?`<span class="drop-ic" title="Price dropped from ${money(origList(d))}">${ico('down')}</span>`:''}</td>
     <td class="r offer tnum">${money(lastOurPrice(d)??(d.draft&&d.draft.price))}</td>
@@ -3035,9 +3041,9 @@ function kanbanHTML(list){
 }
 function kcardHTML(d){
   const c=calc(d);const ms=mlsOf(d);const their=lastTheirPrice(d);const lastC=lastAt(d.thread||[]);
-  return `<article class="kcard" draggable="true" data-id="${d.id}">
+  return `<article class="kcard${d.example?' is-ex':''}" draggable="true" data-id="${d.id}">
     <div class="k1"><button class="addr" data-act="open" data-id="${d.id}" title="${esc(d.address)}">${esc(streetOf(d.address)||'Untitled')}${d.city?', '+esc(d.city):''}</button><button class="btn ghost sm" data-act="star" data-id="${d.id}" aria-label="Star" style="padding:2px;color:${d.starred?'var(--s-amber)':'var(--muted)'}">${d.starred?icoFill('star'):ico('star')}</button></div>
-    <div class="meta">${d.beds??'?'} bd • ${d.baths??'?'} ba • ${numFmt(d.sqft)} sqft <span class="mini-tag" style="background:var(--b-${ms[1]});color:var(--t-${ms[1]})">${ms[0]}</span>${d.example?'<span class="tag ex">Example</span>':''}</div>
+    <div class="meta">${d.beds??'?'} bd • ${d.baths??'?'} ba • ${numFmt(d.sqft)} sqft <span class="mini-tag" style="background:var(--b-${ms[1]});color:var(--t-${ms[1]})">${ms[0]}</span>${d.example?'<span class="tag ex">Fake · practice</span>':''}</div>
     <div class="meta">${d.source==='wholesaler'?'Wholesaler':'Agent'}: <b style="color:var(--ink-2)">${esc(((d.agent&&d.agent.name)||d.wholesalerName||'—').replace(/\s*\(example\)/i,''))}</b></div>
     <div class="metrics"><div class="metric"><span>${their!=null?'Agent':'Asking'}</span><b>${moneyK(their??curList(d))}</b>${their!=null?`<em>orig ${moneyK(curList(d))}</em>`:''}</div><div class="metric offer"><span>Offer</span><b>${moneyK(lastOurPrice(d)??(c.ready?c.opening:null))}</b>${lastOurPrice(d)==null&&c.ready?'<em>planned</em>':''}</div><div class="metric mao"><span>MAO</span><b>${c.ready?moneyK(c.mao):'—'}</b></div></div>
     ${d.needsYou?`<div class="knote">${ico('bolt')} Needs you: ${esc(d.needsYou)}</div>`:d.draft?`<div class="knote" style="background:var(--b-purple);color:var(--t-purple)">Draft ready: ${esc(ACTION_LABEL[d.draft.action||d.draft.kind]||'message')}</div>`:replyWaiting(d)?`<div class="knote" style="background:var(--b-blue);color:var(--t-blue)">Reply waiting</div>`:''}
@@ -3057,7 +3063,7 @@ function leadList(){
     if(L.type!=='all'&&(d.propertyType||'single_family')!==L.type)return false;
     if(L.tag&&!dealTags(d).includes(L.tag))return false;
     return true;
-  }).sort((a,b)=>String(b.receivedAt||b.created).localeCompare(String(a.receivedAt||a.created)));
+  }).sort((a,b)=>(a.example?1:0)-(b.example?1:0)||String(b.receivedAt||b.created).localeCompare(String(a.receivedAt||a.created)));
 }
 function viewLeads(){
   const all=Object.values(state.deals).filter(d=>d.source==='wholesaler'&&d.stage!=='dead');const list=leadList();const n=esc(negName());
@@ -3075,7 +3081,7 @@ function viewLeads(){
   const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
   const rows=list.map(d=>{const c=calc(d);const tags=dealTags(d);const rent=d.rent||d.rentEst;const v=verdict(d,c);
     const arvSrc=d.arvSource==='maya'?'<span class="tag purple">'+n+'’s est</span>':d.arvSource==='comps'?'<span class="tag green">Comps</span>':d.arvSource==='wholesaler'?'<span class="tag orange">Wholesaler</span>':'';
-    return `<tr data-act="open" data-id="${d.id}"><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Example</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
+    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
     <td class="r tnum"><b>${money(curList(d))}</b></td>
     <td class="r tnum">${d.arv?`<b>${money(d.arv)}</b><div>${arvSrc}</div>`:'<span class="tag amber">No data</span>'}</td>
     <td class="r tnum">${money(d.rehab)}</td><td class="r tnum">${rent?money(rent):'—'}</td>
@@ -3093,8 +3099,8 @@ function viewDeal(){
   const ms=mlsOf(d);const os=offerStatus(d);const L=curList(d);
   const autoLive=d.autopilot&&state.settings.auto.enabled;
   const head=`<div class="deal-head"><div style="min-width:0"><a class="backbtn" href="#listings">${ico('back')}Back to listings</a>
-    <div class="deal-title"><h1>${esc(streetOf(d.address)||'Untitled deal')}</h1>${d.autopilot?`<span class="tag purple">${ico('bolt')}Autopilot ${autoLive?'ON':'set (master switch off)'}</span>`:''}${ins(d).length&&ourCount(d)?'<span class="tag green">Replied</span>':''}${d.example?'<span class="tag ex">Example</span>':''}${d.optedOut?'<span class="tag red">Opted out</span>':''}${scoreTag(d)}</div>
-    <p class="muted" style="margin-top:4px">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.autopilot?` · ${autoLive?n+' replies automatically within your limits':'Turn on autopilot in Connect for '+n+' to act'}`:''}</p></div>
+    <div class="deal-title"><h1>${esc(streetOf(d.address)||'Untitled deal')}</h1>${d.autopilot?`<span class="tag purple">${ico('bolt')}Autopilot ${autoLive?'ON':'set (master switch off)'}</span>`:''}${ins(d).length&&ourCount(d)?'<span class="tag green">Replied</span>':''}${d.example?'<span class="tag ex">Fake · practice</span>':''}${d.optedOut?'<span class="tag red">Opted out</span>':''}${scoreTag(d)}</div>
+    ${d.example?`<div class="ex-banner" role="note">${ico('practice')}Fake practice deal. Made up for training, not a real property or offer.</div>`:''}<p class="muted" style="margin-top:4px">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.autopilot?` · ${autoLive?n+' replies automatically within your limits':'Turn on autopilot in Connect for '+n+' to act'}`:''}</p></div>
     <div class="row"><label class="small muted" for="deal-stage" style="font-weight:700">Stage</label><select class="fsel" id="deal-stage" aria-label="Stage">${STAGES.map(s=>`<option value="${s.id}" ${d.stage===s.id?'selected':''}>${s.label}</option>`).join('')}</select>
     <button class="btn" data-act="star" data-id="${d.id}" style="color:${d.starred?'var(--s-amber)':'inherit'}">${d.starred?icoFill('star'):ico('star')}${d.starred?'Starred':'Star'}</button>
     ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><a class="btn" href="#report/${d.id}">${ico('doc')}Lender report</a><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
