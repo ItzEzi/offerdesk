@@ -143,7 +143,7 @@ def job_wprdc(out):
         d = pdate(row.get('SALEDATE')); p = num(row.get('PRICE'))
         if not d or not p or d < since_load or p < 1000 or code in NOT_SALE:
             continue
-        sales.append({'parcel': row.get('PARID'), 'date': d, 'price': p, 'muni': (row.get('MUNIDESC') or '').strip(), 'zip': (row.get('PROPERTYZIP') or '').strip()[:5],
+        sales.append({'parcel': row.get('PARID'), 'date': d, 'rdate': pdate(row.get('RECORDDATE')), 'price': p, 'muni': (row.get('MUNIDESC') or '').strip(), 'zip': (row.get('PROPERTYZIP') or '').strip()[:5],
                       'school': (row.get('SCHOOLDESC') or '').strip(), 'market': code in MARKET, 'code': code})
     log('sales kept', len(sales))
     since = datetime.date(2024, 1, 1)
@@ -160,6 +160,12 @@ def job_wprdc(out):
     res['cityVsSuburbs'] = flips_from_sales(sales, 'area', since=since)
     res.update(extras(sales, since))
     res['areaBand'] = {a: with_bands([s_ for s_ in sales if s_['area'] == a], since) for a in ('Pittsburgh city', 'Suburbs')}
+    res['speedByRecordDate'] = day_stats(flip_days(sales, since, key='rdate'))
+    res['speedByMuni'] = {m: day_stats(flip_days([s_ for s_ in sales if s_['muni'] == m], since)) for m in set(s_['muni'] for s_ in sales)}
+    res['speedByMuni'] = {m: v for m, v in res['speedByMuni'].items() if v and v['n'] >= 12}
+    res['speedByZip'] = {z: day_stats(flip_days([s_ for s_ in sales if s_['zip'] == z], since)) for z in set(s_['zip'] for s_ in sales)}
+    res['speedByZip'] = {z: v for z, v in res['speedByZip'].items() if v and v['n'] >= 12}
+    res['speedByMarketBuy'] = day_stats(flip_days(sales, since, keep=lambda a, b: a.get('market')))
     json.dump(res, open(os.path.join(out, 'allegheny_flips.json'), 'w'), default=str)
 
 def carto(q):
@@ -442,13 +448,39 @@ def flips_by_buy_band(sales, since, max_days=548, min_price=10000, keyfn=None):
                 'p25Margin': round(100 * sorted(v['margin'])[len(v['margin']) // 4], 1) if len(v['margin']) >= 8 else None, 'medGain': med(v['gain'])}
             for k, v in g.items()}
 
+def flip_days(sales, since, max_days=548, key='date', keep=None):
+    """Days from purchase to resale for every real flip (resale on/after since, market resale, gain > 0)."""
+    byp = collections.defaultdict(list)
+    for s_ in sales:
+        if s_.get(key):
+            byp[s_['parcel']].append(s_)
+    out = []
+    for p_, ss in byp.items():
+        ss.sort(key=lambda x: x[key])
+        for a, b in zip(ss, ss[1:]):
+            if b['date'] < since or not b.get('market', True) or a['price'] < 10000 or b['price'] <= a['price']:
+                continue
+            d = (b[key] - a[key]).days
+            if 30 <= d <= max_days and (keep is None or keep(a, b)):
+                out.append(d)
+    return out
+
+def day_stats(v):
+    if not v:
+        return None
+    v = sorted(v); n = len(v)
+    return {'n': n, 'p25': v[n // 4], 'p50': v[n // 2], 'p75': v[(3 * n) // 4], 'within6mo': round(100 * sum(x <= 183 for x in v) / n, 1),
+            'within8mo': round(100 * sum(x <= 244 for x in v) / n, 1), 'within12mo': round(100 * sum(x <= 365 for x in v) / n, 1)}
+
 def extras(sales, since):
     return {'byYear': flips_from_sales([dict(s_, yr=str(s_['date'].year)) for s_ in sales], 'yr', since=datetime.date(2022, 1, 1)),
             'byBuyBand': flips_by_buy_band(sales, since),
             'byBuyType': flips_by_buy_band(sales, since, keyfn=lambda a: ('market buy ' if a.get('market', True) else 'other buy ') + band_of(a['price'])),
             'within12': flips_from_sales([dict(s_, all='all', band=band_of(s_['price'])) for s_ in sales], 'all', since=since, max_days=365),
             'within12Band': flips_from_sales([dict(s_, band=band_of(s_['price'])) for s_ in sales], 'band', since=since, max_days=365),
-            'within6': flips_from_sales([dict(s_, all='all') for s_ in sales], 'all', since=since, max_days=183)}
+            'within6': flips_from_sales([dict(s_, all='all') for s_ in sales], 'all', since=since, max_days=183),
+            'speed': {'all': day_stats(flip_days(sales, since)), 'yourRange': day_stats(flip_days(sales, since, keep=lambda a, b: 150000 <= b['price'] < 250000)),
+                      'buy50to150': day_stats(flip_days(sales, since, keep=lambda a, b: 50000 <= a['price'] < 150000))}}
 
 # ---------------- Cook County (Chicago) ----------------
 COOK_TWP = {'10': 'Barrington', '11': 'Berwyn', '12': 'Bloom', '13': 'Bremen', '14': 'Calumet', '15': 'Cicero', '16': 'Elk Grove', '17': 'Evanston',
