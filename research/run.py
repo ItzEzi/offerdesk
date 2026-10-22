@@ -830,7 +830,7 @@ def job_batchdata4(out):
     """Tulsa vs South Bend on BatchData's yardstick: flips, ROI, days, total sales, off-MLS share, corporate-owned (latest month that exists)."""
     import re, html as H
     res = {}
-    for c in ['ok-tulsa', 'ok-oklahoma', 'in-st-joseph', 'in-st-joseph-county', 'in-elkhart']:
+    for c in ['ok-tulsa', 'ok-oklahoma', 'in-elkhart', 'in-marion']:
         r = {}
         for rtype in ('flip-activity', 'on-market-off-market', 'property-ownership'):
             for month in ('2026-09', '2026-08', '2026-07'):
@@ -841,8 +841,9 @@ def job_batchdata4(out):
                     r[rtype + '_err_' + month] = str(e)[:60]; continue
                 body = re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S)
                 txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', body)))
-                i = txt.find('Report ')
-                r[rtype] = {'month': month, 'url': u, 'text': txt[max(0, i - 100): i + 3500]}
+                mname = {'2026-09': 'September 2026', '2026-08': 'August 2026', '2026-07': 'July 2026'}[month]
+                i = txt.find('Report ' + mname)
+                r[rtype] = {'month': month, 'url': u, 'text': txt[max(0, i - 100): i + 4000] if i >= 0 else txt[-4000:]}
                 break
         res[c] = r
         log(c, [k for k in r if not '_err_' in k])
