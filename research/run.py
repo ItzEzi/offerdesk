@@ -677,6 +677,40 @@ def job_batchprobe(out):
             res[u] = {'error': str(e)}
     json.dump(res, open(os.path.join(out, 'batchprobe.json'), 'w'), indent=1)
 
+# ---------------- BatchData county flip reports ----------------
+BD_COUNTIES = ['pa-allegheny', 'pa-lackawanna', 'pa-luzerne', 'pa-philadelphia', 'pa-delaware', 'pa-montgomery', 'in-st-joseph', 'in-marion', 'in-lake',
+               'md-baltimore-city', 'md-baltimore', 'mi-wayne', 'mi-oakland', 'oh-cuyahoga', 'ny-erie', 'ny-monroe', 'il-cook', 'ok-oklahoma', 'tx-dallas', 'fl-hillsborough']
+
+def job_batchdata(out):
+    """BatchData's free monthly flip-activity pages: homes flipped (12 months), average gross profit, ROI and days to flip, per county.
+    Same yardstick for every county, including Lackawanna and Luzerne (Scranton metro), which have no open deed data."""
+    import re, html as H
+    res = {}
+    for month in ('2026-09', '2026-08', '2026-07'):
+        for c in BD_COUNTIES + ['state:pa', 'state:in', 'state:md', 'state:mi']:
+            key = c
+            if c.startswith('state:'):
+                u = 'https://reports.batchdata.io/market-reports/flip-activity/%s/state/%s/' % (month, c[6:])
+            else:
+                u = 'https://reports.batchdata.io/market-reports/flip-activity/%s/county/%s/' % (month, c)
+            if res.get(key, {}).get('month'):
+                continue
+            try:
+                t = get(u, 120).read().decode('utf-8', 'replace')
+            except Exception as e:
+                res.setdefault(key, {})['err_' + month] = str(e)[:80]; continue
+            body = re.sub(r'<script.*?</script>|<style.*?</style>', ' ', t, flags=re.S)
+            txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', body)))
+            m = re.search(r'([\d,]+) Homes Flipped \(12 mo\.\) \$([\d.,]+)([KM]?) Avg Gross Profit ([\d.\-]+)% Avg ROI ([\d,]+) days Avg Days to Flip', txt)
+            i = txt.find('Homes Flipped (12 mo.)')
+            snippet = txt[max(0, i - 200): i + 2500] if i >= 0 else txt[:600]
+            r = {'month': month, 'url': u, 'snippet': snippet}
+            if m:
+                r.update(flips=int(m.group(1).replace(',', '')), grossProfit=m.group(2) + m.group(3), roi=float(m.group(4)), days=int(m.group(5).replace(',', '')))
+            res[key] = r
+            log(key, month, r.get('flips'), r.get('roi'))
+    json.dump(res, open(os.path.join(out, 'batchdata.json'), 'w'), indent=1)
+
 def main():
     job, out = sys.argv[1], sys.argv[2]
     d = os.path.join(out, job); os.makedirs(d, exist_ok=True)
