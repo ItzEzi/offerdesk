@@ -1,0 +1,8 @@
+{
+ "job": "indiana_probe",
+ "at": "2026-10-21T23:09:34.909382Z",
+ "ok": true,
+ "log": [
+  "zip links ['/sdfdata/SDF_2021.zip', '/sdfdata/SDF_2022.zip', '/sdfdata/SDF_2023.zip', '/sdfdata/SDF_2024.zip', '/sdfdata/SDF_2025.zip', '/sdfdata/SDF_2026.zip', '/sdfdata/SDF_View_CSV_2008.zip', '/sdfdata/SDF_View_CSV_2009.zip', '/sdfdata/SDF_View_CSV_2010.zip', '/sdfdata/SDF_View_CSV_2011.zip', '/sdfdata/SDF_View_CSV_2012.zip', '/sdfdata/SDF_View_CSV_2013.zip', '/sdfdata/SDF_View_CSV_2014.zip', '/sdfdata/SDF_View_CSV_2015.zip', '/sdfdata/SDF_View_CSV_2016.zip', '/sdfdata/SDF_View_CSV_2017.zip', '/sdfdata/SDF_View_CSV_2018.zip', '/sdfdata/SDF_View_CSV_2019.zip', '/sdfdata/SDF_View_CSV_2020.zip']"
+ ]
+}

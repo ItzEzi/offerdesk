@@ -1,0 +1,32 @@
+{
+ "job": "indiana",
+ "at": "2026-10-22T13:20:06.846856Z",
+ "ok": true,
+ "log": [
+  "SALEDISC.txt encoding utf-16",
+  "2022 date col C7_Conveyance_Date price col E1_Sales_Price",
+  "SALEPARCEL.txt encoding utf-16",
+  "2022 valid-for-trending values [('Y', 46650), ('N', 15753)]",
+  "2022 disclosures in counties 58549 single-parcel homes kept 46197 class col P2_6_Prop_Class_Code",
+  "SALEDISC.txt encoding utf-16",
+  "2023 date col C7_Conveyance_Date price col E1_Sales_Price",
+  "SALEPARCEL.txt encoding utf-16",
+  "2023 valid-for-trending values [('Y', 36696), ('N', 14396)]",
+  "2023 disclosures in counties 48021 single-parcel homes kept 35520 class col P2_6_Prop_Class_Code",
+  "SALEDISC.txt encoding utf-16",
+  "2024 date col C7_Conveyance_Date price col E1_Sales_Price",
+  "SALEPARCEL.txt encoding utf-16",
+  "2024 valid-for-trending values [('Y', 35927), ('N', 15879)]",
+  "2024 disclosures in counties 47613 single-parcel homes kept 36486 class col P2_6_Prop_Class_Code",
+  "SALEDISC.txt encoding utf-16",
+  "2025 date col C7_Conveyance_Date price col E1_Sales_Price",
+  "SALEPARCEL.txt encoding utf-16",
+  "2025 valid-for-trending values [('Y', 36160), ('N', 17395)]",
+  "2025 disclosures in counties 48788 single-parcel homes kept 37913 class col P2_6_Prop_Class_Code",
+  "SALEDISC.txt encoding utf-16",
+  "2026 date col C7_Conveyance_Date price col E1_Sales_Price",
+  "SALEPARCEL.txt encoding utf-8-sig",
+  "2026 valid-for-trending values [('Y', 14701), ('N', 4355)]",
+  "2026 disclosures in counties 18940 single-parcel homes kept 15426 class col P2_6_Prop_Class_Code"
+ ]
+}

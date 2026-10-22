@@ -1,0 +1,52 @@
+{
+ "https://services.pasda.psu.edu/server/rest/services/pasda/LuzerneCounty/MapServer?f=pjson": {
+  "description": "",
+  "layers": {}
+ },
+ "https://services.pasda.psu.edu/server/rest/services/pasda/LackawannaCounty/MapServer?f=pjson": {
+  "description": "",
+  "layers": {}
+ },
+ "https://services.pasda.psu.edu/server/rest/services/pasda/Lackawanna/MapServer?f=pjson": {
+  "description": "",
+  "layers": {}
+ },
+ "https://services.pasda.psu.edu/server/rest/services/pasda/WayneCounty/MapServer?f=pjson": {
+  "description": "",
+  "layers": {}
+ },
+ "_services": [
+  "pasda/AlleghenyCountyImagery2010",
+  "pasda/AlleghenyCountyImagery2013",
+  "pasda/AlleghenyCountyImagery2015",
+  "pasda/AlleghenyCountyImagery2017",
+  "pasda/AlleghenyCountyLidar2017",
+  "pasda/AlleghenyCounty",
+  "pasda/AlleghenyCountyPittsburghLidar2015",
+  "pasda/AlleghenyCountyUrbanTreeCanopy2010",
+  "pasda/PhiladelphiaContours2018",
+  "pasda/PhiladelphiaImagery1996",
+  "pasda/PhiladelphiaImagery2000",
+  "pasda/PhiladelphiaImagery2004",
+  "pasda/PhiladelphiaImagery2005",
+  "pasda/PhiladelphiaImagery2008",
+  "pasda/PhiladelphiaImagery2009",
+  "pasda/PhiladelphiaImagery2010",
+  "pasda/PhiladelphiaImagery2011_leafon",
+  "pasda/PhiladelphiaImagery2011",
+  "pasda/PhiladelphiaImagery2012",
+  "pasda/PhiladelphiaImagery2014",
+  "pasda/PhiladelphiaImagery2015",
+  "pasda/PhiladelphiaImagery2016",
+  "pasda/PhiladelphiaImagery2017",
+  "pasda/PhiladelphiaImagery2018",
+  "pasda/PhiladelphiaImagery2019",
+  "pasda/PhiladelphiaImagery2020",
+  "pasda/PhiladelphiaImagery2022",
+  "pasda/PhiladelphiaImagery2023",
+  "pasda/PhiladelphiaImagery2024",
+  "pasda/PhiladelphiaImagery2025",
+  "pasda/SE_AlleghenyCountyPA_Rt51_1993",
+  "pasda/USGS_3DHP_Allegheny"
+ ]
+}

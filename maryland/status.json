@@ -1,0 +1,14 @@
+{
+ "job": "maryland",
+ "at": "2026-10-22T00:53:15.427349Z",
+ "ok": true,
+ "log": [
+  "maryland columns {'acct': 'account_id_mdp_field_acctid', 'jur': 'jurisdiction_code_mdp_field_jurscode', 'zip': 'premise_address_zip_code_mdp_field_premzip_sdat_field_26', 'use': 'land_use_code_mdp_field_lu_desclu_sdat_field_50', 'd1': 'sales_segment_1_transfer_date_yyyy_mm_dd_mdp_field_tradate_sdat_field_89', 'p1': 'sales_segment_1_consideration_mdp_field_considr1_sdat_field_90', 'h1': 'sales_segment_1_how_conveyed_ind_mdp_field_convey1_sdat_field_87', 'd2': 'sales_segment_2_transfer_date_yyyy_mm_dd_sdat_field_109', 'p2': 'sales_segment_2_consideration_sdat_field_110', 'h2': 'sales_segment_2_how_conveyed_ind_sdat_field_107'}",
+  "socrata opendata.maryland.gov offset 0 got 50000",
+  "socrata opendata.maryland.gov offset 50000 got 50000",
+  "socrata opendata.maryland.gov offset 100000 got 50000",
+  "socrata opendata.maryland.gov offset 150000 got 50000",
+  "socrata opendata.maryland.gov offset 200000 got 41663",
+  "rows 241663 sample [{'account_id_mdp_field_acctid': '0301011738 001', 'jurisdiction_code_mdp_field_jurscode': 'BACI', 'premise_address_zip_code_mdp_field_premzip_sdat_field_26': '21231', 'land_use_code_mdp_field_lu_desclu_sdat_field_50': 'Residential (R)', 'sales_segment_1_transfer_date_yyyy_mm_dd_mdp_field_tradate_sdat_field_89': '2016.07.19', 'sales_segment_1_consideration_mdp_field_considr1_sdat_field_90': '805000', 'sales_segment_1_how_conveyed_ind_mdp_field_convey1_sdat_field_87': 'Private arms-length transfer, Improved (1)', 'sales_segment_2_transfer_date_yyyy_mm_dd_sdat_field_109': '2002.09.03', 'sales_segment_2_consideration_sdat_field_110': '0', 'sales_segment_2_how_conveyed_ind_sdat_field_107': 'Private non-arms-length transfer such as a foreclosure, gift or auction (4)'}, {'account_id_mdp_field_acctid': '0301011738 002', 'jurisdiction_code_mdp_field_jurscode': 'BACI', 'premise_address_zip_code_mdp_field_premzip_sdat_field_26': '21231', 'land_use_code_mdp_field_lu_desclu_sdat_field_50': 'Residential (R)', 'sales_segment_1_transfer_date_yyyy_mm_dd_mdp_field_tradate_sdat_field_89': '2017.04.26', 'sales_segment_1_consideration_mdp_field_considr1_sdat_field_90': '570000', 'sales_segment_1_how_conveyed_ind_mdp_field_convey1_sdat_field_87': 'Private arms-length transfer, Improved (1)', 'sales_segment_2_transfer_date_yyyy_mm_dd_sdat_field_109': '1997.05.05', 'sales_segment_2_consideration_sdat_field_110': '125000', 'sales_segment_2_how_conveyed_ind_sdat_field_107': 'Private arms-length transfer, Improved (1)'}]"
+ ]
+}

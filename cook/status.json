@@ -1,0 +1,15 @@
+{
+ "job": "cook",
+ "at": "2026-10-22T00:28:31.225504Z",
+ "ok": true,
+ "log": [
+  "cook columns ['buyer_name', 'class', 'deed_type', 'doc_no', 'is_multisale', 'is_mydec_date', 'mydec_deed_type', 'nbhd', 'num_parcels_sale', 'pin', 'row_id', 'sale_date', 'sale_filter_deed_type', 'sale_filter_less_than_10k', 'sale_filter_same_sale_within_365', 'sale_price', 'seller_name', 'township_code', 'year']",
+  "socrata datacatalog.cookcountyil.gov offset 0 got 50000",
+  "socrata datacatalog.cookcountyil.gov offset 50000 got 50000",
+  "socrata datacatalog.cookcountyil.gov offset 100000 got 50000",
+  "socrata datacatalog.cookcountyil.gov offset 150000 got 50000",
+  "socrata datacatalog.cookcountyil.gov offset 200000 got 50000",
+  "socrata datacatalog.cookcountyil.gov offset 250000 got 50000",
+  "socrata datacatalog.cookcountyil.gov offset 300000 got 27584"
+ ]
+}

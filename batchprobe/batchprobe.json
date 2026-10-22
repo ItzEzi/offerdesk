@@ -1,0 +1,26 @@
+{
+ "https://reports.batchdata.io/market-reports/flip-activity/2026-07/state/mi/": {
+  "file": "page0.html",
+  "bytes": 3564276
+ },
+ "https://reports.batchdata.io/market-reports/flip-activity/2026-07/state/pa/": {
+  "file": "page1.html",
+  "bytes": 3877818
+ },
+ "https://reports.batchdata.io/market-reports/flip-activity/2026-07/county/pa/lackawanna/": {
+  "error": "HTTP Error 404: Not Found"
+ },
+ "https://reports.batchdata.io/market-reports/flip-activity/2026-07/county/pa/lackawanna-county/": {
+  "error": "HTTP Error 404: Not Found"
+ },
+ "https://reports.batchdata.io/market-reports/flip-activity/2026-07/county/42069/": {
+  "error": "HTTP Error 404: Not Found"
+ },
+ "https://reports.batchdata.io/sitemap.xml": {
+  "error": "HTTP Error 404: Not Found"
+ },
+ "https://reports.batchdata.io/robots.txt": {
+  "file": "page6.html",
+  "bytes": 174
+ }
+}

@@ -1,0 +1,10 @@
+{
+ "job": "ct",
+ "at": "2026-10-21T23:36:18.155721Z",
+ "ok": true,
+ "log": [
+  "ct columns ['address', 'assessedvalue', 'daterecorded', 'listyear', 'propertytype', 'remarks', 'saleamount', 'salesratio', 'serialnumber', 'town']",
+  "socrata data.ct.gov offset 0 got 50000",
+  "socrata data.ct.gov offset 50000 got 38345"
+ ]
+}
