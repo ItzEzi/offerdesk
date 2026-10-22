@@ -625,10 +625,11 @@ def job_detroit(out):
     def pick(*cands):
         for c in cands:
             for h in heads:
-                if c in h.lower():
+                if c.replace('_', '') in h.lower().replace(' ', '').replace('_', ''):
                     return h
         return None
-    k_id = pick('parcel_number', 'parcel_num', 'parcel_id', 'parcelno', 'parcel'); k_d = pick('sale_date', 'saledate'); k_p = pick('sale_price', 'saleprice')
+    k_id = pick('parcel_id', 'parcel_number', 'parcel'); k_d = pick('sale_date', 'saledate'); k_p = pick('sale_price', 'saleprice')
+    k_m = pick('multi_parcel'); k_g = pick('grantee'); k_cd = pick('property_class_description')
     k_t = pick('sale_terms', 'terms'); k_i = pick('sale_instrument', 'instrument'); k_z = pick('zip'); k_c = pick('property_class', 'class', 'use_code')
     log('using', k_id, k_d, k_p, k_t, k_i, k_z, k_c)
     terms = collections.Counter(); sales = []
@@ -636,11 +637,22 @@ def job_detroit(out):
         d = pdate(str(r.get(k_d) or '')[:10]); pr = num(r.get(k_p))
         if not d or not pr or pr < 1000:
             continue
+        cls = str(r.get(k_c) or '')
+        if cls and not cls.startswith('4'):
+            continue
+        if str(r.get(k_m) or '').strip().lower() in ('y', 'yes', 'true', '1'):
+            continue
         t = (r.get(k_t) or '').upper(); terms[t] += 1
+        g = (r.get(k_g) or '').upper()
         sales.append({'parcel': r.get(k_id), 'date': d, 'price': pr, 'zip': str(r.get(k_z) or '')[:5], 'all': 'Detroit city',
-                      'market': ('ARM' in t and 'NOT' not in t and 'NON' not in t) if t else True})
+                      'market': ('ARM' in t and 'NOT' not in t and 'NON' not in t) if t else True, 'company': any(w in g for w in COMPANY)})
     since = datetime.date(2024, 1, 1)
-    res = {'rows': len(rows), 'heads': heads, 'fields': [k_id, k_d, k_p, k_t, k_i, k_z, k_c], 'terms': terms.most_common(20),
+    comp = collections.defaultdict(lambda: [0, 0])
+    for s_ in sales:
+        if s_['date'] >= datetime.date(2024, 1, 1) and s_['market']:
+            comp[s_['zip']][0] += 1; comp[s_['zip']][1] += s_['company']
+    res = {'rows': len(rows), 'kept': len(sales), 'heads': heads, 'fields': [k_id, k_d, k_p, k_t, k_i, k_z, k_c], 'terms': terms.most_common(20),
+           'companyBuyersByZip': {z: {'sales': a, 'share': round(100 * b / a, 1)} for z, (a, b) in comp.items() if a >= 50},
            'city': flips_from_sales(sales, 'all', since=since), 'byBand': with_bands(sales, since), 'byZip': flips_from_sales(sales, 'zip', since=since)}
     res.update(extras(sales, since))
     json.dump(res, open(os.path.join(out, 'detroit_flips.json'), 'w'), default=str)
