@@ -71,7 +71,7 @@ function historyCard(d){
 }
 
 /* ================= Maya's research (links, web, comps, claims check) ================= */
-const SKIP_LINK=/unsubscribe|optout|opt-out|manage.?preferences|facebook\.com|instagram\.com|linkedin\.com|twitter\.com|x\.com\/|tiktok\.com|youtube\.com\/(?:channel|@)|calendly\.com|mailto:|list-manage\.com\/(?:unsubscribe|profile)/i;
+const SKIP_LINK=/unsubscribe|optout|opt-out|manage.?preferences|facebook\.com|instagram\.com|linkedin\.com|twitter\.com|\/\/(?:www\.)?x\.com\/|tiktok\.com|youtube\.com\/(?:channel|@)|calendly\.com|mailto:|list-manage\.com\/(?:unsubscribe|profile)/i;
 function dealLinks(d){
   const set=new Set();const add=u=>{u=String(u||'').trim().replace(/[)>.,;]+$/,'');if(/^https?:\/\/\S+$/i.test(u)&&!SKIP_LINK.test(u)&&u.length<500)set.add(u)};
   (d.links||[]).forEach(add);if(d.listingUrl)add(d.listingUrl);
@@ -172,13 +172,19 @@ async function fillFromLinks(id,quiet,fresh){
   let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
-  if(got.pages.length&&missingInfo(dd)&&aiOn()){
-    const res=await runAI('links:'+id,`${negName()} is reading the property page…`,(ai,signal)=>ai.json(P_LINKPAGE(dd,got.pages),{signal,modelTier:'quick',maxTokens:2500}),true);
+  const zip5=String(dd.zip||'').slice(0,5),city=String(dd.city||'').toLowerCase(),ask=curList(dd);
+  const about=p=>{const t=String(p.text||'');if(t.length<120)return false;const lt=t.toLowerCase();
+    return (zip5&&lt.includes(zip5))||(city&&lt.includes(city))||(ask&&(t.includes(String(ask))||t.includes(Number(ask).toLocaleString('en-US'))))||(!zip5&&!city&&!ask)};
+  const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
+  if(!useful.length&&got.pages.some(p=>String(p.text||'').length>=120))other=true;
+  const sig=useful.map(p=>p.url+':'+p.text.length+':'+p.text.slice(0,200)).join('|');const prevSig=(dd.linkFill||{}).sig;
+  if(useful.length&&missingInfo(dd)&&aiOn()&&sig!==prevSig){
+    const res=await runAI('links:'+id,`${negName()} is reading the property page…`,(ai,signal)=>ai.json(P_LINKPAGE(dd,useful),{signal,modelTier:'quick',maxTokens:2000}),true);
     dd=state.deals[id];if(!dd)return null;
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
   const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
-  dd.linkFill={at:nowISO(),tries,opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -211,8 +217,21 @@ function afterNewDeal(id){
     saveDeal(d,true);if(!LQ.list.includes(id))LQ.list.push(id);drainLinks();return}
   maybeResearch(id);
 }
-function maybeResearch(id){const d=state.deals[id];if(!d||d.research)return;const capR=boxCap();const p=curList(d);
-  if(state.settings.research&&state.settings.research.auto&&aiOn()&&(!capR||p==null||p<=capR))queueResearch(id)}
+/* automatic research costs real money (big model + web searches), so it is rationed:
+   only deals inside the buy box whose asking isn't already well over his ceiling, and at most dailyMax a day (default 3) */
+function researchVerdict(d){
+  const S=state.settings.research||{};if(!S.auto||!aiOn())return 'off';
+  const capR=boxCap();const p=curList(d);if(capR&&p!=null&&p>capR)return 'over';
+  const c=calc(d);if(c.ready&&p!=null&&c.mao&&p>c.mao*1.15)return 'price';
+  const day=new Date().toISOString().slice(0,10);const used=(S.autoDay&&S.autoDay.day===day)?S.autoDay.n:0;
+  if(used>=(S.dailyMax==null?3:+S.dailyMax))return 'cap';
+  return 'ok';
+}
+function maybeResearch(id){const d=state.deals[id];if(!d||d.research||WORKER.on)return;
+  const v=researchVerdict(d);if(v!=='ok'){if(v==='price'||v==='cap'){d.researchSkip=v;saveDeal(d,true)}return}
+  const S=state.settings.research;const day=new Date().toISOString().slice(0,10);
+  S.autoDay={day,n:((S.autoDay&&S.autoDay.day===day)?S.autoDay.n:0)+1};saveSettings();delete d.researchSkip;
+  if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
 async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();const d=state.deals[id];if(d){const retry=!!(d.linkFill&&d.linkFill.at);await fillFromLinks(id,true,retry);if(state.deals[id]&&state.deals[id].checking){delete state.deals[id].checking;saveDeal(state.deals[id],true)}maybeResearch(id)}}}finally{LQ.running=false;render()}}
 /* deals the 24/7 worker brought in, and older deals still missing a street address: open their links on this device */
 function resumeLinks(){
@@ -225,20 +244,20 @@ function resumeLinks(){
     else if(d.checking){delete d.checking;saveDeal(d,true)}}
   drainLinks();
 }
-async function researchDeal(id,quiet){
+async function researchDeal(id,quiet,auto){
   const d=state.deals[id];if(!d)return;if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return}
   if(state.busy['research:'+id])return;
   const links=dealLinks(d);const before=photoCount(d);
   state.busy['research:'+id]={label:links.length&&gmailOn()?`${negName()} is opening the links…`:`${negName()} is researching ${streetOf(d.address)}…`};render();
   let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
   const dd=state.deals[id];if(!dd)return;
-  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:bigModel(),maxTokens:9000}),quiet);
+  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:bigModel(),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
   if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
   const d2=state.deals[id];if(!d2)return;
   applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
-  if(photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(!auto&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
   if(!quiet)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
 }
 function applyResearch(d,j,res,got){
@@ -256,6 +275,7 @@ function researchCard(d){
   const R=d.research;const n=esc(negName());const busy=state.busy['research:'+d.id];const links=dealLinks(d);
   const vt={matches:['Matches','green'],off:['Off','red'],unverified:['Unverified','slate']};
   if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="research" ${busy||!aiOn()?'disabled':''}>${ico('spark')}Research this deal</button></div></div>${busyHTML('research:'+d.id)}
+    ${d.researchSkip==='price'?`<p class="small">${n} didn’t research this one on her own: the asking is already well above your ceiling, so it isn’t worth paying for.</p>`:d.researchSkip==='cap'?`<p class="small">${n} skipped this one: she already did today’s ${(state.settings.research||{}).dailyMax??3} automatic researches. Press the button if you want it.</p>`:''}
     <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}Takes about a minute and usually costs 10–30¢ on your Anthropic account. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
   const arv=R.arv&&parseNum(R.arv.value);
   return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm" data-act="research" ${busy?'disabled':''}>${ico('refresh')}Run again</button></div></div>${busyHTML('research:'+d.id)}
@@ -270,7 +290,7 @@ function researchCard(d){
 /* new wholesaler deals get researched one at a time in the background */
 const RQ={list:[],running:false};
 function queueResearch(id){if(WORKER.on)return;/* web research is slow; the next device that opens does it */if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
-async function drainResearch(){if(RQ.running)return;RQ.running=true;try{while(RQ.list.length){const id=RQ.list.shift();if(state.deals[id])await researchDeal(id,true)}}finally{RQ.running=false}}
+async function drainResearch(){if(RQ.running)return;RQ.running=true;try{while(RQ.list.length){const id=RQ.list.shift();if(state.deals[id])await researchDeal(id,true,true)}}finally{RQ.running=false}}
 function askPhotosDraft(id){
   const d=state.deals[id];const a=d&&d.analysis;if(!a)return;const miss=(a.notSeen||[]).slice(0,6);if(!miss.length)return;
   const who=firstName(d);const n=state.settings.neg;const p=state.settings.profile;

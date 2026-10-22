@@ -19,7 +19,7 @@ const DEFAULTS={
   auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
-  research:{auto:true,maxPrice:175000},
+  research:{auto:true,maxPrice:175000,dailyMax:3},
   ai:{bigModel:'claude-opus-5-5'},
   brief:{on:true,hour:8,tz:''},
   rehab:{costs:{},notes:''},
