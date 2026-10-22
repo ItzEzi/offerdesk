@@ -97,7 +97,7 @@ async function rsImportFiles(files){
   let tot={forSale:0,sold:0,added:0,cands:0,outside:0};
   for(const f of files){const text=await f.text();const r=rsImportText(text,f.name||'download.csv');for(const k in tot)tot[k]+=r[k]||0}
   saveResearch();
-  if(!tot.forSale&&!tot.sold){toast(tot.outside?'Those listings aren’t in your starred metros. Star the metro first, or download its ZIPs.':'No listings found in that file. Use Redfin’s “Download All”.',6200);return}
+  if(!tot.forSale&&!tot.sold){toast(tot.outside?`Those listings aren’t in your starred metros. Star the metro first, or download its ZIPs.${rsMetros().some(t=>mkIsTh(t.key)!==(mkPtype()==='th'))?` If they’re for ${mkPtype()==='th'?'a houses':'a rowhouse'} metro, switch Home type on Markets first.`:''}`:'No listings found in that file. Use Redfin’s “Download All”.',6200);return}
   toast(`Read ${tot.forSale} for sale and ${tot.sold} sold. ${tot.added} new listings watched${tot.cands?`, ${tot.cands} new flip candidates`:''}.${tot.outside?` ${tot.outside} were outside your metros.`:''}`,6200);
 }
 /* flips found in his sold downloads for a metro: total (not capped) and per 100 sales in the last year */
@@ -215,9 +215,11 @@ function rsUpgrade(old,tpl){
 }
 function rsFill(wb){
   const rep={metros:0,zips:0,zipsLocked:0,listings:0,listingsNew:0,cands:0,comp:0,warn:[]};
-  const R=rsSt();const ms=rsMetros();const today=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()));
+  const R=rsSt();const ms=rsMetros();
+  const skip=ms.filter(t=>mkIsTh(t.key)!==(DISC.ptype==='th'));
+  if(skip.length)rep.warn.push(`${skip.map(t=>mkLabel(t.key)).join(' and ')} kept as is: switch Home type to ${mkIsTh(skip[0].key)?'Rowhouses':'Houses'} and update again to refresh ${skip.length>1?'them':'it'}.`);const today=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()));
   const src=DISC.data&&DISC.data.sources||{};const cm=CENS.meta||{};
-  const srcText=`${RS_TAG}: Redfin 3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}${DISC.zhviMonth?` · home value Zillow ${DISC.zhviMonth}`:''}`;
+  const srcText=`${RS_TAG}: Redfin ${DISC.ptype==='th'?'townhouses ':''}3 mo to ${src.redfin||DISC.data&&DISC.data.periodEnd||'?'} · Census ACS ${cm.acsYear?`${cm.acsYear-4}–${cm.acsYear}`:'?'} · rent HUD ${src.safmr||'?'} / Zillow ${src.zori||'?'}${DISC.zhviMonth?` · home value Zillow ${DISC.zhviMonth}`:''}`;
   const sheet=n=>wb.getWorksheet(n);
   rep.pruned=rsPrune(wb,new Set(ms.map(t=>mkLabel(t.key).toLowerCase())));
   /* Metros */
@@ -307,23 +309,25 @@ async function rsWorkbook(file){
     const name=file?file.name.replace(/\.xlsx$/i,'')+'.xlsx':`Market Research Workbook ${isoDay()}.xlsx`;
     saveFile(name,new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
     const R=rsSt();R.lastWb={at:nowISO(),mode:file?'update':'new',rep};saveResearch(true);
-    toast(`${file?'Updated':'Built'} your workbook: ${rep.zips} ZIPs${rep.zipsLocked?` (${rep.zipsLocked} you edited were left alone)`:''}, ${rep.listings} listings, ${rep.cands} new flip candidates, ${rep.comp} companies.${upgraded?' Upgraded it to the newest workbook (room for 10 metros, nothing you typed is lost).':''}${rep.pruned.gone.length?` Removed ${rep.pruned.gone.join(' and ')} (not starred anymore).`:''}${rep.pruned.kept.length?` Kept ${rep.pruned.kept.join(' and ')}: it has rows you typed in.`:''}${rep.warn.length?' '+rep.warn[0]:''}`,9000);
+    toast(`${file?'Updated':'Built'} your workbook: ${rep.zips} ZIPs${rep.zipsLocked?` (${rep.zipsLocked} you edited were left alone)`:''}, ${rep.listings} listings, ${rep.cands} new flip candidates, ${rep.comp} companies.${upgraded?' Upgraded it to the newest workbook (room for 10 metros, nothing you typed is lost).':''}${rep.pruned.gone.length?` Removed ${rep.pruned.gone.join(' and ')} (not starred anymore).`:''}${rep.pruned.kept.length?` Kept ${rep.pruned.kept.join(' and ')}: it has rows you typed in.`:''}${rep.warn.length?' '+rep.warn.slice(0,2).join(' '):''}`,9000);
   }catch(e){console.warn(e);toast('Something went wrong building the workbook. Try again.',5200)}
   finally{delete state.busy['rs-wb'];render()}
 }
 
 /* ---- Markets card ---- */
 function rsRedfinLinks(key){
+  const pt=mkIsTh(key)?'townhouse':'house';
   const M=mkSet();const mx=+M.maxPrice?`,max-price=${Math.round(+M.maxPrice/1000)}k`:'';
   return rsZipsFor(key).map(o=>`<span class="rs-zip"><b class="tnum">${o.z}</b>${o.city?` <span class="muted">${esc(o.city)}</span>`:''}
-    <a href="https://www.redfin.com/zipcode/${o.z}/filter/property-type=house${mx},status=active+comingsoon+contingent+pending" target="_blank" rel="noopener">For sale</a>
-    <a href="https://www.redfin.com/zipcode/${o.z}/filter/property-type=house,include=sold-1yr" target="_blank" rel="noopener">Sold</a></span>`).join('');
+    <a href="https://www.redfin.com/zipcode/${o.z}/filter/property-type=${pt}${mx},status=active+comingsoon+contingent+pending" target="_blank" rel="noopener">For sale</a>
+    <a href="https://www.redfin.com/zipcode/${o.z}/filter/property-type=${pt},include=sold-1yr" target="_blank" rel="noopener">Sold</a></span>`).join('');
 }
 function mkResearchCard(R){
   const ms=rsMetros();const busy=state.busy['rs-wb'];const n=esc(negName());const st=rsSt();
   const head=`<div class="card-head"><span class="ci teal">${ico('download')}</span><div><h2>Research pack</h2><p>Fills your research workbook from public data, so week 1 takes hours instead of days</p></div></div>`;
   if(!ms.length)return `<section class="card" id="mk-research">${head}<div class="note">Star 2–5 metros (${ico('star')} in the table above). The research pack fills your workbook for those metros.</div></section>`;
-  const rows=ms.map(t=>{const s=rsSummary(t.key);return `<tr><td><b>${esc(mkLabel(t.key))}</b></td><td class="r tnum">${rsZipsFor(t.key).length}</td><td class="r tnum">${s.n||'—'}${s.n?`<div class="xs muted">${s.active} active · ${s.pending} pending · ${s.sold} sold${s.gone?` · ${s.gone} gone`:''}</div>`:''}</td><td class="r tnum">${s.dtp!=null?Math.round(s.dtp)+'d':'—'}</td><td class="r tnum">${s.cuts||'—'}</td><td class="r tnum">${s.flip?`${s.cands} <span class="muted">of ${s.flip.found}</span><div class="xs muted">${s.flip.per100<10?s.flip.per100.toFixed(1):Math.round(s.flip.per100)} per 100 sales</div>`:(s.cands||'—')}</td><td class="r tnum">${s.comp?`${s.comp.n}<div class="xs muted">${new Date(s.comp.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>`:'—'}</td></tr>`}).join('');
+  const other=t=>mkIsTh(t.key)!==(mkPtype()==='th');
+  const rows=ms.map(t=>{const s=rsSummary(t.key);return `<tr><td><b>${esc(mkLabel(t.key))}</b>${other(t)?`<div class="xs muted">Switch Home type to ${mkIsTh(t.key)?'Rowhouses':'Houses'} to fill this one</div>`:''}</td><td class="r tnum">${other(t)?'—':rsZipsFor(t.key).length}</td><td class="r tnum">${s.n||'—'}${s.n?`<div class="xs muted">${s.active} active · ${s.pending} pending · ${s.sold} sold${s.gone?` · ${s.gone} gone`:''}</div>`:''}</td><td class="r tnum">${s.dtp!=null?Math.round(s.dtp)+'d':'—'}</td><td class="r tnum">${s.cuts||'—'}</td><td class="r tnum">${s.flip?`${s.cands} <span class="muted">of ${s.flip.found}</span><div class="xs muted">${s.flip.per100<10?s.flip.per100.toFixed(1):Math.round(s.flip.per100)} per 100 sales</div>`:(s.cands||'—')}</td><td class="r tnum">${s.comp?`${s.comp.n}<div class="xs muted">${new Date(s.comp.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>`:'—'}</td></tr>`}).join('');
   const last=st.imports[0];
   const cands=ms.map(t=>{const C=Object.values(st.cands).filter(c=>c.metro===t.key).sort((a,b)=>b.prem-a.prem).slice(0,10);if(!C.length)return '';
     return `<p class="small" style="margin:8px 0 4px"><b>${esc(mkLabel(t.key))}</b></p><ul class="rs-cands">${C.map(c=>`<li>${c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.addr)}</a>`:esc(c.addr)} <span class="muted">· ${c.zip} · built ${c.year||'?'} · sold ${moneyK(c.soldPrice)} (${c.soldOn?rsDay(c.soldOn):'in the last year'}) · ${Math.round(c.prem*100)}% above the ZIP’s $/sqft</span></li>`).join('')}</ul>`}).join('');
@@ -339,7 +343,7 @@ function mkResearchCard(R){
       ${st.lastWb?`<p class="xs muted">Last ${st.lastWb.mode==='update'?'update':'download'}: ${new Date(st.lastWb.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</p>`:''}</div>
     <div class="rs-step"><h3><span class="rs-n">2</span>Listings from Redfin (weekly, about 5 minutes)</h3>
       <p class="small">Sign in to Redfin, open a link, then <b>Download All</b> under the results. <b>For sale</b> weekly (2–3 ZIPs per metro is enough). <b>Sold</b> once a month: it finds flip candidates and fills in sold prices. Drop the files here.</p>
-      ${ms.map(t=>`<div class="rs-links"><span class="small"><b>${esc(mkLabel(t.key))}</b></span>${rsRedfinLinks(t.key)}</div>`).join('')}
+      ${ms.filter(t=>!other(t)).map(t=>`<div class="rs-links"><span class="small"><b>${esc(mkLabel(t.key))}</b></span>${rsRedfinLinks(t.key)}</div>`).join('')}
       <label class="rs-drop" data-drop="rs">${ico('upload')}<span><b>Drop Redfin downloads here</b> or click to pick them. For sale and sold files both work.</span><input type="file" accept=".csv,text/csv" multiple data-rs-csv hidden></label>
       ${last?`<p class="xs muted">Last file: ${esc(last.file)} · ${new Date(last.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})} · ${last.forSale} for sale, ${last.sold} sold, ${last.added} new watched${last.cands?`, ${last.cands} flip candidates`:''}</p>`:''}</div>
     <div class="rs-step"><h3><span class="rs-n">3</span>Count the competition</h3>

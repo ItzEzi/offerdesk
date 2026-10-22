@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261022-0109: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261022-0430: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261022-0109';
+const APP_V='20261022-0430';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -55,7 +55,7 @@ const DEFAULTS={
   voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true,silenceSec:'7'},
   dnc:[],
   lender:{purchasePct:90,rehabPct:100,points:2,rate:11,termMonths:12,maxLtv:70,dscrRate:7.5,price:'auto'},
-  markets:{strategy:'',lens:'',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
+  markets:{strategy:'',lens:'',ptype:'sfr',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}

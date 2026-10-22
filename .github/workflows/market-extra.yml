@@ -1,9 +1,11 @@
-name: Market data, other home types (research only)
+name: Market data, other home types
 
-# One-off research runs: the same Redfin/Zillow/Census build for another Redfin property type
-# (for example Townhouse, to see rowhouse cities like Baltimore and Philadelphia).
-# Publishes to its own branch (data-<type>), never to the "data" branch the app reads.
+# The same Redfin/Zillow/Census build for another Redfin property type, published to its own branch (data-<type>),
+# never to the "data" branch. The app's Markets page reads data-townhouse when Home type is "Rowhouses & townhouses"
+# (rowhouse cities like Philadelphia and Baltimore), so Townhouse also runs weekly, an hour after the main job.
 on:
+  schedule:
+    - cron: '23 8 * * 3'
   workflow_dispatch:
     inputs:
       property_type:
@@ -28,14 +30,14 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install --quiet openpyxl
-      - name: Build market data for ${{ inputs.property_type }}
+      - name: Build market data for ${{ inputs.property_type || 'Townhouse' }}
         env:
-          MARKET_PROPERTY_TYPE: ${{ inputs.property_type }}
+          MARKET_PROPERTY_TYPE: ${{ inputs.property_type || 'Townhouse' }}
         run: python src/market/build_market.py out/market
       - name: Publish to its own branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PTYPE: ${{ inputs.property_type }}
+          PTYPE: ${{ inputs.property_type || 'Townhouse' }}
         run: |
           BR="data-$(echo "$PTYPE" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9' '-' | sed 's/-*$//')"
           cd out

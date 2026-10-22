@@ -34,28 +34,46 @@ function mkStates(){
   }
   return out;
 }
-const mkLabel=k=>!k?'':k[0]==='~'?`Outside metro areas, ${stName(k.slice(1))}`:stFull(k.replace(/\s+metro area$/i,''));
+/* Rowhouse / townhouse data (Philadelphia, Baltimore...) lives on its own branch. Its metros get their own keys and labels,
+   so a starred "Philadelphia (rowhouses)" never mixes with single-family Philadelphia. */
+const TH_SUF=' · rowhouses';const TH_BASE='https://raw.githubusercontent.com/ItzEzi/offerdesk/data-townhouse/market/';
+const mkIsTh=k=>String(k||'').endsWith(TH_SUF);const mkBase=k=>mkIsTh(k)?String(k).slice(0,-TH_SUF.length):k;
+const mkPtype=()=>mkSet().ptype==='th'?'th':'sfr';
+const mkKind=()=>mkPtype()==='th'?'rowhouse and townhouse':'single-family';
+const mkLabel=k=>{if(!k)return '';if(mkIsTh(k))return mkLabel(mkBase(k))+' (rowhouses)';return k[0]==='~'?`Outside metro areas, ${stName(k.slice(1))}`:stFull(k.replace(/\s+metro area$/i,''))};
 /* HUD's small-area rent has floors that overstate rent in the cheapest ZIPs, so cap it near Zillow's typical rent when both exist */
 const mkRent=o=>o.fmr3!=null&&o.zori!=null?Math.min(o.fmr3,Math.round(o.zori*1.3)):o.fmr3??o.zori??null;
 const mkYield=o=>{const r=mkRent(o);return r&&o.price?r*12/o.price:null};
 
+/* townhouse data: its own index and files, fetched without touching MKT.base (deal pages keep single-family data) */
+const THX={idx:null,at:0};
+async function thFetch(path){try{const r=await fetch(TH_BASE+path,{cache:'no-cache'});if(r.ok)return await r.json()}catch(e){}return null}
+async function thIndex(){if(THX.idx&&Date.now()-THX.at<6*3600e3)return THX.idx;const j=await thFetch('index.json?d='+isoDay());if(j){THX.idx=j;THX.at=Date.now()}return THX.idx}
+function mkSetPtype(v){
+  const M=mkSet();const t=v==='th'?'th':'sfr';if(mkPtype()===t)return;
+  M.ptype=t;DISC.data=null;DISC.byZip={};DISC.weekly=null;DISC.err='';DISC.zhviMonth=null;MKC.key='';state.mk.metro=null;state.mk.zip=null;state.mk.show=25;
+  saveSettings();render();loadDiscover();
+}
 async function loadDiscover(){
-  if(DISC.data)return DISC.data;if(DISC.loading)return DISC.loading;
+  if(DISC.data&&DISC.ptype===mkPtype())return DISC.data;if(DISC.loading)return DISC.loading;
   DISC.err='';
+  const th=mkPtype()==='th';const get=th?thFetch:mktFetch;
   DISC.loading=(async()=>{
-    const idx=await marketIndex();const f=idx&&idx.discover&&idx.discover.file;
-    if(!f){DISC.err=idx?'The market data job hasn’t published the national table yet. It runs every Wednesday.':'Couldn’t reach the market data. Check your connection and reload.';return null}
+    const idx=th?await thIndex():await marketIndex();const f=idx&&idx.discover&&idx.discover.file;
+    if(!f){DISC.err=th?'The rowhouse and townhouse data isn’t published yet. Switch back to houses, or try again later.':idx?'The market data job hasn’t published the national table yet. It runs every Wednesday.':'Couldn’t reach the market data. Check your connection and reload.';return null}
     const cf=idx.census&&idx.census.file,xf=idx.crosscheck&&idx.crosscheck.file;
-    const [j,wk,cz,cx]=await Promise.all([mktFetch(f+'?v='+encodeURIComponent(idx.updated||'')),mktFetch('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?mktFetch(cf+'?v='+encodeURIComponent(idx.updated||'')):null,xf?mktFetch(xf+'?v='+encodeURIComponent(idx.updated||'')).catch(()=>null):null]);
+    const [j,wk,cz,cx]=await Promise.all([get(f+'?v='+encodeURIComponent(idx.updated||'')),get('metros.json?v='+encodeURIComponent(idx.updated||'')),cf?get(cf+'?v='+encodeURIComponent(idx.updated||'')):null,xf?get(xf+'?v='+encodeURIComponent(idx.updated||'')).catch(()=>null):null]);
     if(!j||!Array.isArray(j.rows)){DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}
-    const C=j.cols;const rows=[];const byZip={};
-    for(const r of j.rows){const o={};for(let i=0;i<C.length;i++)o[C[i]]=r[i];o.metro=j.metros[o.mi]||'';o.mk=o.metro||'~'+o.st;byZip[o.z]=o;if(o.price)rows.push(o)}
-    DISC.data={...j,rows};DISC.byZip=byZip;DISC.weekly=wk&&wk.metros||{};
+    if(th!==(mkPtype()==='th'))return null;/* he switched home type while this was loading */
+    const C=j.cols;const rows=[];const byZip={};const suf=th?TH_SUF:'';
+    for(const r of j.rows){const o={};for(let i=0;i<C.length;i++)o[C[i]]=r[i];o.metro=j.metros[o.mi]||'';o.mk=(o.metro||'~'+o.st)+suf;byZip[o.z]=o;if(o.price)rows.push(o)}
+    const wkm=wk&&wk.metros||{};
+    DISC.data={...j,rows};DISC.ptype=th?'th':'sfr';DISC.byZip=byZip;DISC.weekly=suf?Object.fromEntries(Object.entries(wkm).map(([k,v])=>[k+suf,v])):wkm;MKC.key='';
     try{joinCensus(cz,byZip)}catch(e){console.warn('census',e)}
     /* second opinion from Zillow: typical home value and its 12-month change (not skewed by which houses sold) */
     try{if(cx&&Array.isArray(cx.rows)&&Array.isArray(cx.cols)){const iz=cx.cols.indexOf('zhvi'),iy=cx.cols.indexOf('zhviYoy');for(const r of cx.rows){const o=byZip[r[0]];if(!o)continue;if(iz>=0)o.zhvi=r[iz];if(iy>=0)o.zhviYoy=r[iy]}DISC.zhviMonth=cx.zhviMonth||null}}catch(e){console.warn('crosscheck',e)}
     return DISC.data;
-  })().catch(()=>{DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}).finally(()=>{DISC.loading=null;render()});
+  })().catch(()=>{DISC.err='Couldn’t load the market data. Check your connection and reload.';return null}).finally(()=>{DISC.loading=null;render();if(DISC.ptype!==mkPtype()&&!DISC.err)loadDiscover()});
   return DISC.loading;
 }
 
@@ -84,7 +102,7 @@ function mkCompute(){
   const D=DISC.data;if(!D)return null;const M=mkSet();const st=mkStrat();const w=MK_W[st];const states=mkStates();
   const lens=mkLens();
   const minMetro=lens==='room'?(M.minMetroSold==null||M.minMetroSold===''?300:+M.minMetroSold||0):0;
-  const key=[st,lens,M.minPrice,M.maxPrice,M.minSold,minMetro,[...states].join(','),D.updated,CENS.rows].join('|');
+  const key=[st,lens,M.minPrice,M.maxPrice,M.minSold,minMetro,[...states].join(','),D.updated,CENS.rows,DISC.ptype].join('|');
   if(MKC.key===key)return MKC.res;
   const zips=[];
   for(const o of D.rows){
@@ -103,7 +121,7 @@ function mkCompute(){
     const med=f=>median(zs.map(f));
     const rm=hasRoom?roomMetro(zs):null;
     return {key:k,label:mkLabel(k),st:mkMetroState(k,zs),zips:zs,n:zs.length,score:lens==='room'?(rm&&rm.room):mScore(zs,o=>o.ls),stats:mScore(zs,o=>o.score),roomScore:rm&&rm.room,sold:zs.reduce((s,o)=>s+(o.sold||0),0),
-      price:med(o=>o.price),dom:med(o=>o.dom),yoy:med(o=>o.priceYoy),cuts:med(o=>o.pdPct),cancel:med(o=>o.cancel),yld:med(mkYield),inv:D.investors[k]||null,rm};
+      price:med(o=>o.price),dom:med(o=>o.dom),yoy:med(o=>o.priceYoy),cuts:med(o=>o.pdPct),cancel:med(o=>o.cancel),yld:med(mkYield),inv:D.investors[mkBase(k)]||null,rm};
   }).filter(m=>m.score!=null&&(lens!=='room'||(m.key[0]!=='~'&&m.sold>=minMetro))).sort((a,b)=>b.score-a.score||b.sold-a.sold);
   metros.forEach((m,i)=>m.rank=i+1);
   MKC={key,res:{zips:lz,metros,strat:st,lens,w,hasRoom,byKey:Object.fromEntries(metros.map(m=>[m.key,m]))}};return MKC.res;
@@ -134,7 +152,7 @@ const starBtn=(type,key)=>{const on=isTarget(type,key);return `<button class="st
 
 /* ---- page ---- */
 function viewMarkets(){
-  const D=DISC.data;const M=mkSet();const st=mkStrat();const R=D?mkCompute():null;const src=D&&D.sources||{};
+  const D=DISC.data&&DISC.ptype===mkPtype()?DISC.data:null;const M=mkSet();const st=mkStrat();const R=D?mkCompute():null;const src=D&&D.sources||{};
   const meta=D?`<span>${ico('trend')}Redfin, 3 months to ${esc(D.periodEnd||'')}</span><span>${ico('home')}Rents: HUD ${esc(src.safmr||'—')} + Zillow ${esc(src.zori||'—')}</span><span>${ico('refresh')}Updated weekly</span>`:'';
   const head=hero('g-markets','Market Discovery',R&&R.lens==='room'?'Where the most food is left on the table: listings nobody grabbed, a resale market that works, and a good future.':'Every US ZIP ranked for how you invest. Set your strategy and budget, then dig into the best metros.',meta,
     R?`<div class="h-stat"><b>${numFmt(R.zips.length)}</b><span>ZIPs fit your box</span></div><div class="h-stat"><b>${numFmt(R.metros.length)}</b><span>markets</span></div>`:'');
@@ -143,13 +161,16 @@ function viewMarkets(){
   <div class="mk-grid">${mkMapCard(R)}${mkMetrosCard(R)}</div>
   ${state.mk.metro&&R.byKey[state.mk.metro]?mkMetroCard(R.byKey[state.mk.metro],R):state.mk.metro?`<section class="card" id="mk-metro"><div class="note">No ZIPs in ${esc(mkLabel(state.mk.metro))} fit your filters right now. Widen the price range or lower the minimum sales.</div><button class="btn sm" data-act="mk-us">Back to all markets</button></section>`:''}
   ${mkMemoCard(R)}
-  <p class="xs muted" style="padding:0 4px">Sources: Redfin Data Center (single-family, rolling 3 months; metro weekly; investor purchases), Zillow Observed Rent Index, HUD Small Area Fair Market Rents, GeoNames (CC BY 4.0)${CENS.meta?`, Census ACS 5-year ${CENS.meta.acsYear}${CENS.meta.baseYear?` vs ${CENS.meta.baseYear}`:''}${CENS.meta.popVintage?`, Census population estimates ${CENS.meta.popVintage}`:''}${CENS.meta.qcew?`, BLS county jobs ${esc(CENS.meta.qcew)}`:''}`:''}. Scores are a starting point for research, not a verdict.</p></div>`;
+  <p class="xs muted" style="padding:0 4px">Sources: Redfin Data Center (${mkPtype()==='th'?'townhouses and rowhouses':'single-family'}, rolling 3 months; metro weekly; investor purchases), Zillow Observed Rent Index, HUD Small Area Fair Market Rents, GeoNames (CC BY 4.0)${CENS.meta?`, Census ACS 5-year ${CENS.meta.acsYear}${CENS.meta.baseYear?` vs ${CENS.meta.baseYear}`:''}${CENS.meta.popVintage?`, Census population estimates ${CENS.meta.popVintage}`:''}${CENS.meta.qcew?`, BLS county jobs ${esc(CENS.meta.qcew)}`:''}`:''}. Scores are a starting point for research, not a verdict.</p></div>`;
 }
 function mkControls(st,M,R){
   const w=MK_W[st];const lens=R?R.lens:'stats';
   return `<section class="card" id="mk-controls"><div class="mk-lens"><span class="small muted">Rank by</span><div class="seg wrapseg" role="group" aria-label="Rank by">
     <button data-act="mk-lens" data-v="stats" aria-pressed="${lens==='stats'}">Best numbers</button><button data-act="mk-lens" data-v="room" aria-pressed="${lens==='room'}" ${roomOn()?'':'disabled title="Competition data isn’t published yet"'}>${ico('target')}Room at the table</button></div>
     ${lens==='room'?`<span class="xs muted">Food left over ${ROOM_W.left}% · share left ${ROOM_W.share}% · resale ${ROOM_W.exit}% · future ${ROOM_W.future}%${st==='wholesale'?'. For wholesaling, also check there are enough cash buyers to sell your contracts to.':''}</span>`:roomOn()?'':`<span class="xs muted">Competition data arrives with the next market update.</span>`}</div>
+  <div class="mk-lens"><span class="small muted">Home type</span><div class="seg wrapseg" role="group" aria-label="Home type">
+    <button data-act="mk-ptype" data-v="sfr" aria-pressed="${mkPtype()==='sfr'}">Houses</button><button data-act="mk-ptype" data-v="th" aria-pressed="${mkPtype()==='th'}">Rowhouses &amp; townhouses</button></div>
+    <span class="xs muted">${mkPtype()==='th'?'Redfin’s townhouse data: rowhouse cities like Philadelphia and Baltimore. Stars here are saved as “(rowhouses)”.':'Single-family houses. Switch for rowhouse cities like Philadelphia.'}</span></div>
   <div class="mk-ctl">
     <div class="field"><span>Strategy</span><div class="seg" role="group" aria-label="Strategy">${Object.entries(MK_STRATS).map(([k,l])=>`<button data-act="mk-strat" data-v="${k}" aria-pressed="${st===k}">${l}</button>`).join('')}</div></div>
     <label class="field"><span>Median price from</span><input class="input tnum" id="mk-min" data-fs="markets.minPrice" data-t="num" value="${M.minPrice??''}" inputmode="numeric" placeholder="0"></label>
@@ -195,7 +216,7 @@ function mkMetroCard(m,R){
   const avgSubs={};Object.keys(R.w).forEach(k=>{avgSubs[k]=avgN(...m.zips.slice(0,5).map(o=>o.subs[k]))});const room=R.lens==='room'&&m.rm;
   const z=state.mk.zip&&DISC.byZip[state.mk.zip]&&DISC.byZip[state.mk.zip].mk===m.key?DISC.byZip[state.mk.zip]:null;
   const rows=m.zips.slice(0,60).map(o=>`<tr data-act="mk-zip" data-k="${o.z}" class="${z&&z.z===o.z?'sel':''}"><td><b class="tnum">${o.z}</b><div class="xs muted">${esc(o.city||'')}${o.county?' · '+esc(o.county):''}</div></td><td class="c">${mkPill(o.ls)}</td>${room?`<td class="r tnum">${leftN(o.rm&&o.rm.left)}</td><td class="r tnum">${o.rm&&o.rm.share!=null?Math.round(o.rm.share*100)+'%':'—'}</td>`:''}<td class="r tnum">${moneyK(o.price)}</td><td class="r tnum">${o.ppsf?'$'+o.ppsf:'—'}</td><td class="r tnum">${o.dom??'—'}</td><td class="r tnum">${o.sold??'—'}</td><td class="r tnum">${sgn(o.priceYoy)}</td><td class="r tnum">${pctv(o.pdPct)}</td><td class="r tnum">${mkRent(o)?money(mkRent(o)):'—'}</td><td class="r tnum">${mkYield(o)!=null?pct(mkYield(o),1):'—'}</td><td class="c">${starBtn('zip',o.z)}</td></tr>`).join('');
-  return `<section class="card" id="mk-metro"><div class="card-head"><span class="ci teal">${ico('building')}</span><div><h2>${esc(m.label)} <span class="muted" style="font-weight:600">#${m.rank}</span></h2><p>${m.n} ZIPs fit your box · ${numFmt(m.sold)} single-family sales in 3 months</p></div><div class="ch-r">${mkPill(m.score)}${starBtn('metro',m.key)}<button class="btn sm" data-act="mk-campaign" data-k="${esc(m.key)}">${ico('send')}Start a campaign here</button></div></div>
+  return `<section class="card" id="mk-metro"><div class="card-head"><span class="ci teal">${ico('building')}</span><div><h2>${esc(m.label)} <span class="muted" style="font-weight:600">#${m.rank}</span></h2><p>${m.n} ZIPs fit your box · ${numFmt(m.sold)} ${mkKind()} sales in 3 months</p></div><div class="ch-r">${mkPill(m.score)}${starBtn('metro',m.key)}<button class="btn sm" data-act="mk-campaign" data-k="${esc(m.key)}">${ico('send')}Start a campaign here</button></div></div>
   ${room?`<div class="split"><div>${roomBars(m.rm)}<p class="xs muted">Totals across the ZIPs that fit your box. Hover a bar for what it measures.</p>
     <p class="small">${leftTag(m.rm)} ${m.stats!=null?`<span class="muted">· ${esc(MK_STRATS[R.strat])} numbers ${m.stats}/100</span>`:''}</p></div>
     <div class="mk-facts">${roomFacts(m.rm)}</div></div><h3 class="mk-h3">The numbers</h3>`:''}

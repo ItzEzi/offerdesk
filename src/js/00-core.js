@@ -26,7 +26,7 @@ const DEFAULTS={
   voice:{model:'eleven_flash_v2_5',voices:{},handsFree:true,silenceSec:'7'},
   dnc:[],
   lender:{purchasePct:90,rehabPct:100,points:2,rate:11,termMonths:12,maxLtv:70,dscrRate:7.5,price:'auto'},
-  markets:{strategy:'',lens:'',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
+  markets:{strategy:'',lens:'',ptype:'sfr',minPrice:60000,maxPrice:300000,minSold:6,states:'',notes:'',targets:[],memo:null},
   followDays:[2,5,10,20],
   wholesalers:[],
   ui:{listMode:'list'}
