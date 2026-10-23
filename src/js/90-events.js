@@ -332,6 +332,7 @@ document.addEventListener('change',e=>{
     else setPath(d,p,val);
     if(p==='listedDate')d.domAtAdd=null;
     if(p==='arv')d.arvSource='you';if(p==='rehab')d.rehabSource='you';
+    if(p==='address'&&hasStreet(d)){d.linkFill=Object.assign({},d.linkFill,{robot:[]});setTimeout(()=>maybeResearch(d.id),0)}
     saveDeal(d);return;
   }
   if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();if(/^(brief\.|notify\.email)/.test(t.dataset.fs))briefSync();return}

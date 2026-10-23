@@ -13,7 +13,7 @@
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 4 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 5 });
 }
 
 function doPost(e) {
@@ -37,7 +37,7 @@ function doPost(e) {
 function handle_(req) {
   try {
     switch (req.action) {
-      case 'ping': return { ok: true, version: 4, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'ping': return { ok: true, version: 5, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
       case 'cloud_meta': return cloudMeta_();
       case 'cloud_get': return cloudGet_(req.names || []);
       case 'cloud_put': return cloudPut_(req.parts || {});
@@ -54,6 +54,7 @@ function handle_(req) {
       case 'worker_status': return workerStatus_();
       case 'attachments': return { ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) };
       case 'search': return { ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) };
+      case 'message': return message_(String(req.id || ''));
       case 'send': return send_(req);
       case 'twilio_save': return twilioSave_(req);
       case 'sms_send': return smsSend_(String(req.to || ''), String(req.body || ''));
@@ -65,6 +66,31 @@ function handle_(req) {
   }
 }
 
+/* the email as text, keeping every link. Wholesalers and alert emails often put the link on the property's picture,
+   which the plain-text version of an email drops, so read the HTML and write each picture link out as [picture link: URL]. */
+function mailText_(m) {
+  var html = ''; try { html = m.getBody() || ''; } catch (e) {}
+  if (!html || html.indexOf('<') === -1) return (m.getPlainBody() || '').slice(0, 16000);
+  var dec = function (s) { return String(s || '').replace(/&nbsp;/g, ' ').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(+n); }).replace(/&amp;/g, '&'); };
+  var attr = function (tag, name) { var r = tag.match(new RegExp('\\s' + name + '\\s*=\\s*("([^"]*)"|\'([^\']*)\'|([^\\s>]+))', 'i')); return r ? dec(r[2] || r[3] || r[4] || '') : ''; };
+  var isPic = function (src) { return /\.(jpe?g|png|webp)(\?|$)/i.test(src) || /streetview|maps\.googleapis/i.test(src); };
+  var t = html.replace(/<(script|style|head|title)\b[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+  t = t.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, function (_, at, inner) {
+    var href = attr('<a' + at + '>', 'href'); if (!/^https?:/i.test(href)) return inner;
+    var img = inner.match(/<img\b[^>]*>/i); var label = dec(inner.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    if (img) { var alt = attr(img[0], 'alt'), src = attr(img[0], 'src'); return ' [picture link: ' + href + (alt ? ' | picture: ' + alt : '') + (isPic(src) ? ' | image: ' + src : '') + (label ? ' | ' + label : '') + '] '; }
+    return ' ' + label + ' [link: ' + href + '] ';
+  });
+  t = t.replace(/<img\b[^>]*>/gi, function (tag) { var alt = attr(tag, 'alt'), src = attr(tag, 'src'); var map = /streetview|maps\.googleapis/i.test(src); return (alt || map) ? ' [picture: ' + alt + (map ? ' | ' + src : '') + '] ' : ' '; });
+  t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr|h\d|table)>/gi, '\n').replace(/<\/t[dh]>/gi, ' | ').replace(/<[^>]+>/g, ' ');
+  t = dec(t).replace(/[ \t\u00a0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').replace(/(\| *){2,}/g, '| ').trim();
+  return t.slice(0, 16000);
+}
+/* one message again, read the same way (for emails pulled before this version) */
+function message_(id) {
+  try { var m = GmailApp.getMessageById(id); if (!m) return { ok: false, error: 'not_found' }; return { ok: true, id: id, body: mailText_(m) }; }
+  catch (e) { return { ok: false, error: 'not_found' }; }
+}
 function me_() { return Session.getEffectiveUser().getEmail().toLowerCase(); }
 
 function search_(query, max) {
@@ -77,7 +103,7 @@ function search_(query, max) {
       out.push({
         id: m.getId(), threadId: t.getId(), from: m.getFrom(), to: m.getTo(),
         subject: m.getSubject(), date: m.getDate().toISOString(),
-        body: (m.getPlainBody() || '').slice(0, 8000),
+        body: mailText_(m),
         atts: m.getAttachments({ includeInlineImages: true }).filter(function (a) { return (a.getContentType() || '').indexOf('image/') === 0; }).length
       });
     });
@@ -345,21 +371,34 @@ function fetchUrl_(url) {
     try { var fl = DriveApp.getFileById(file[1]); var t = fl.getMimeType() || ''; return { ok: true, kind: 'drive_file', title: fl.getName(), images: t.indexOf('image/') === 0 ? [{ id: fl.getId(), name: fl.getName(), type: t, size: fl.getSize() }] : [] }; }
     catch (e) { return { ok: true, kind: 'blocked', status: 'drive_no_access' }; }
   }
-  var res;
+  var res, hops = [], jar = {}, cur = url;
   try {
-    res = UrlFetchApp.fetch(url, { followRedirects: true, muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
-  } catch (e) { return { ok: true, kind: 'blocked', status: 'fetch_failed' }; }
+    for (var i = 0; i < 8; i++) {
+      var hd = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' };
+      var ck = Object.keys(jar).map(function (k) { return k + '=' + jar[k]; }).join('; '); if (ck) hd.Cookie = ck;
+      res = UrlFetchApp.fetch(cur, { followRedirects: false, muteHttpExceptions: true, headers: hd });
+      var ah = res.getAllHeaders(); var sc = ah['Set-Cookie'] || ah['set-cookie'];
+      if (sc) [].concat(sc).forEach(function (c) { var p = String(c).split(';')[0]; var e = p.indexOf('='); if (e > 0) jar[p.slice(0, e).trim()] = p.slice(e + 1).trim(); });
+      var rc = res.getResponseCode(); var loc = ah['Location'] || ah['location'];
+      if (rc >= 300 && rc < 400 && loc) { cur = absUrl_(String([].concat(loc)[0]), cur); hops.push(cur); continue; }
+      if (rc === 200) { var top = res.getContentText().slice(0, 5000); var mr = top.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["']?\s*\d+\s*;\s*url=([^"'>\s]+)/i); if (mr && i < 7) { cur = absUrl_(mr[1], cur); hops.push(cur); continue; } }
+      break;
+    }
+  } catch (e) { return { ok: true, kind: 'blocked', status: 'fetch_failed', finalUrl: cur, hops: hops }; }
   var code = res.getResponseCode(); var h = res.getHeaders(); var ct = String(h['Content-Type'] || h['content-type'] || '');
-  if (code >= 400) return { ok: true, kind: 'blocked', status: code };
-  if (ct.indexOf('image/') === 0) return { ok: true, kind: 'image', images: [{ url: url, type: ct }] };
+  if (code >= 400) return { ok: true, kind: 'blocked', status: code, finalUrl: cur, hops: hops };
+  if (ct.indexOf('image/') === 0) return { ok: true, kind: 'image', images: [{ url: cur, type: ct }], finalUrl: cur, hops: hops };
   var html = res.getContentText(); if (html.length > 2500000) html = html.slice(0, 2500000);
   var title = ((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').replace(/\s+/g, ' ').trim();
-  if (/captcha|access denied|are you a robot|px-captcha|request unsuccessful/i.test(title + html.slice(0, 3000))) return { ok: true, kind: 'blocked', status: 'robot_check' };
+  /* "I'm not a robot" and "Just a moment..." pages: we never try to get past these */
+  var titleHit = /captcha|just a moment|attention required|access denied|are you a robot|security check|verify you are human/i.test(title);
+  var bodyHit = html.length < 80000 && /cf-chl|challenges\.cloudflare\.com|px-captcha|verify you are human|are you a robot|request unsuccessful|checking your browser/i.test(html.slice(0, 30000));
+  if (titleHit || bodyHit) return { ok: true, kind: 'blocked', status: 'robot_check', finalUrl: cur, hops: hops };
   var imgs = [], re = /(?:src|content|data-src|href)=["']([^"']+?\.(?:jpe?g|png|webp)(?:\?[^"']*)?)["']/gi, m;
-  while ((m = re.exec(html)) && imgs.length < 60) { var u = absUrl_(m[1], url); if (imgs.indexOf(u) < 0) imgs.push(u); }
+  while ((m = re.exec(html)) && imgs.length < 60) { var u = absUrl_(m[1], cur); if (imgs.indexOf(u) < 0) imgs.push(u); }
   var text = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr|h\d)>/gi, '\n').replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim().slice(0, 40000);
-  return { ok: true, kind: 'page', status: code, title: title.slice(0, 200), images: imgs, text: text };
+  return { ok: true, kind: 'page', status: code, title: title.slice(0, 200), images: imgs, text: text, finalUrl: cur, hops: hops };
 }
 function absUrl_(u, base) { u = u.replace(/&amp;/g, '&'); if (/^https?:/i.test(u)) return u; if (u.indexOf('//') === 0) return 'https:' + u; var m = base.match(/^(https?:\/\/[^\/]+)/); return m ? (u.charAt(0) === '/' ? m[1] + u : m[1] + '/' + u) : u; }
 function driveImage_(id) {

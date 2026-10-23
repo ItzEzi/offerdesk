@@ -113,11 +113,15 @@ Finish with only this JSON (no text after it):
 }
 const LINKCACHE=new Map();
 async function openLinks(id,links,opts){
-  opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[];let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess};
+  opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[],why={};let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess,why};
   for(const u of links.slice(0,5)){
     let r;const hit=LINKCACHE.get(u);
     if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});if(r.kind!=='blocked')LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
-    if(r.kind==='blocked'){blocked.push(u);if(r.status==='drive_no_access')noAccess.push(u);continue}
+    if(r.kind==='page'&&ROBOT_PAGE.test(String(r.title||'')+' '+String(r.text||'').slice(0,600)))r=Object.assign({},r,{kind:'blocked',status:'robot_check'});
+    if(r.kind==='blocked'){blocked.push(u);why[u]=r.status;if(r.status==='drive_no_access')noAccess.push(u);
+      /* the page is blocked, but the web address it led to often spells out the street address */
+      const hops=(r.hops||[]).filter(x=>x&&x!==u);if(hops.length)pages.push({url:u,title:'(blocked page: only the web address it led to is known)',text:'This link led to: '+hops.join(' then '),redirectOnly:true});
+      continue}
     if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){
       /* each Drive photo only once, even when research opens the same folder later */
       const dd=state.deals[id];const seen=new Set(dd.driveSeen||[]);const todo=r.images.filter(im=>!seen.has(im.id)).slice(0,Math.max(0,16-photoCount(dd)));
@@ -129,8 +133,9 @@ async function openLinks(id,links,opts){
       const imgs=(r.images||[]).filter(x=>!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis/i.test(x));
       if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
   }
-  return {pages,blocked,photos,noAccess};
+  return {pages,blocked,photos,noAccess,why};
 }
+const ROBOT_PAGE=/just a moment|attention required|verify you are human|are you a robot|checking your browser|security check|captcha/i;
 /* ================= opening a new deal's links right away =================
    Alert and wholesaler emails often leave things out (no street address, no ARV) and link to the property page or a Google Drive
    photo folder instead. Maya opens those links through the Gmail script (it follows tracking redirects and can open Drive folders
@@ -169,14 +174,16 @@ async function fillFromLinks(id,quiet,fresh){
   if(!gmailOn()){delete d.checking;d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
   if(state.busy['links:'+id])return null;
   state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
-  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[]}}finally{delete state.busy['links:'+id];render()}
+  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
   const zip5=String(dd.zip||'').slice(0,5),city=String(dd.city||'').toLowerCase(),ask=curList(dd);
-  const about=p=>{const t=String(p.text||'');if(t.length<120)return false;const lt=t.toLowerCase();
+  const about=p=>{const t=String(p.text||'');const lt=t.toLowerCase();
+    if(p.redirectOnly){const slug=lt.replace(/[^a-z0-9]+/g,' ');return /\b\d+\s+[a-z]/.test(slug)&&((zip5&&slug.includes(zip5))||(city&&slug.includes(city.replace(/[^a-z0-9]+/g,' '))))}
+    if(t.length<120)return false;
     return (zip5&&lt.includes(zip5))||(city&&lt.includes(city))||(ask&&(t.includes(String(ask))||t.includes(Number(ask).toLocaleString('en-US'))))||(!zip5&&!city&&!ask)};
   const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
-  if(!useful.length&&got.pages.some(p=>String(p.text||'').length>=120))other=true;
+  if(!useful.length&&got.pages.some(p=>!p.redirectOnly&&String(p.text||'').length>=120))other=true;
   const sig=(s=>{let x=0;for(let i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))|0;return x.toString(36)})(useful.map(p=>p.url+':'+p.text).join('|'));const prevSig=(dd.linkFill||{}).sig;
   if(useful.length&&missingInfo(dd)&&aiOn()&&sig!==prevSig){
     const res=await runAI('links:'+id,`${negName()} is reading the property page…`,(ai,signal)=>ai.json(P_LINKPAGE(dd,useful),{signal,modelTier:'quick',maxTokens:2000}),true);
@@ -184,7 +191,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
   const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
-  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.length,blocked:got.blocked.filter(u=>!got.noAccess.includes(u)).slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -201,6 +208,9 @@ function linkCard(d){
   if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the link: ${lf.filled.map(esc).join(', ')}.</div>`);
   if(lf.other)out.push(`<p class="xs muted">The page showed a different house, so nothing was copied from it.</p>`);
   if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”, then press Try the links again.</div>`);
+  if((lf.robot||[]).length&&!hasStreet(d))out.push(`<div class="note amber small"><b>The site asks to prove you’re human</b> (an “I’m not a robot” box). ${n} isn’t allowed to click those, so this one is on you: ${lf.robot.slice(0,2).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">open the ${lf.robot.length>1?['first','second'][i]+' ':''}link</a>`).join(' · ')}, then paste the address here.
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input class="input" id="lk-addr" data-fd="address" placeholder="e.g. 1234 W 5th Ave" style="flex:1;min-width:200px" aria-label="Street address"></div></div>`);
+  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}.</p>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
   if(!out.length&&!busy)return '';
   return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
@@ -222,19 +232,24 @@ function afterNewDeal(id){
 function researchVerdict(d){
   const S=state.settings.research||{};if(!S.auto||!aiOn())return 'off';
   const capR=boxCap();const p=curList(d);if(capR&&p!=null&&p>capR)return 'over';
+  if(!hasStreet(d))return 'address';
   const c=calc(d);if(c.ready&&p!=null&&c.mao&&p>c.mao*1.15)return 'price';
   const day=new Date().toISOString().slice(0,10);const used=(S.autoDay&&S.autoDay.day===day)?S.autoDay.n:0;
   if(used>=(S.dailyMax==null?3:+S.dailyMax))return 'cap';
   return 'ok';
 }
 function maybeResearch(id){const d=state.deals[id];if(!d||d.research||WORKER.on)return;
-  const v=researchVerdict(d);if(v!=='ok'){if(v==='price'||v==='cap'){d.researchSkip=v;saveDeal(d,true)}return}
+  const v=researchVerdict(d);if(v!=='ok'){if(v==='price'||v==='cap'||v==='address'){d.researchSkip=v;saveDeal(d,true)}return}
   const S=state.settings.research;const day=new Date().toISOString().slice(0,10);
   S.autoDay={day,n:((S.autoDay&&S.autoDay.day===day)?S.autoDay.n:0)+1};saveSettings();delete d.researchSkip;
   if(!RQ.list.includes(id))RQ.list.push(id);drainResearch()}
 async function drainLinks(){if(LQ.running)return;LQ.running=true;try{while(LQ.list.length){const id=LQ.list.shift();const d=state.deals[id];if(d){const retry=!!(d.linkFill&&d.linkFill.at);await fillFromLinks(id,true,retry);if(state.deals[id]&&state.deals[id].checking){delete state.deals[id].checking;saveDeal(state.deals[id],true)}maybeResearch(id)}}}finally{LQ.running=false;render()}}
 /* deals the 24/7 worker brought in, and older deals still missing a street address: open their links on this device */
-async function relinkEmails(ids){for(const id of ids){const m=state.mail.emails[id];if(!m||m.relinked)continue;m.relinked=nowISO();saveMail();try{await importEmail(id,true)}catch(e){}}}
+const bridgeV=acctId=>+((acctInfo(acctId||(sendAcct()||{}).id)||{}).version||1);
+const relinkKey=m=>bridgeV(m.acct)>=5?'relinked5':'relinked';
+async function relinkEmails(ids){for(const id of ids){const m=state.mail.emails[id];const k=m&&relinkKey(m);if(!m||m[k])continue;m[k]=nowISO();
+  if(k==='relinked5'){try{const r=await bridge('message',{id},m.acct||undefined);if(r&&r.body)m.body=r.body}catch(e){}}
+  saveMail();try{await importEmail(id,true)}catch(e){}}}
 function resumeLinks(){
   if(WORKER.on)return;
   if(!gmailOn()||!aiOn()){for(const d of Object.values(state.deals))if(d.checking){delete d.checking;saveDeal(d,true)}return}
@@ -244,7 +259,7 @@ function resumeLinks(){
     const due=lf&&lf.at&&(lf.tries||1)<3&&Date.now()-new Date(lf.at).getTime()>12*3600*1000&&(!hasStreet(d)||(lf.noAccess||[]).length);
     if(links&&((lf&&lf.pending)||d.checking||(!lf&&!hasStreet(d))||due)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}
     else{if(d.checking){delete d.checking;saveDeal(d,true)}
-      if(!hasStreet(d)&&(!links||(lf&&lf.at)))for(const mid of d.seenMsgIds||[]){const m=state.mail.emails[mid];if(m&&m.body&&!m.relinked&&!reread.includes(mid))reread.push(mid)}}}
+      if(!hasStreet(d)&&(!links||(lf&&lf.at)))for(const mid of d.seenMsgIds||[]){const m=state.mail.emails[mid];if(m&&m.body&&!m[relinkKey(m)]&&!reread.includes(mid))reread.push(mid)}}}
   drainLinks();
   if(reread.length)relinkEmails(reread.slice(0,10));
 }
@@ -279,7 +294,7 @@ function researchCard(d){
   const R=d.research;const n=esc(negName());const busy=state.busy['research:'+d.id];const links=dealLinks(d);
   const vt={matches:['Matches','green'],off:['Off','red'],unverified:['Unverified','slate']};
   if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="research" ${busy||!aiOn()?'disabled':''}>${ico('spark')}Research this deal</button></div></div>${busyHTML('research:'+d.id)}
-    ${d.researchSkip==='price'?`<p class="small">${n} didn’t research this one on her own: the asking is already well above your ceiling, so it isn’t worth paying for.</p>`:d.researchSkip==='cap'?`<p class="small">${n} skipped this one: she already did today’s ${(state.settings.research||{}).dailyMax??3} automatic researches. Press the button if you want it.</p>`:''}
+    ${d.researchSkip==='price'?`<p class="small">${n} didn’t research this one on her own: the asking is already well above your ceiling, so it isn’t worth paying for.</p>`:d.researchSkip==='cap'?`<p class="small">${n} skipped this one: she already did today’s ${(state.settings.research||{}).dailyMax??3} automatic researches. Press the button if you want it.</p>`:d.researchSkip==='address'&&!hasStreet(d)?`<p class="small">${n} will research this once it has a street address (research without one can’t find the history or nearby sales).</p>`:''}
     <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}Takes about a minute and usually costs 10–30¢ on your Anthropic account. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
   const arv=R.arv&&parseNum(R.arv.value);
   return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm" data-act="research" ${busy?'disabled':''}>${ico('refresh')}Run again</button></div></div>${busyHTML('research:'+d.id)}
