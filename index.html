@@ -1290,7 +1290,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261023-0305';
+const APP_V='20261023-0332';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -3203,7 +3203,7 @@ function viewLeads(){
   const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${overN?`<button class="fchip" data-act="lead-over" aria-pressed="${!!state.leads.showOver}" title="Asking more than your buy box (${moneyK(boxCap())}); change it in Connect → Gmail">Over ${moneyK(boxCap())} <span class="cnt">${overN}</span></button>`:''}${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
   const rows=list.map(d=>{const c=calc(d);const tags=dealTags(d);const rent=d.rent||d.rentEst;const v=verdict(d,c);
     const arvSrc=d.arvSource==='maya'?'<span class="tag purple">'+n+'’s est</span>':d.arvSource==='comps'?'<span class="tag green">Comps</span>':d.arvSource==='wholesaler'?'<span class="tag orange">Wholesaler</span>':'';
-    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span></div></div></td>
+    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span>${(w=>w?`<span class="tag ${w.c}" style="margin-top:3px">${esc(w.t)}</span>`:'')(noAddrWhy(d))}</div></div></td>
     <td class="r tnum"><b>${money(curList(d))}</b></td>
     <td class="r tnum">${d.arv?`<b>${money(d.arv)}</b><div>${arvSrc}</div>`:'<span class="tag amber">No data</span>'}</td>
     <td class="r tnum">${money(d.rehab)}</td><td class="r tnum">${rent?money(rent):'—'}</td>
@@ -3229,7 +3229,7 @@ function viewDeal(){
   const dm=dom(d);
   const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${zipDom(d)?`<span class="bchip">ZIP median ${zipDom(d)} days</span>`:''}${dealTarget(d)?`<span class="bchip good">${ico('target')}Target market</span>`:''}${d.campaign&&state.campaigns[d.campaign.id]?`<a class="bchip" href="#campaigns" data-act="cp-open" data-id="${d.campaign.id}">${ico('send')}${esc(state.campaigns[d.campaign.id].name)}</a>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
-  const main=[historyCard(d),linkCard(d),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
+  const main=[...(hasStreet(d)?[historyCard(d),linkCard(d)]:[linkCard(d),historyCard(d)]),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
   return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${mayaPanel(d,c)}</aside></div></div>`;
 }
 function overviewCard(d,c){
@@ -3864,22 +3864,32 @@ async function fillFromLinks(id,quiet,fresh){
   if(!quiet)toast(filled.length?`Filled in from the link: ${filled.join(', ')}.`:got.noAccess.length?'That Google Drive folder isn’t shared with you. Ask the wholesaler to share it.':got.pages.length?'Opened the link, but it didn’t add anything new.':'Couldn’t open the links (the site may block robots).',5200);
   return dd.linkFill;
 }
+function noAddrWhy(d){
+  if(!d||d.example||hasStreet(d))return null;const lf=d.linkFill||{};const n=negName();
+  if(state.busy['links:'+d.id]||checking(d))return {c:'purple',t:`${n} is opening the link`};
+  if((lf.robot||[]).length)return {c:'amber',t:'Site wants a human: paste the address'};
+  if(!dealLinks(d).length)return {c:'slate',t:'No link in the email'};
+  if((lf.noAccess||[]).length)return {c:'amber',t:'Photo folder not shared'};
+  if((lf.blocked||[]).length)return {c:'amber',t:'Link blocked: paste the address'};
+  if(lf.at)return {c:'slate',t:'Link had no address'};
+  return {c:'slate',t:`Waiting for ${n} to open the link`};
+}
 /* what happened when Maya opened the links, on the deal page (empty when there is nothing to say) */
 function linkCard(d){
   if(d.example)return '';const lf=d.linkFill||{};const links=dealLinks(d);const n=esc(negName());const busy=state.busy['links:'+d.id];
   const short=u=>esc(String(u).replace(/^https?:\/\/(www\.)?/,'').slice(0,48));const out=[];
   const btn=label=>links.length?`<button class="btn sm" data-act="fill-links" ${busy||!aiOn()?'disabled':''}>${ico('link')}${label}</button>`:'';
-  if(!hasStreet(d))out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links and fill it in')}</div>`);
+  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links and fill it in')}</div>`);
   if(lf.pending&&!gmailOn())out.push(`<div class="note amber">Connect Gmail (Connect → Gmail) so ${n} can open this deal’s links. She opens them through your Gmail script.</div>`);
   if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the link: ${lf.filled.map(esc).join(', ')}.</div>`);
   if(lf.other)out.push(`<p class="xs muted">The page showed a different house, so nothing was copied from it.</p>`);
-  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”, then press Try the links again.</div>`);
+  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own, or press <span style="white-space:nowrap">${btn('Try the links again')}</span></div>`);
   if((lf.robot||[]).length&&!hasStreet(d))out.push(`<div class="note amber small"><b>The site asks to prove you’re human</b> (an “I’m not a robot” box). ${n} isn’t allowed to click those, so this one is on you: ${lf.robot.slice(0,2).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">open the ${lf.robot.length>1?['first','second'][i]+' ':''}link</a>`).join(' · ')}, then paste the address here.
     <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input class="input" id="lk-addr" data-fd="address" placeholder="e.g. 1234 W 5th Ave" style="flex:1;min-width:200px" aria-label="Street address"></div></div>`);
   else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}.</p>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
   if(!out.length&&!busy)return '';
-  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>Links from the email</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links from the email':'No address yet · links from the email'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
 }
 /* after a deal comes in: open its links first, then research (so research has the address) */
 const LQ={list:[],running:false};
