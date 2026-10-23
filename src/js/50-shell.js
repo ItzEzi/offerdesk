@@ -37,7 +37,7 @@ function topbarHTML(){
     <a class="logo" href="#dashboard" aria-label="OfferDesk home"><span class="logo-mark">${ico('logo')}</span><span>Offer<b>Desk</b></span></a>
     <nav class="nav" aria-label="Main">${items.map(([v,l,ic,c])=>`<a href="#${v}" ${cur===v?'aria-current="page"':''}>${ico(ic)}${l}${c?`<span class="nb">${c}</span>`:''}</a>`).join('')}</nav>
     <div class="top-right">
-      <a class="maya-pill" href="#settings/connections" title="${n}: ${st[1]}"><span class="avatar">${n[0]||'M'}</span><span class="dot ${st[0]}"></span><span class="lbl">${n} · ${st[1]}</span></a>
+      ${(mb=>`<a class="maya-pill" href="#settings/connections" title="${n}: ${st[1]}${mb?' · '+esc(mb.title):''}"><span class="avatar">${n[0]||'M'}</span><span class="dot ${st[0]}"></span><span class="lbl">${n} · ${st[1]}</span>${mb?`<span class="spend ${mb.cls}">${esc(mb.txt)}</span>`:''}</a>`)(aiOn()?meterBit():null)}
       ${cloudOn()?`<a class="icon-btn cloud-btn" href="#settings/connections/conn-cloud" aria-label="Cloud save" title="Cloud save">${ico('cloud')}<span data-cloud-dot class="dot ${cloudDotCls()}"></span></a>`:''}
       <button class="icon-btn" data-act="bell" aria-label="Activity" aria-expanded="${state.bellOpen}">${ico('bell')}${unseen?`<span class="count">${unseen>99?'99+':unseen}</span>`:''}</button>
       ${state.bellOpen?bellHTML():''}

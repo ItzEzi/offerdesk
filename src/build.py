@@ -42,7 +42,7 @@ html=f'''<!doctype html>
 '''
 
 # Maya 24/7: the Gmail script loads this bundle (the app's own logic, no screens) and runs it on a timer
-WORKER_FILES=['00-core','10-math','20-ai','30-connect','35-cloud','40-ops','76-research','77-market','79-brief','84-campaigns']
+WORKER_FILES=['00-core','10-math','20-ai','21-spend','30-connect','35-cloud','40-ops','76-research','77-market','79-brief','84-campaigns']
 wjs='\n'.join(open(f'{d}/js/{n}.js').read() for n in WORKER_FILES).replace('__APP_V__',APP_V)
 prelude=open(d+'/worker/prelude.js').read();wmain=open(d+'/worker/main.js').read()
 worker=f"/* OfferDesk worker {APP_V}: the same code the app runs, loaded by your Gmail script for Maya 24/7. */\nfunction OD_WORKER(host){{\n{prelude}\n{wjs}\n{wmain}\nreturn {{run:workerRun,version:APP_V}};\n}}\n"

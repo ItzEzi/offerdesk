@@ -11,6 +11,7 @@ const COLS={
   deals:{n:8,key:'deals',get:()=>state.deals,set:m=>{state.deals=m}},
   practice:{n:1,key:'practice',get:()=>state.practice,set:m=>{state.practice=m}},
   campaigns:{n:1,key:'campaigns',get:()=>state.campaigns,set:m=>{state.campaigns=m}},
+  spend:{n:1,key:'spend',get:()=>state.spend,set:m=>{state.spend=m}},
   emails:{n:4,key:'mail',get:()=>state.mail.emails,set:m=>{state.mail.emails=m}},
   texts:{n:1,key:'mail',get:()=>Object.fromEntries((state.mail.texts||[]).filter(t=>t&&t.sid).map(t=>[t.sid,t])),set:m=>{state.mail.texts=Object.values(m).sort((a,b)=>String(a.at).localeCompare(String(b.at)))}}
 };
@@ -30,8 +31,8 @@ const WHOLES={
       s.accounts=acc.filter(a=>!(gone[a.id]>(a.at||0)));for(const a of s.accounts)if(gone[a.id]!=null)delete gone[a.id];s.goneAccts=gone;delete s.bridgeUrl;lsSet(SECRET_KEY,JSON.stringify(s))}}
 };
 const range=(p,n)=>Array.from({length:n},(_,i)=>p+i);
-const PARTS=[...range('deals',8),'practice','campaigns',...range('emails',4),'texts','settings','conn','research','secrets','mailmeta','activity'];
-const KEY_PARTS={deals:range('deals',8),practice:['practice'],campaigns:['campaigns'],mail:[...range('emails',4),'texts','mailmeta'],activity:['activity'],settings:['settings'],conn:['conn'],research:['research'],secrets:['secrets']};
+const PARTS=[...range('deals',8),'practice','campaigns','spend',...range('emails',4),'texts','settings','conn','research','secrets','mailmeta','activity'];
+const KEY_PARTS={deals:range('deals',8),practice:['practice'],campaigns:['campaigns'],spend:['spend'],mail:[...range('emails',4),'texts','mailmeta'],activity:['activity'],settings:['settings'],conn:['conn'],research:['research'],secrets:['secrets']};
 const partOf=(c,id)=>COLS[c].n>1?c+shardOf(id,COLS[c].n):c;
 function parsePart(P){const m=String(P).match(/^([a-z]+)(\d*)$/);return {c:m[1],i:m[2]===''?0:+m[2]}}
 function keyOfPart(P){const {c}=parsePart(P);return COLS[c]?COLS[c].key:WHOLES[c]?WHOLES[c].key:c==='mailmeta'?'mail':c}
@@ -56,7 +57,7 @@ function detectWhole(w,now){const h=hashOf(WHOLES[w].get());if(CM.h[w]!==h){CM.h
 function detectFlag(P,val){const h=hashOf(val);if(CM.h[P]!==h){CM.h[P]=h;CM.dirty[P]=1}}
 function cloudTrack(key){
   if(!cloudOn()||!cm().base)return;const now=Date.now();
-  if(key==='deals'||key==='practice'||key==='campaigns')detectCol(key,now);
+  if(key==='deals'||key==='practice'||key==='campaigns'||key==='spend')detectCol(key,now);
   else if(key==='mail'){detectCol('emails',now);detectCol('texts',now);detectFlag('mailmeta',mailMeta())}
   else if(key==='activity')detectFlag('activity',actIds());
   else if(WHOLES[key])detectWhole(key,now);

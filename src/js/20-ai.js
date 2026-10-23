@@ -23,7 +23,7 @@ async function apiText(input,opts){
   try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||3000,messages:merged})})}
   catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
   if(!res.ok)throw await apiFail(res);
-  const j=await res.json();const text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+  const j=await res.json();addSpend(model,j.usage,0);const text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
   if(!text)throw {code:'empty_completion'};
   return {text,truncated:j.stop_reason==='max_tokens'};
 }
@@ -39,7 +39,7 @@ async function apiTools(prompt,opts){
     let res;try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||8000,messages,tools:opts.tools||WEB_TOOLS()})})}
     catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
     if(!res.ok)throw await apiFail(res);
-    const j=await res.json();const blocks=j.content||[];
+    const j=await res.json();const blocks=j.content||[];addSpend(model,j.usage,+((j.usage||{}).server_tool_use||{}).web_search_requests||0);
     for(const b of blocks){
       if(b.type==='server_tool_use'){if(b.name==='web_fetch'&&b.input&&b.input.url)fetchUrl[b.id]=b.input.url;if(b.name==='web_search')searches++}
       if(b.type==='web_search_tool_result'&&Array.isArray(b.content))for(const r of b.content)if(r&&r.url&&!sources.has(r.url))sources.set(r.url,r.title||r.url);
@@ -83,7 +83,7 @@ async function runAI(key,label,fn,quiet){
   state.busy[key]={label,ctl};render();
   delete errs[key];
   try{return await fn(AI,ctl.signal)}
-  catch(e){const m=aiErr(e);errs[key]=m||'Stopped.';if(m&&!quiet)toast(m,5200);if(quiet&&m)logActivity(null,'warn',m);return null}
+  catch(e){if(e&&e.code==='no_credit')state.noCredit=Date.now();const m=aiErr(e);errs[key]=m||'Stopped.';if(m&&!quiet)toast(m,5200);if(quiet&&m)logActivity(null,'warn',m);return null}
   finally{delete state.busy[key];render()}
 }
 function busyHTML(key,stop=true){const b=state.busy[key];if(!b)return '';return `<div class="busy"><div class="spin"></div><span>${esc(b.label)}</span>${stop&&b.ctl?`<button class="btn ghost sm" data-act="stop-ai" data-key="${esc(key)}">Stop</button>`:''}</div>`}

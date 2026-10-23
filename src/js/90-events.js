@@ -322,6 +322,7 @@ document.addEventListener('change',e=>{
   if(t.hasAttribute('data-rs-csv')&&t.files&&t.files.length){const fs=[...t.files];t.value='';rsImportFiles(fs);return}
   if(t.dataset.cpAgent){const c=cpCur();const it=c&&c.items.find(i=>i.k===t.dataset.cpAgent);if(it){const v=t.value.trim().toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v)){toast('That doesn’t look like an email.');return}it.agent=Object.assign(it.agent||{},{email:v,src:it.agent&&it.agent.src||'you'});cpPrice(c).then(()=>saveCampaign(c))}return}
   if(t.id==='cp-sort'){state.cp.sort=t.value;render();return}
+  if(t.id==='st-balance'){setBalance(t.value);render();toast(creditLeft()!=null?`Got it: ${usd(creditLeft())} left. OfferDesk counts down from here.`:'Balance cleared.');return}
   const typ=t.dataset.t||'text';
   const val=typ==='num'?parseNum(t.value):typ==='bool'?t.checked:typ==='nbool'?!t.checked:typ==='date'?(t.value?new Date(t.value).toISOString():null):typ==='list'?t.value.split(/[,\s]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b):t.value;
   if(t.dataset.cp){const c=cpCur();if(!c)return;setPath(c,t.dataset.cp,val);if(t.dataset.cp.startsWith('rules.')&&!['rules.template','rules.mode'].includes(t.dataset.cp))cpPrice(c).then(()=>saveCampaign(c));else saveCampaign(c);return}
@@ -377,7 +378,7 @@ async function boot(){
   state.settings=deepMerge(DEFAULTS,v.settings);
   {const mg=state.settings.migr=state.settings.migr||{};if(!mg.sig1023){state.settings.neg.optOutLine=false;mg.sig1023=new Date().toISOString();setTimeout(()=>saveSettings(),0)}
    if(!mg.full1023){mg.full1023=new Date().toISOString();if(state.settings.worker&&state.settings.worker.on)setTimeout(()=>{fullAuto(true);saveSettings()},0)}}
-  state.practice=v.practice||{};state.campaigns=v.campaigns||{};state.research=v.research||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
+  state.practice=v.practice||{};state.campaigns=v.campaigns||{};state.spend=v.spend||{};state.research=v.research||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
   if(state.conn.email&&!state.conn.accounts){state.conn.accounts={g1:{email:state.conn.email,twilio:!!state.conn.twilio,twilioFrom:state.conn.twilioFrom||'',version:state.conn.version||1}};if(!state.settings.conn.sendAccount)state.settings.conn.sendAccount='g1'}
   state.deals=v.deals||null;
   if(!state.deals){state.deals=exampleDeals();if(!state.settings.profile.name)state.settings.profile.name='Ezra Rothschild';persist('deals');persist('settings')}
