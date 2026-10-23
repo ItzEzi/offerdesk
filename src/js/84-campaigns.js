@@ -135,7 +135,7 @@ function cpLaunch(c){
 }
 function cpFill(tpl,d,c){
   const k=calc(d);const p=state.settings.profile,n=state.settings.neg,b=state.settings.buy;
-  const sig=[n.name,(n.title||'Acquisitions Manager')+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean).join('\n');
+  const sig=[n.name,n.title||'Acquisitions Manager'].filter(Boolean).join('\n');
   const map={first:firstName(d),street:streetOf(d.address),city:d.city||'',offer:money(k.opening),arv:moneyK(k.A),rehab:moneyK(d.rehab),list:money(curList(d)),closeDays:b.closeDays,company:p.company||'',name:n.name};
   let t=String(tpl||CP_TEMPLATE).replace(/\{(\w+)\}/g,(m,x)=>map[x]!=null?String(map[x]):m);
   let subject='Cash offer on '+streetOf(d.address);const sm=t.match(/^\s*Subject:\s*(.+)\n+/i);if(sm){subject=sm[1].trim();t=t.slice(sm[0].length)}

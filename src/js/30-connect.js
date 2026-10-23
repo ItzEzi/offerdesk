@@ -197,7 +197,9 @@ async function syncAll(manual){
   finally{state.syncing=false;render()}
 }
 const ownThread=d=>d.gmailThreadId&&(!d.gmailAccount||d.gmailAccount===(sendAcct()||{}).id)?d.gmailThreadId:null;
-const canEmail=d=>gmailOn()&&!!(((d.agent&&d.agent.email)||'').trim()||ownThread(d));
+const NOREPLY=/(^|[._-])(no-?reply|do-?not-?reply|donotreply|alerts?|notifications?|notify|mailer(-daemon)?|bounces?|newsletters?)([._+-]|@)/i;
+const replyable=e=>{e=String(e||'').trim().toLowerCase();return !!e&&!NOREPLY.test(e)};
+const canEmail=d=>{const e=((d.agent&&d.agent.email)||'').trim();return gmailOn()&&(e?replyable(e):!!ownThread(d))};
 function canText(d){if(smsOn())return !!e164(d.agent&&d.agent.phone);if(gvOn())return !!d.gvThreadId;return false}
 function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.company?`${n.name} | ${p.company}`:`${n.name} | ${n.title||'Acquisitions'}`)}
 async function sendEmailNow(id,quiet){
@@ -262,6 +264,7 @@ async function autoSend(d){
   const dd=state.deals[d.id];if(sent&&dd.draft){dd.draft=null;saveDeal(dd,true)}
   return sent>0;
 }
+const openingsToday=()=>Object.values(state.deals).filter(d=>{const f=firstOfferAt(d);return f&&isoDay(f)===isoDay()}).length;
 async function autopilotRun(manual){
   if(!state.settings.auto.enabled){if(manual)toast('Turn autopilot on first.');return}
   if(!aiOn()){if(manual)toast(aiErr({code:'no_ai'}));return}
@@ -273,8 +276,10 @@ async function autopilotRun(manual){
       const d=state.deals[id];if(!d||!d.autopilot||d.optedOut||d.example||['dead','closed','contract'].includes(d.stage))continue;
       const c=calc(d);if(!c.ready||c.dead)continue;
       if(!(canEmail(d)||canText(d)))continue;
-      if(d.draft)continue;
-      if(!ourCount(d)){if(d.campaign||openings<=0)continue;await aiOpening(id,true)}
+      if(d.draft){if(d.needsYou)continue;
+        /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
+        const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
+      else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
         await aiReply(id,null,true)}

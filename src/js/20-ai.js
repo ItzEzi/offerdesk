@@ -111,7 +111,7 @@ function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)re
 function threadText(d){return (d.thread||[]).slice(-14).map(t=>`[${fmtDate(t.at)} · ${t.dir==='out'?'US':t.dir==='in'?'THEM':'NOTE'} via ${t.channel}${t.price?` · number: ${money(t.price)}`:''}] ${(t.subject?t.subject+' — ':'')+(t.text||'').slice(0,1200)}`).join('\n')||'(no messages yet)'}
 function signRules(){
   const p=state.settings.profile,n=state.settings.neg;
-  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean);
+  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title].filter(Boolean);
   return `You are ${n.name}, ${title}${p.company?' at '+p.company:''}. Write in the first person as ${n.name}; say "we" or "our team" for the buyer. Never write "on behalf of" and never introduce yourself as an assistant.
 End every email with this signature, one item per line: ${sig.map(x=>'"'+x+'"').join(', ')}. End texts with "– ${n.name}".
 Tone: ${TONES[n.tone]||TONES.friendly}. Plain US English. No emojis, no hype.

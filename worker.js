@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261023-0332: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261023-1523: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261023-0332';
+const APP_V='20261023-1523';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -43,9 +43,9 @@ const DEFAULTS={
   profile:{name:'',company:'',email:'',phone:''},
   buy:{strategy:'flip',targetRoi:20,minProfit:30000,holdMonths:5,holdCostMonthly:1200,buyCostPct:2,sellCostPct:8,wsBuyerPct:70,wsFee:10000,anchorGap:10,targetPct:40,maxRounds:4,escalatePct:95,closeDays:14,optionDays:7,emd:1000},
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
-  neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
+  neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:false,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
-  auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
+  auto:{enabled:false,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   research:{auto:true,maxPrice:175000,dailyMax:3},
@@ -605,7 +605,7 @@ function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)re
 function threadText(d){return (d.thread||[]).slice(-14).map(t=>`[${fmtDate(t.at)} · ${t.dir==='out'?'US':t.dir==='in'?'THEM':'NOTE'} via ${t.channel}${t.price?` · number: ${money(t.price)}`:''}] ${(t.subject?t.subject+' — ':'')+(t.text||'').slice(0,1200)}`).join('\n')||'(no messages yet)'}
 function signRules(){
   const p=state.settings.profile,n=state.settings.neg;
-  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean);
+  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title].filter(Boolean);
   return `You are ${n.name}, ${title}${p.company?' at '+p.company:''}. Write in the first person as ${n.name}; say "we" or "our team" for the buyer. Never write "on behalf of" and never introduce yourself as an assistant.
 End every email with this signature, one item per line: ${sig.map(x=>'"'+x+'"').join(', ')}. End texts with "– ${n.name}".
 Tone: ${TONES[n.tone]||TONES.friendly}. Plain US English. No emojis, no hype.
@@ -1012,7 +1012,9 @@ async function syncAll(manual){
   finally{state.syncing=false;render()}
 }
 const ownThread=d=>d.gmailThreadId&&(!d.gmailAccount||d.gmailAccount===(sendAcct()||{}).id)?d.gmailThreadId:null;
-const canEmail=d=>gmailOn()&&!!(((d.agent&&d.agent.email)||'').trim()||ownThread(d));
+const NOREPLY=/(^|[._-])(no-?reply|do-?not-?reply|donotreply|alerts?|notifications?|notify|mailer(-daemon)?|bounces?|newsletters?)([._+-]|@)/i;
+const replyable=e=>{e=String(e||'').trim().toLowerCase();return !!e&&!NOREPLY.test(e)};
+const canEmail=d=>{const e=((d.agent&&d.agent.email)||'').trim();return gmailOn()&&(e?replyable(e):!!ownThread(d))};
 function canText(d){if(smsOn())return !!e164(d.agent&&d.agent.phone);if(gvOn())return !!d.gvThreadId;return false}
 function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.company?`${n.name} | ${p.company}`:`${n.name} | ${n.title||'Acquisitions'}`)}
 async function sendEmailNow(id,quiet){
@@ -1077,6 +1079,7 @@ async function autoSend(d){
   const dd=state.deals[d.id];if(sent&&dd.draft){dd.draft=null;saveDeal(dd,true)}
   return sent>0;
 }
+const openingsToday=()=>Object.values(state.deals).filter(d=>{const f=firstOfferAt(d);return f&&isoDay(f)===isoDay()}).length;
 async function autopilotRun(manual){
   if(!state.settings.auto.enabled){if(manual)toast('Turn autopilot on first.');return}
   if(!aiOn()){if(manual)toast(aiErr({code:'no_ai'}));return}
@@ -1088,8 +1091,10 @@ async function autopilotRun(manual){
       const d=state.deals[id];if(!d||!d.autopilot||d.optedOut||d.example||['dead','closed','contract'].includes(d.stage))continue;
       const c=calc(d);if(!c.ready||c.dead)continue;
       if(!(canEmail(d)||canText(d)))continue;
-      if(d.draft)continue;
-      if(!ourCount(d)){if(d.campaign||openings<=0)continue;await aiOpening(id,true)}
+      if(d.draft){if(d.needsYou)continue;
+        /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
+        const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
+      else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
         await aiReply(id,null,true)}
@@ -1476,7 +1481,7 @@ async function extractDeals(text,meta,busyKey,quiet){
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
-      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false,linksOnly:list.length>1});
+      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -2259,7 +2264,7 @@ function cpLaunch(c){
 }
 function cpFill(tpl,d,c){
   const k=calc(d);const p=state.settings.profile,n=state.settings.neg,b=state.settings.buy;
-  const sig=[n.name,(n.title||'Acquisitions Manager')+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean).join('\n');
+  const sig=[n.name,n.title||'Acquisitions Manager'].filter(Boolean).join('\n');
   const map={first:firstName(d),street:streetOf(d.address),city:d.city||'',offer:money(k.opening),arv:moneyK(k.A),rehab:moneyK(d.rehab),list:money(curList(d)),closeDays:b.closeDays,company:p.company||'',name:n.name};
   let t=String(tpl||CP_TEMPLATE).replace(/\{(\w+)\}/g,(m,x)=>map[x]!=null?String(map[x]):m);
   let subject='Cash offer on '+streetOf(d.address);const sm=t.match(/^\s*Subject:\s*(.+)\n+/i);if(sm){subject=sm[1].trim();t=t.slice(sm[0].length)}

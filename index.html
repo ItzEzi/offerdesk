@@ -1290,7 +1290,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261023-0332';
+const APP_V='20261023-1523';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1305,9 +1305,9 @@ const DEFAULTS={
   profile:{name:'',company:'',email:'',phone:''},
   buy:{strategy:'flip',targetRoi:20,minProfit:30000,holdMonths:5,holdCostMonthly:1200,buyCostPct:2,sellCostPct:8,wsBuyerPct:70,wsFee:10000,anchorGap:10,targetPct:40,maxRounds:4,escalatePct:95,closeDays:14,optionDays:7,emd:1000},
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
-  neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:true,senderName:''},
+  neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:false,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
-  auto:{enabled:false,openingChannel:'email',maxOpenings:5,newDealsOn:false,followUps:true},
+  auto:{enabled:false,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   research:{auto:true,maxPrice:175000,dailyMax:3},
@@ -1867,7 +1867,7 @@ function compsText(d){const cs=(d.comps||[]).filter(x=>x.price);if(!cs.length)re
 function threadText(d){return (d.thread||[]).slice(-14).map(t=>`[${fmtDate(t.at)} · ${t.dir==='out'?'US':t.dir==='in'?'THEM':'NOTE'} via ${t.channel}${t.price?` · number: ${money(t.price)}`:''}] ${(t.subject?t.subject+' — ':'')+(t.text||'').slice(0,1200)}`).join('\n')||'(no messages yet)'}
 function signRules(){
   const p=state.settings.profile,n=state.settings.neg;
-  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean);
+  const title=(n.title||'Acquisitions Manager').trim();const sig=[n.name,title].filter(Boolean);
   return `You are ${n.name}, ${title}${p.company?' at '+p.company:''}. Write in the first person as ${n.name}; say "we" or "our team" for the buyer. Never write "on behalf of" and never introduce yourself as an assistant.
 End every email with this signature, one item per line: ${sig.map(x=>'"'+x+'"').join(', ')}. End texts with "– ${n.name}".
 Tone: ${TONES[n.tone]||TONES.friendly}. Plain US English. No emojis, no hype.
@@ -2274,7 +2274,9 @@ async function syncAll(manual){
   finally{state.syncing=false;render()}
 }
 const ownThread=d=>d.gmailThreadId&&(!d.gmailAccount||d.gmailAccount===(sendAcct()||{}).id)?d.gmailThreadId:null;
-const canEmail=d=>gmailOn()&&!!(((d.agent&&d.agent.email)||'').trim()||ownThread(d));
+const NOREPLY=/(^|[._-])(no-?reply|do-?not-?reply|donotreply|alerts?|notifications?|notify|mailer(-daemon)?|bounces?|newsletters?)([._+-]|@)/i;
+const replyable=e=>{e=String(e||'').trim().toLowerCase();return !!e&&!NOREPLY.test(e)};
+const canEmail=d=>{const e=((d.agent&&d.agent.email)||'').trim();return gmailOn()&&(e?replyable(e):!!ownThread(d))};
 function canText(d){if(smsOn())return !!e164(d.agent&&d.agent.phone);if(gvOn())return !!d.gvThreadId;return false}
 function senderName(){const n=state.settings.neg,p=state.settings.profile;return n.senderName||(p.company?`${n.name} | ${p.company}`:`${n.name} | ${n.title||'Acquisitions'}`)}
 async function sendEmailNow(id,quiet){
@@ -2339,6 +2341,7 @@ async function autoSend(d){
   const dd=state.deals[d.id];if(sent&&dd.draft){dd.draft=null;saveDeal(dd,true)}
   return sent>0;
 }
+const openingsToday=()=>Object.values(state.deals).filter(d=>{const f=firstOfferAt(d);return f&&isoDay(f)===isoDay()}).length;
 async function autopilotRun(manual){
   if(!state.settings.auto.enabled){if(manual)toast('Turn autopilot on first.');return}
   if(!aiOn()){if(manual)toast(aiErr({code:'no_ai'}));return}
@@ -2350,8 +2353,10 @@ async function autopilotRun(manual){
       const d=state.deals[id];if(!d||!d.autopilot||d.optedOut||d.example||['dead','closed','contract'].includes(d.stage))continue;
       const c=calc(d);if(!c.ready||c.dead)continue;
       if(!(canEmail(d)||canText(d)))continue;
-      if(d.draft)continue;
-      if(!ourCount(d)){if(d.campaign||openings<=0)continue;await aiOpening(id,true)}
+      if(d.draft){if(d.needsYou)continue;
+        /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
+        const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
+      else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
         await aiReply(id,null,true)}
@@ -2738,7 +2743,7 @@ async function extractDeals(text,meta,busyKey,quiet){
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
-      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:false,linksOnly:list.length>1});
+      gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -4385,9 +4390,9 @@ function setAuto(){
   <div class="split"><section class="card"><div class="card-head"><span class="ci purple">${ico('send')}</span><div><h2>What she does on her own</h2></div></div>
     <ol class="steps"><li><b>Outreach:</b> sends the opening offer on new deals (up to ${A.maxOpenings} per run).</li><li><b>Follow-up:</b> nudges on day ${state.settings.followDays.join(', ')} until they answer. Price drops trigger a fresh follow-up.</li><li><b>Negotiate:</b> answers replies with counters on your concession ladder, holds, or a seller-finance pitch within your limits.</li><li><b>Close:</b> stops and hands it to you.</li></ol>
     <label class="field"><span>Opening offer goes out by</span><select class="input" id="st-auto-ch" data-fs="auto.openingChannel" data-t="text">${[['email','Email'],['sms','Text'],['both','Email and text']].map(([v,l])=>`<option value="${v}" ${A.openingChannel===v?'selected':''}>${l}</option>`).join('')}</select></label>
-    <div class="grid-fields">${fset('auto.maxOpenings','Max opening offers per run')}</div>
+    <div class="grid-fields">${fset('auto.maxOpenings','Max opening offers per run')}${fset('auto.maxOpeningsDay','Max opening offers per day')}</div>
     <label class="check"><input type="checkbox" id="st-auto-fu" data-fs="auto.followUps" data-t="bool" ${A.followUps?'checked':''}><span>Send follow-ups automatically</span></label>
-    <label class="check"><input type="checkbox" id="st-auto-new" data-fs="auto.newDealsOn" data-t="bool" ${A.newDealsOn?'checked':''}><span>Turn autopilot on for listings I add (wholesaler deals stay off until you review them)</span></label></section>
+    <label class="check"><input type="checkbox" id="st-auto-new" data-fs="auto.newDealsOn" data-t="bool" ${A.newDealsOn?'checked':''}><span>Turn autopilot on for listings I add${A.wsAuto?' (and wholesaler deals, while '+n+' 24/7 is on)':' (wholesaler deals stay off until you review them, unless '+n+' 24/7 is on)'}</span></label></section>
   <section class="card"><div class="card-head"><span class="ci red">${ico('shield')}</span><div><h2>When she stops for you</h2></div></div>
     <ul class="steps" style="list-style:disc"><li>Their number is at or under your ceiling (accepting is your call).</li><li>Any price above ${state.settings.buy.escalatePct}% of your ceiling.</li><li>Any draft that mentions a dollar amount above your ceiling (ceiling guard).</li><li>Walking away, or anything unusual (“needs your call”).</li><li>They ask not to be contacted: she stops for good on that deal.</li></ul>
     <p class="small muted">Everything she sends shows in the deal’s conversation and in the bell.</p></section></div>`;
@@ -5084,7 +5089,7 @@ function cpLaunch(c){
 }
 function cpFill(tpl,d,c){
   const k=calc(d);const p=state.settings.profile,n=state.settings.neg,b=state.settings.buy;
-  const sig=[n.name,(n.title||'Acquisitions Manager')+(p.company?', '+p.company:''),p.phone,p.email].filter(Boolean).join('\n');
+  const sig=[n.name,n.title||'Acquisitions Manager'].filter(Boolean).join('\n');
   const map={first:firstName(d),street:streetOf(d.address),city:d.city||'',offer:money(k.opening),arv:moneyK(k.A),rehab:moneyK(d.rehab),list:money(curList(d)),closeDays:b.closeDays,company:p.company||'',name:n.name};
   let t=String(tpl||CP_TEMPLATE).replace(/\{(\w+)\}/g,(m,x)=>map[x]!=null?String(map[x]):m);
   let subject='Cash offer on '+streetOf(d.address);const sm=t.match(/^\s*Subject:\s*(.+)\n+/i);if(sm){subject=sm[1].trim();t=t.slice(sm[0].length)}
@@ -5929,12 +5934,16 @@ async function workerToggle(on){
   const a=acctList().find(x=>x.id===cm().acct);if(!a){toast('Turn on cloud save first.');return}
   state.busy.worker={label:on?`Turning on ${negName()} 24/7…`:'Turning it off…'};render();
   try{const r=await bridge('worker_setup',{on,acct:a.id,url:a.url,every:5},a.id);if(!r.ok)throw {code:'bridge_err',message:r.error||'error'};
-    state.settings.worker={on:!!on,at:nowISO()};saveSettings();
-    toast(on?`${negName()} 24/7 is on. She checks every 5 minutes whenever no device has OfferDesk open.`:`${negName()} 24/7 is off.`,5200);WK.at=0;await workerRefresh()}
+    state.settings.worker={on:!!on,at:nowISO()};fullAuto(!!on);saveSettings();
+    toast(on?`${negName()} 24/7 is on, and she’s fully automatic: she sends offers, replies and follow-ups herself, within your limits. She still stops for you near your ceiling.`:`${negName()} 24/7 is off. She’ll draft and wait for you to press Send.`,7000);WK.at=0;await workerRefresh()}
   catch(e){toast(bridgeErr(e),6200)}finally{delete state.busy.worker;render()}
 }
+/* 24/7 means fully automatic: autopilot on for every open deal (wholesaler deals too), drafts already waiting get sent */
+function fullAuto(on){const A=state.settings.auto;
+  if(on){A.enabled=true;A.newDealsOn=true;A.wsAuto=true;for(const d of Object.values(state.deals)){if(d.example||d.optedOut||!['new','sent','negotiating'].includes(d.stage||'new'))continue;d.autopilot=true}persist('deals')}
+  else{A.enabled=false;A.wsAuto=false}}
 function workerCardHTML(){
-  const n=esc(negName());const head=(pill)=>`<div class="card-head"><span class="ci grad">${ico('bolt')}</span><div><h2>${n} 24/7</h2><p>Keeps answering agents, following up and sending campaigns with every device closed</p></div><div class="ch-r">${pill||''}</div></div>`;
+  const n=esc(negName());const head=(pill)=>`<div class="card-head"><span class="ci grad">${ico('bolt')}</span><div><h2>${n} 24/7</h2><p>Fully automatic: sends offers, answers, follows up and pulls in new deals, even with every device closed</p></div><div class="ch-r">${pill||''}</div></div>`;
   if(!cloudOn())return `<section class="conn-card" id="conn-247">${head('<span class="pill slate">Off</span>')}<p class="small">Turn on cloud save above first. ${n} 24/7 runs inside the same Gmail script, using your cloud copy of the desk.</p></section>`;
   if(!WK.busy&&Date.now()-WK.at>90e3)setTimeout(workerRefresh,0);
   const info=acctInfo(cm().acct)||{};const old=(info.version||1)<4||/older version/.test(WK.err);
@@ -5945,7 +5954,7 @@ function workerCardHTML(){
     ${old?`<div class="note amber">Your Gmail script is an older version. Copy the bridge code again (Gmail card, step 2), paste it over the old code in Apps Script, then Deploy → Manage deployments → Edit → New version → Deploy, and click Allow when Google asks. Then press Test on the Gmail card.</div>`:''}
     <ul class="small" style="margin:0 0 10px;padding-left:18px;display:grid;gap:4px">
       <li>Every 5 minutes your Gmail script takes a quick look: is a device open? any new email? anything due? Most checks take a second.</li>
-      <li>When there’s work and no device has OfferDesk open, it runs ${n}: replies within your limits, follow-ups, campaign emails, new wholesaler deals, and the morning brief data.</li>
+      <li>When there’s work and no device has OfferDesk open, it runs ${n}: opening offers, replies within your limits, follow-ups, campaign emails, new wholesaler deals, and the morning brief data. You don’t press Send; she still stops for you near your ceiling.</li>
       <li>Deep photo inspections and web research wait for the next time you open OfferDesk (they take longer than Google allows per step).</li></ul>
     ${on?`<p class="small"><b>Last check:</b> ${s.lastTick?ago(new Date(s.lastTick).toISOString()):'not yet'}${s.next&&s.next>Date.now()?` · next planned work ${fmtWhen(new Date(s.next).toISOString())}`:''}${s.left!=null?` · ${s.left} emails left today`:''}</p>${lastLine?`<p class="small">${esc(lastLine)}</p>`:''}${last&&last.warn&&last.warn.length?`<div class="note amber small">${esc(last.warn.slice(0,2).join(' · '))}</div>`:''}`:''}
     ${WK.err&&!old?`<div class="note amber small">${esc(WK.err)}</div>`:''}
@@ -6330,6 +6339,8 @@ async function boot(){
     try{v.conn=v.conn||JSON.parse(lsGet('od.conn')||'null')}catch(e){}
   }
   state.settings=deepMerge(DEFAULTS,v.settings);
+  {const mg=state.settings.migr=state.settings.migr||{};if(!mg.sig1023){state.settings.neg.optOutLine=false;mg.sig1023=new Date().toISOString();setTimeout(()=>saveSettings(),0)}
+   if(!mg.full1023){mg.full1023=new Date().toISOString();if(state.settings.worker&&state.settings.worker.on)setTimeout(()=>{fullAuto(true);saveSettings()},0)}}
   state.practice=v.practice||{};state.campaigns=v.campaigns||{};state.research=v.research||{};state.mail=Object.assign(state.mail,v.mail||{});state.activity=v.activity||[];state.conn=v.conn||{};
   if(state.conn.email&&!state.conn.accounts){state.conn.accounts={g1:{email:state.conn.email,twilio:!!state.conn.twilio,twilioFrom:state.conn.twilioFrom||'',version:state.conn.version||1}};if(!state.settings.conn.sendAccount)state.settings.conn.sendAccount='g1'}
   state.deals=v.deals||null;
