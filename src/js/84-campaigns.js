@@ -154,7 +154,7 @@ function cpCanSendNow(c,it){
 }
 /* one step of the queue: called every tick (device every 3 min, Maya 24/7 every 5) */
 async function campaignTick(){
-  if(!gmailOn()||!aiOn())return 0;let sent=0;
+  if(!gmailOn()||!aiOn()||approveMode())return 0;let sent=0;
   const quota=state.conn.mailQuota;if(quota&&quota.left!=null&&quota.left<20&&quota.day===isoDay())return 0;
   const todayAgents=new Set(cpList().flatMap(c=>c.items.filter(i=>i.sentAt&&isoDay(i.sentAt)===isoDay()&&i.agent).map(i=>i.agent.email)));
   for(const c of cpList()){
@@ -198,7 +198,7 @@ function viewCampaigns(){
     `<button class="btn" data-act="cp-new">${ico('plus')}New campaign</button>`);
   const tabs=L.length?`<div class="cp-tabs" role="tablist">${L.map(x=>{const s=cpStats(x);return `<button role="tab" aria-selected="${c&&c.id===x.id}" data-act="cp-open" data-id="${x.id}"><b>${esc(x.name)}</b><span class="xs muted">${x.status==='running'?'Sending':x.status==='paused'?'Paused':x.status==='done'?'Done':'Draft'} · ${s.sent}/${s.total} sent${s.replied?` · ${s.replied} replies`:''}</span></button>`}).join('')}</div>`:'';
   if(!c)return `<div class="wrap page">${head}${cpEmptyHTML()}</div>`;
-  return `<div class="wrap page">${head}${tabs}${cpEditorHTML(c)}</div>`;
+  return `<div class="wrap page">${head}${approveMode()?`<div class="note amber">${ico('shield')} You press Send is on (Connect → Autopilot), so campaigns don’t send anything. Turn it off when you want campaigns to run.</div>`:''}${tabs}${cpEditorHTML(c)}</div>`;
 }
 function cpRedfinLinks(c){
   const chip=(z,cls,label)=>`<a class="qchip ${cls}" href="https://www.redfin.com/zipcode/${z}" target="_blank" rel="noopener">${esc(label||z)}</a>`;

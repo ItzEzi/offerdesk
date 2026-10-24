@@ -1,7 +1,7 @@
 /* ================= Listings ================= */
 const SPECIAL=[
   ['target','In my target markets',d=>!!dealTarget(d)],['campaign','From a campaign',d=>!!d.campaign],
-  ['reply','Reply waiting',d=>replyWaiting(d)],['draft','Draft ready',d=>!!d.draft],['star','Starred',d=>!!d.starred],
+  ['reply','Reply waiting',d=>replyWaiting(d)],['draft','Draft ready',d=>draftOpen(d)],['star','Starred',d=>!!d.starred],
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(zipDom(d)||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
@@ -86,7 +86,7 @@ function kcardHTML(d){
     <div class="meta">${d.beds??'?'} bd • ${d.baths??'?'} ba • ${numFmt(d.sqft)} sqft <span class="mini-tag" style="background:var(--b-${ms[1]});color:var(--t-${ms[1]})">${ms[0]}</span>${d.example?'<span class="tag ex">Fake · practice</span>':''}</div>
     <div class="meta">${d.source==='wholesaler'?'Wholesaler':'Agent'}: <b style="color:var(--ink-2)">${esc(((d.agent&&d.agent.name)||d.wholesalerName||'—').replace(/\s*\(example\)/i,''))}</b></div>
     <div class="metrics"><div class="metric"><span>${their!=null?'Agent':'Asking'}</span><b>${moneyK(their??curList(d))}</b>${their!=null?`<em>orig ${moneyK(curList(d))}</em>`:''}</div><div class="metric offer"><span>Offer</span><b>${moneyK(lastOurPrice(d)??(c.ready?c.opening:null))}</b>${lastOurPrice(d)==null&&c.ready?'<em>planned</em>':''}</div><div class="metric mao"><span>MAO</span><b>${c.ready?moneyK(c.mao):'—'}</b></div></div>
-    ${d.needsYou?`<div class="knote">${ico('bolt')} Needs you: ${esc(d.needsYou)}</div>`:d.draft?`<div class="knote" style="background:var(--b-purple);color:var(--t-purple)">Draft ready: ${esc(ACTION_LABEL[d.draft.action||d.draft.kind]||'message')}</div>`:replyWaiting(d)?`<div class="knote" style="background:var(--b-blue);color:var(--t-blue)">Reply waiting</div>`:''}
+    ${d.needsYou&&draftOpen(d)?`<div class="knote">${ico('bolt')} Needs you: ${esc(d.needsYou)}</div>`:draftOpen(d)?`<div class="knote" style="background:var(--b-purple);color:var(--t-purple)">Draft ready: ${esc(ACTION_LABEL[d.draft.action||d.draft.kind]||'message')}</div>`:replyWaiting(d)?`<div class="knote" style="background:var(--b-blue);color:var(--t-blue)">Reply waiting</div>`:''}
     <div class="meta">${ico('calendar')}${lastC?fmtDate(lastC):'No contact yet'}${replyWaiting(d)?` <span style="color:var(--t-green)">${ico('chat')}</span>`:''}</div>
     <input class="qnote" id="qn-${d.id}" data-qnote="${d.id}" value="${esc(d.quickNote||'')}" placeholder="+ Quick note" aria-label="Quick note">
     <div class="kfoot">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot')}<span>Autopilot</span><button class="chatbtn" data-act="open-chat" data-id="${d.id}">${ico('chat')}Chat with ${esc(negName())}</button></div>

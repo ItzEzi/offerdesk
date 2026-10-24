@@ -16,7 +16,7 @@ const DEFAULTS={
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
   neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:false,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
-  auto:{enabled:false,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
+  auto:{enabled:false,approveAll:true,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   research:{auto:true,maxPrice:175000,dailyMax:3},
@@ -162,7 +162,8 @@ const IDB={db:null,
 };
 const KEYS=['settings','deals','practice','mail','activity','conn','campaigns','research','spend'];
 /* Maya 24/7 (the Gmail script runs this same code) stops starting new work near its time limit */
-const WORKER={on:false,deadline:0};const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
+const WORKER={on:false,deadline:0};
+const approveMode=()=>state.settings.auto.approveAll!==false;const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
 const saveTimers={};
 function writeKey(key){
   const val=state[key];
@@ -196,6 +197,7 @@ function route(){
   state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
+  {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();

@@ -122,7 +122,10 @@ async function syncWholesalerEmails(acct){
     state.mail.emails[m.id]=Object.assign({},m,{status:'new',acct:acct.id});n++}
   saveMail();
   for(const [id,m] of replied)if((m.atts||0)>0){try{await pullDealAttachments(id,true,[m.id])}catch(e){}}
-  if(n&&state.settings.conn.autoImport&&aiOn()){for(const m of Object.values(state.mail.emails).filter(x=>x.status==='new').sort(byDate).reverse().slice(0,8))await importEmail(m.id,true)}
+  /* new emails, plus ones Maya couldn't read before (no credits, a hiccup): retried up to 3 times, an hour apart */
+  if(state.settings.conn.autoImport&&aiOn()){const now=Date.now();
+    const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)).sort(byDate).reverse().slice(0,8);
+    for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
   return n;
 }
 function replyTarget(m){
@@ -145,7 +148,7 @@ async function draftReplies(){
     if(k>=5||timeUp())break;
     if(d.example||d.optedOut||(d.autopilot&&state.settings.auto.enabled)||!replyWaiting(d))continue;
     const li=ins(d).slice(-1)[0];const tag=li&&(li.gmailId||li.at);if(!li||d.draftedFor===tag)continue;
-    if(d.draft){if(String(d.draft.at)>String(li.at))continue;d.draft=null}   /* a draft older than their newest message is out of date */
+    if(d.draft&&draftOpen(d)&&String(d.draft.at)>String(li.at))continue;d.draft=null;   /* a draft older than their newest message is out of date */
     d.draftedFor=tag;saveDeal(d,true);
     await aiReply(d.id,null,true);
     const dd=state.deals[d.id];if(dd&&dd.draft){dd.needsYou=dd.needsYou||`review the reply ${negName()} drafted`;saveDeal(dd,true);k++;
@@ -265,7 +268,7 @@ async function pingOwner(d,kind,text,key){
   const N=state.settings.notify||{};if(kind==='reply'&&!N.onReply)return;if(kind==='needs'&&!N.onNeeds)return;if(d.example)return;
   const k=kind+':'+(key||'');d.pinged=d.pinged||{};if(d.pinged[k])return;d.pinged[k]=nowISO();
   const ks=Object.keys(d.pinged);if(ks.length>40)for(const x of ks.slice(0,ks.length-40))delete d.pinged[x];saveDeal(d,true);
-  const to=(N.email||'').trim();const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
+  const to=(N.email||'').trim()||(gmailOn()?sendEmail():'');const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
   if(to&&gmailOn()){try{await bridge('send',{to,subject:`OfferDesk · ${where}: ${kind==='needs'?negName()+' needs your call':'reply waiting'}`,body:`${text}\n\nOpen the deal: ${link}\n\n— ${negName()}, OfferDesk`,name:'OfferDesk · '+negName()})}catch(e){logActivity(d.id,'warn','Couldn’t email you about '+where+': '+bridgeErr(e))}}
   const ph=e164(state.settings.profile.phone);
   if(N.sms&&smsOn()&&ph){try{await bridge('sms_send',{to:ph,body:`OfferDesk · ${where}: ${text}`.slice(0,300)+' '+link})}catch(e){logActivity(d.id,'warn','Couldn’t text you about '+where+': '+bridgeErr(e))}}
@@ -282,6 +285,7 @@ function draftSafety(d){
   if(dr.price!=null&&dr.price>cap)why.push('price above ceiling');
   else if(dr.price!=null&&act!=='creative'&&c.mao&&dr.price>c.mao*state.settings.buy.escalatePct/100)why.push(`above ${state.settings.buy.escalatePct}% of your ceiling`);
   if((dr.flags||[]).some(f=>f.cls==='red'))why.push('flagged');
+  if(arvTheirs(d)&&dr.price!=null)why.push('the ARV is still the seller’s own claim (not checked against comps)');
   return why;
 }
 async function autoSend(d){
@@ -310,10 +314,12 @@ async function autopilotRun(manual){
       const d=state.deals[id];if(!d||!d.autopilot||d.optedOut||d.example||['dead','closed','contract'].includes(d.stage))continue;
       const c=calc(d);if(!c.ready||c.dead)continue;
       if(!(canEmail(d)||canText(d)))continue;
+      if(d.draft&&!draftOpen(d)){d.draft=null;saveDeal(d,true)}
       if(d.draft){if(d.needsYou)continue;
         /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
         const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
       else if(replyWaiting(d)&&!ourCount(d)&&d.convo)await aiReply(id,null,true);
+      else if(!ourCount(d)&&arvTheirs(d)&&!d.campaign){if(!d.research)maybeResearch(id);continue}
       else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
@@ -323,9 +329,13 @@ async function autopilotRun(manual){
       const why=draftSafety(dd);const act=dd.draft.action||dd.draft.kind;const price=dd.draft.price;
       if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);
         const th=dd.draft.theirCounter;pingOwner(dd,'needs',`${th!=null?`${((dd.agent&&dd.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} came back at ${money(th)}. `:''}${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()}${price!=null?` at ${money(price)}`:''} and is waiting for you: ${dd.needsYou}.`,dd.draft.at);continue}
+      /* approval mode: the draft is ready, he presses Send */
+      if(approveMode()){if(!dd.needsYou){dd.needsYou='ready for you to send';saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted ${act==='opening'?'an opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)}${price!=null?' at '+money(price):''}. It’s waiting for you to press Send.`);
+          pingOwner(dd,'needs',`${negName()} drafted ${act==='opening'?'an opening offer':act==='followup'?'a follow-up':'a reply'}${price!=null?' at '+money(price):''} on ${streetOf(dd.address)}. Review it and press Send.`,dd.draft.at)}
+        if(act==='opening')openings--;continue}
       if(await autoSend(dd)){acted++;if(act==='opening')openings--;logActivity(id,'sent',`${negName()} sent ${act==='opening'?'the opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} on ${streetOf(dd.address)}${price?' at '+money(price):''}.`)}
     }
-    if(manual)toast(acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
+    if(manual)toast(approveMode()?`${negName()} drafted what was due. Nothing goes out until you press Send.`:acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){

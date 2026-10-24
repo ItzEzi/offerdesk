@@ -3,8 +3,8 @@
 function buildBrief(){
   const ds=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage));const now=Date.now();
   const a=d=>streetOf(d.address)||'Untitled deal';const k=counts();
-  const needs=ds.filter(d=>d.needsYou&&d.draft).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
-  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&d.draft)).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
+  const needs=ds.filter(d=>d.needsYou&&draftOpen(d)).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
+  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&draftOpen(d))).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
   const follow=ds.filter(d=>{const f=followDue(d);return f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled)}).map(d=>({id:d.id,addr:a(d),step:followDue(d).step+1}));
   const scored=ds.map(d=>{const S=dealScore(d,null,true);return S?{d,S}:null}).filter(Boolean).sort((x,y)=>y.S.score-x.S.score);
   const top=scored.filter(x=>x.S.score>=65||(x.S.at80&&x.S.at80>=x.S.basis*.85)).slice(0,5).map(({d,S})=>({id:d.id,addr:a(d),score:S.score,grade:S.grade[0],best:STRAT_LABEL[S.best],basis:S.basis,at80:S.at80,source:d.source}));

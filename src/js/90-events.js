@@ -128,6 +128,12 @@ A['ai-reply']=()=>aiReply(state.dealId);
 A['ai-follow']=()=>aiFollow(state.dealId,false);
 A.redraft=()=>{const d=D();const k=d.draft&&d.draft.kind;const ins_=d.draft&&d.draft.instruction;d.draft=null;saveDeal(d);if(k==='opening'&&!ourCount(d))aiOpening(d.id);else if(k==='followup')aiFollow(d.id,false);else aiReply(d.id,ins_)};
 A['discard-draft']=()=>{const d=D();d.draft=null;d.needsYou=null;saveDeal(d)};
+A['todo-done']=el=>{const d=state.deals[el.dataset.id];if(!d)return;const k=el.dataset.k;
+  if(k==='draft'){d.draft=null;d.needsYou=null}
+  else if(k==='reply'){d.handledAt=lastAt(ins(d))||nowISO();d.needsYou=null}
+  else if(k==='follow'){d.follow=d.follow||{base:nowISO(),step:0};d.follow.step++}
+  else if(k==='new')d.reviewed=true;
+  saveDeal(d);toast({draft:'Draft discarded.',reply:'Marked as answered.',follow:'Skipped this follow-up.',new:'Marked as reviewed.'}[k]||'Done.')};
 A['send-email']=()=>sendEmailNow(state.dealId);
 A['send-sms']=()=>sendTextNow(state.dealId);
 A['send-force']=async()=>{const d=D();if(canEmail(d)&&!(d.draft.sent||{}).email)await sendEmailNow(d.id);else if(canText(d)&&!(d.draft.sent||{}).sms)await sendTextNow(d.id);else toast('No connected channel for this deal. Copy the text instead.')};
@@ -138,7 +144,7 @@ A['compose-send']=async el=>{const d=D();const ch=el.dataset.ch;const keep=d.dra
   d.draft={kind:'manual',action:'custom',price:null,email:{subject:state.drafts['cmp-subj']||('Re: '+streetOf(d.address)),body},sms:body,at:nowISO()};
   const ok=ch==='sms'?await sendTextNow(d.id):await sendEmailNow(d.id);
   const dd=state.deals[d.id];if(ok){state.drafts[ch==='sms'?'cmp-sms':'cmp-body']='';const last=(dd.thread||[]).slice(-1)[0];if(last)last.by='you'}
-  dd.draft=keep||null;saveDeal(dd)};
+  dd.draft=ok?null:(keep||null);if(ok)dd.needsYou=null;saveDeal(dd)};
 A['compose-log']=el=>{const d=D();const ch=el.dataset.ch;const body=(state.drafts[ch==='sms'?'cmp-sms':'cmp-body']||'').trim();if(!body){toast('Write the message first.');return}
   pushMsg(d,{dir:'out',channel:ch,subject:ch==='email'?state.drafts['cmp-subj']||'':'',text:body,by:'you'});d.follow={base:nowISO(),step:0};if(d.stage==='new')d.stage='sent';state.drafts[ch==='sms'?'cmp-sms':'cmp-body']='';saveDeal(d)};
 A.copy=async el=>{const src=document.getElementById(el.dataset.src);if(!src)return;try{await navigator.clipboard.writeText(src.value);toast('Copied')}catch(e){src.focus();src.select();toast('Selected. Press Ctrl+C to copy.')}};
@@ -231,6 +237,7 @@ A['brief-toggle']=()=>{const B=state.settings.brief=state.settings.brief||{};B.o
 A['brief-test']=async()=>{if(!cloudOn()){toast('Turn on cloud save first.');return}state.busy.brief={label:negName()+' is writing your brief…'};render();
   try{await pushBrief(true);const r=await bridge('brief_test',{},cm().acct);toast(r.sent?'Brief sent. Check your inbox.':r.error==='no_email'?'Add your email in Settings → '+negName()+' & you, then try again.':'Couldn’t send it: '+(r.error||'unknown'),5200);if(r.sent)briefSync()}
   catch(e){toast(bridgeErr(e),5600)}finally{delete state.busy.brief;render()}};
+A['approve-all']=()=>{const A=state.settings.auto;A.approveAll=A.approveAll===false;saveSettings();toast(A.approveAll?`${negName()} drafts, you press Send.`:`${negName()} now sends on her own within your limits.`,5200)};
 A['research-auto']=()=>{const R=state.settings.research=state.settings.research||{};R.auto=R.auto===false;saveSettings()};
 A['big-model']=el=>{state.settings.ai=state.settings.ai||{};state.settings.ai.bigModel=el.dataset.v;saveSettings()};
 A['rehab-reset']=()=>{state.settings.rehab=Object.assign({},state.settings.rehab,{costs:{}});saveSettings();toast('Repair prices reset to the defaults.')};

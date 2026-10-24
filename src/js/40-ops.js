@@ -5,7 +5,9 @@ function newDeal(o){
   if(o.listPrice!=null&&!(o.priceHistory||[]).length)d.priceHistory=[{date:o.listedDate||at,price:o.listPrice}];
   return d;
 }
-function pushMsg(d,m){d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m'),at:nowISO()},m))}
+function pushMsg(d,m){d.thread=d.thread||[];let at=m.at||nowISO();
+  if(m.dir==='out'&&!m.at){const li=lastAt(ins(d));if(li&&String(li)>=String(at))at=new Date(new Date(li).getTime()+1000).toISOString()}
+  d.thread.push(Object.assign({id:uid('m')},m,{at}))}
 /* A ZIP's first three digits give its state (USPS ranges), so a deal that only has a ZIP still gets the right state
    (and the right ZIP market file). homeState() = the state of his first starred target market. */
 const ZIP3=[[5,5,'NY'],[6,9,'PR'],[10,27,'MA'],[28,29,'RI'],[30,38,'NH'],[39,49,'ME'],[50,59,'VT'],[60,69,'CT'],[70,89,'NJ'],[100,149,'NY'],[150,196,'PA'],[197,199,'DE'],[200,205,'DC'],[206,219,'MD'],[220,246,'VA'],[247,268,'WV'],[270,289,'NC'],[290,299,'SC'],[300,319,'GA'],[320,349,'FL'],[350,369,'AL'],[370,385,'TN'],[386,397,'MS'],[398,399,'GA'],[400,427,'KY'],[430,459,'OH'],[460,479,'IN'],[480,499,'MI'],[500,528,'IA'],[530,549,'WI'],[550,567,'MN'],[570,577,'SD'],[580,588,'ND'],[590,599,'MT'],[600,629,'IL'],[630,658,'MO'],[660,679,'KS'],[680,693,'NE'],[700,714,'LA'],[716,729,'AR'],[733,733,'TX'],[730,749,'OK'],[750,799,'TX'],[800,816,'CO'],[820,831,'WY'],[832,838,'ID'],[840,847,'UT'],[850,865,'AZ'],[870,884,'NM'],[885,885,'TX'],[889,898,'NV'],[900,961,'CA'],[967,968,'HI'],[970,979,'OR'],[980,994,'WA'],[995,999,'AK']];
@@ -91,8 +93,9 @@ async function extractDeals(text,meta,busyKey,quiet){
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||''},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
+    {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -180,7 +183,7 @@ async function aiOpening(id,quiet){
   const d=state.deals[id];const c=calc(d);
   const res=await runAI('deal:'+id,`${negName()} is writing the opening offer…`,(ai,signal)=>ai.json(promptOpening(d,c),{signal}),quiet);
   if(!res||!state.deals[id])return;
-  setDraft(id,{kind:'opening',action:'opening',price:c.opening,email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),why:`Opening at ${money(c.opening)}: ${state.settings.buy.anchorGap}% under your ceiling, leaving room for ${state.settings.buy.maxRounds-1} counters.`});
+  setDraft(id,{kind:'opening',action:'opening',price:c.opening,flags:arvTheirs(d)?[{cls:'amber',text:`This offer is built on the seller’s own ARV of ${money(d.arv)}, which ${negName()} hasn’t checked against comps yet. Press In-depth analysis first if you’re not sure.`}]:[],email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),why:`Opening at ${money(c.opening)}: ${state.settings.buy.anchorGap}% under your ceiling, leaving room for ${state.settings.buy.maxRounds-1} counters.`});
 }
 async function aiReply(id,instruction,quiet,label){
   const d=state.deals[id];const c=calc(d);const next=nextLadder(d,c);const last=lastOurPrice(d);
@@ -282,8 +285,9 @@ function markSent(id,ch){
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
     if(dr.action==='accept')d.stage='negotiating';
   }
-  dr.sent[ch]=true;d.needsYou=null;
-  if(dr.sent.email&&dr.sent.sms)d.draft=null;
+  dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;
+  const other=ch==='email'?'sms':'email';const otherLeft=!dr.sent[other]&&(other==='sms'?(!!dr.sms&&canText(d)):(!!(dr.email&&dr.email.body)&&canEmail(d)));
+  if(!otherLeft)d.draft=null;
   saveDeal(d);
 }
 function logMessage(id,ask){

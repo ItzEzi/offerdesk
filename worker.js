@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261024-2101: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261024-2204: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261024-2101';
+const APP_V='20261024-2204';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -45,7 +45,7 @@ const DEFAULTS={
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
   neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:false,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
-  auto:{enabled:false,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
+  auto:{enabled:false,approveAll:true,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   research:{auto:true,maxPrice:175000,dailyMax:3},
@@ -191,7 +191,8 @@ const IDB={db:null,
 };
 const KEYS=['settings','deals','practice','mail','activity','conn','campaigns','research','spend'];
 /* Maya 24/7 (the Gmail script runs this same code) stops starting new work near its time limit */
-const WORKER={on:false,deadline:0};const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
+const WORKER={on:false,deadline:0};
+const approveMode=()=>state.settings.auto.approveAll!==false;const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
 const saveTimers={};
 function writeKey(key){
   const val=state[key];
@@ -225,6 +226,7 @@ function route(){
   state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
+  {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
@@ -251,10 +253,12 @@ function arvTheirs(d){return d.arvSource==='wholesaler'||((!d.arvSource||d.arvSo
 function theirFloor(d){const v=[curList(d),parseNum((d.wsClaims||{}).accept),lastTheirPrice(d)].filter(x=>x!=null&&x>0);return v.length?Math.min(...v):null}
 function lastTheirPrice(d){const o=(d.offers||[]).filter(x=>x.by==='them');return o.length?o[o.length-1].price:null}
 function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.at:(outs(d)[0]||{}).at||null}
+/* a draft needs you only until it goes out on some channel */
+const draftOpen=d=>!!(d&&d.draft&&!((d.draft.sent||{}).email||(d.draft.sent||{}).sms));
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
-function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
+function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!(d.handledAt&&String(d.handledAt)>=String(li))&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
 function followDue(d){
-  if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||d.draft)return null;
+  if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||draftOpen(d))return null;
   const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
   const due=new Date(d.follow.base).getTime()+days[d.follow.step]*DAY;
   return {due,step:d.follow.step,overdue:Date.now()>=due};
@@ -265,7 +269,7 @@ function offerStatus(d){
   if(d.stage==='dead')return ['Archived','slate'];
   if(d.stage==='closed')return ['Closed','blue'];
   if(d.stage==='contract')return ['Under contract','green'];
-  if(d.draft&&!ourCount(d))return ['Draft ready','purple'];
+  if(draftOpen(d)&&!ourCount(d))return ['Draft ready','purple'];
   if(ins(d).length&&ourCount(d))return ['Responded','green'];
   if(ourCount(d))return ['Offer sent','slate'];
   return ['Not sent','amber'];
@@ -488,8 +492,8 @@ const TAG_BY_ID=Object.fromEntries(TAGDEFS.map(t=>[t.id,t]));
 function counts(){
   const ds=Object.values(state.deals);
   return {
-    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
-    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
+    reply:ds.filter(d=>replyWaiting(d)&&!draftOpen(d)&&!(d.autopilot&&state.settings.auto.enabled)).length,
+    draft:ds.filter(d=>draftOpen(d)&&!['dead','closed'].includes(d.stage)).length,
     follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
     ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d)).length,
     newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
@@ -651,9 +655,9 @@ ${compsText(d)}
 Numbers from the investor's model (do not change them):
 - Our ceiling (maximum allowable cash offer): ${money(c.mao)}. SECRET: never state it, hint at it, or offer above it in cash.
 - Our target landing price: ${money(c.target)}.
-- Our last offer: ${money(last)}. Offers made so far: ${ourCount(d)} of a planned ${s.buy.maxRounds}.
+- ${last!=null?`Our last offer: ${money(last)}. Offers made so far: ${ourCount(d)} of a planned ${s.buy.maxRounds}.`:`We have NOT made an offer yet. If you make one now, open at ${money(c.opening)} (lower is fine), never above our ceiling.`}${c.capByThem?` They already said they would take ${money(c.floor)}, so treat that as their real asking and expect them to go lower.`:''}
 - Their last stated number: ${theirs!=null?money(theirs):'none yet'}.
-- Suggested next cash counter on our concession ladder: ${money(next)}. You may hold at ${money(last)} or counter anywhere from ${money(last)} up to ${money(c.mao)}. Smaller moves are better. Do not move twice in a row without them moving.
+- Suggested next cash ${last!=null?'counter on our concession ladder':'offer'}: ${money(next)}. ${last!=null?`You may hold at ${money(last)} or counter anywhere from ${money(last)} up to ${money(c.mao)}.`:''} Smaller moves are better. Do not move twice in a row without them moving.
 - ${cr.enabled?`Creative option: seller financing at a price up to ${money(c.sfCap)}, down payment up to ${cr.maxDownPct}%, interest up to ${cr.maxRate}%, ${cr.termYears}-year amortization. ${sf} Use it only when they will not come down on price but might accept terms.`:'Creative financing is not allowed on this deal.'}
 ${instruction?`\nTHE INVESTOR'S INSTRUCTION FOR THIS MESSAGE (follow it within the limits above): ${instruction}\n`:''}
 Conversation so far (oldest first):
@@ -669,6 +673,7 @@ Choose one action:
 - "stop": they asked not to be contacted; draft only a one-line acknowledgment.
 When you counter or hold, walk the math in one or two sentences so the number reads as reasoned: our ARV, the repairs, holding, closing and resale costs, and the margin an investor needs, arriving at our number. Never reveal the ceiling.
 If they claim a higher value, defend our ARV with the comps above. Also judge their sentiment.
+Be nitpicky with their newest message: read it line by line, including the end. Answer every question they asked. Put any new fact (price change, the lowest price they'd take, deadline, other buyers, access, condition, tenant, photos sent or missing) in "summary" or "sellerSignals". "theirCounter" is the lowest price they stated or said they would accept in this message (e.g. "we could probably do 45" = 45000), else null. If they ask for something you can't promise (inspection waivers, closing dates, earnest money above ${money(s.buy.emd)}), choose "ask_owner".
 
 ${signRules()}
 
@@ -754,11 +759,13 @@ Reply with only JSON:
 "audience":"home buyer|investor|mixed","audienceConfidence":"low|medium|high","motivation":"distressed property|motivated seller|stale listing|estate or probate|tired landlord|retail listing",
 "redFlags":["..."],"verify":["things to check on site"],"rooms":{"bedrooms":number|null,"bathrooms":number|null},"photoNotes":"what the photos showed and did not show"}`;
 }
-const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
+const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler or seller email or text. Read every line, including the bottom of the email and any quoted text: a price cut or "we'd take less" is often in the last sentence. Use null for anything not stated; never guess a number. Numbers are plain numbers in dollars or square feet.
 
-Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. "acceptPrice" is the lowest price they say they would take, if they say one (for example "with a cash offer we can probably accept 47,000" means 47000); otherwise null. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
+"asking" is the CURRENT price: if they say the price was reduced, use the new one and put the old one in "previousAsking". Keep their ARV and repair numbers exactly as they say them; they are claims to be checked, not facts. If their ARV or repairs look off for the house (for example ARV more than 2.5 times the asking, or "light rehab" on a house that needs a roof), say so in "redFlags".
 
-Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
+Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. "acceptPrice" is the lowest price they say they would take, if they say one (for example "with a cash offer we can probably accept 47,000" means 47000); otherwise null. An alert email can list many properties: include every one, keep each description under 25 words, at most 2 red flags and no notes, so the whole answer stays short. If the message is about one property, be thorough: a description up to 80 words, every red flag, and in "notes" every other detail that matters for an offer (tenant and lease, rent, utilities, earnest money, closing date, assignment fee, title, liens, probate, HOA, roof/HVAC/foundation/water/fire condition, showing times, who to contact).
+
+Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"previousAsking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"],"notes":["other details that matter for an offer"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
 Message:
 """${t.slice(0,16000)}"""`;
@@ -1002,7 +1009,10 @@ async function syncWholesalerEmails(acct){
     state.mail.emails[m.id]=Object.assign({},m,{status:'new',acct:acct.id});n++}
   saveMail();
   for(const [id,m] of replied)if((m.atts||0)>0){try{await pullDealAttachments(id,true,[m.id])}catch(e){}}
-  if(n&&state.settings.conn.autoImport&&aiOn()){for(const m of Object.values(state.mail.emails).filter(x=>x.status==='new').sort(byDate).reverse().slice(0,8))await importEmail(m.id,true)}
+  /* new emails, plus ones Maya couldn't read before (no credits, a hiccup): retried up to 3 times, an hour apart */
+  if(state.settings.conn.autoImport&&aiOn()){const now=Date.now();
+    const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)).sort(byDate).reverse().slice(0,8);
+    for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
   return n;
 }
 function replyTarget(m){
@@ -1025,7 +1035,7 @@ async function draftReplies(){
     if(k>=5||timeUp())break;
     if(d.example||d.optedOut||(d.autopilot&&state.settings.auto.enabled)||!replyWaiting(d))continue;
     const li=ins(d).slice(-1)[0];const tag=li&&(li.gmailId||li.at);if(!li||d.draftedFor===tag)continue;
-    if(d.draft){if(String(d.draft.at)>String(li.at))continue;d.draft=null}   /* a draft older than their newest message is out of date */
+    if(d.draft&&draftOpen(d)&&String(d.draft.at)>String(li.at))continue;d.draft=null;   /* a draft older than their newest message is out of date */
     d.draftedFor=tag;saveDeal(d,true);
     await aiReply(d.id,null,true);
     const dd=state.deals[d.id];if(dd&&dd.draft){dd.needsYou=dd.needsYou||`review the reply ${negName()} drafted`;saveDeal(dd,true);k++;
@@ -1145,7 +1155,7 @@ async function pingOwner(d,kind,text,key){
   const N=state.settings.notify||{};if(kind==='reply'&&!N.onReply)return;if(kind==='needs'&&!N.onNeeds)return;if(d.example)return;
   const k=kind+':'+(key||'');d.pinged=d.pinged||{};if(d.pinged[k])return;d.pinged[k]=nowISO();
   const ks=Object.keys(d.pinged);if(ks.length>40)for(const x of ks.slice(0,ks.length-40))delete d.pinged[x];saveDeal(d,true);
-  const to=(N.email||'').trim();const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
+  const to=(N.email||'').trim()||(gmailOn()?sendEmail():'');const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
   if(to&&gmailOn()){try{await bridge('send',{to,subject:`OfferDesk · ${where}: ${kind==='needs'?negName()+' needs your call':'reply waiting'}`,body:`${text}\n\nOpen the deal: ${link}\n\n— ${negName()}, OfferDesk`,name:'OfferDesk · '+negName()})}catch(e){logActivity(d.id,'warn','Couldn’t email you about '+where+': '+bridgeErr(e))}}
   const ph=e164(state.settings.profile.phone);
   if(N.sms&&smsOn()&&ph){try{await bridge('sms_send',{to:ph,body:`OfferDesk · ${where}: ${text}`.slice(0,300)+' '+link})}catch(e){logActivity(d.id,'warn','Couldn’t text you about '+where+': '+bridgeErr(e))}}
@@ -1162,6 +1172,7 @@ function draftSafety(d){
   if(dr.price!=null&&dr.price>cap)why.push('price above ceiling');
   else if(dr.price!=null&&act!=='creative'&&c.mao&&dr.price>c.mao*state.settings.buy.escalatePct/100)why.push(`above ${state.settings.buy.escalatePct}% of your ceiling`);
   if((dr.flags||[]).some(f=>f.cls==='red'))why.push('flagged');
+  if(arvTheirs(d)&&dr.price!=null)why.push('the ARV is still the seller’s own claim (not checked against comps)');
   return why;
 }
 async function autoSend(d){
@@ -1190,10 +1201,12 @@ async function autopilotRun(manual){
       const d=state.deals[id];if(!d||!d.autopilot||d.optedOut||d.example||['dead','closed','contract'].includes(d.stage))continue;
       const c=calc(d);if(!c.ready||c.dead)continue;
       if(!(canEmail(d)||canText(d)))continue;
+      if(d.draft&&!draftOpen(d)){d.draft=null;saveDeal(d,true)}
       if(d.draft){if(d.needsYou)continue;
         /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
         const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
       else if(replyWaiting(d)&&!ourCount(d)&&d.convo)await aiReply(id,null,true);
+      else if(!ourCount(d)&&arvTheirs(d)&&!d.campaign){if(!d.research)maybeResearch(id);continue}
       else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
@@ -1203,9 +1216,13 @@ async function autopilotRun(manual){
       const why=draftSafety(dd);const act=dd.draft.action||dd.draft.kind;const price=dd.draft.price;
       if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);
         const th=dd.draft.theirCounter;pingOwner(dd,'needs',`${th!=null?`${((dd.agent&&dd.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} came back at ${money(th)}. `:''}${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()}${price!=null?` at ${money(price)}`:''} and is waiting for you: ${dd.needsYou}.`,dd.draft.at);continue}
+      /* approval mode: the draft is ready, he presses Send */
+      if(approveMode()){if(!dd.needsYou){dd.needsYou='ready for you to send';saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted ${act==='opening'?'an opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)}${price!=null?' at '+money(price):''}. It’s waiting for you to press Send.`);
+          pingOwner(dd,'needs',`${negName()} drafted ${act==='opening'?'an opening offer':act==='followup'?'a follow-up':'a reply'}${price!=null?' at '+money(price):''} on ${streetOf(dd.address)}. Review it and press Send.`,dd.draft.at)}
+        if(act==='opening')openings--;continue}
       if(await autoSend(dd)){acted++;if(act==='opening')openings--;logActivity(id,'sent',`${negName()} sent ${act==='opening'?'the opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} on ${streetOf(dd.address)}${price?' at '+money(price):''}.`)}
     }
-    if(manual)toast(acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
+    if(manual)toast(approveMode()?`${negName()} drafted what was due. Nothing goes out until you press Send.`:acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
@@ -1497,7 +1514,9 @@ function newDeal(o){
   if(o.listPrice!=null&&!(o.priceHistory||[]).length)d.priceHistory=[{date:o.listedDate||at,price:o.listPrice}];
   return d;
 }
-function pushMsg(d,m){d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m'),at:nowISO()},m))}
+function pushMsg(d,m){d.thread=d.thread||[];let at=m.at||nowISO();
+  if(m.dir==='out'&&!m.at){const li=lastAt(ins(d));if(li&&String(li)>=String(at))at=new Date(new Date(li).getTime()+1000).toISOString()}
+  d.thread.push(Object.assign({id:uid('m')},m,{at}))}
 /* A ZIP's first three digits give its state (USPS ranges), so a deal that only has a ZIP still gets the right state
    (and the right ZIP market file). homeState() = the state of his first starred target market. */
 const ZIP3=[[5,5,'NY'],[6,9,'PR'],[10,27,'MA'],[28,29,'RI'],[30,38,'NH'],[39,49,'ME'],[50,59,'VT'],[60,69,'CT'],[70,89,'NJ'],[100,149,'NY'],[150,196,'PA'],[197,199,'DE'],[200,205,'DC'],[206,219,'MD'],[220,246,'VA'],[247,268,'WV'],[270,289,'NC'],[290,299,'SC'],[300,319,'GA'],[320,349,'FL'],[350,369,'AL'],[370,385,'TN'],[386,397,'MS'],[398,399,'GA'],[400,427,'KY'],[430,459,'OH'],[460,479,'IN'],[480,499,'MI'],[500,528,'IA'],[530,549,'WI'],[550,567,'MN'],[570,577,'SD'],[580,588,'ND'],[590,599,'MT'],[600,629,'IL'],[630,658,'MO'],[660,679,'KS'],[680,693,'NE'],[700,714,'LA'],[716,729,'AR'],[733,733,'TX'],[730,749,'OK'],[750,799,'TX'],[800,816,'CO'],[820,831,'WY'],[832,838,'ID'],[840,847,'UT'],[850,865,'AZ'],[870,884,'NM'],[885,885,'TX'],[889,898,'NV'],[900,961,'CA'],[967,968,'HI'],[970,979,'OR'],[980,994,'WA'],[995,999,'AK']];
@@ -1583,8 +1602,9 @@ async function extractDeals(text,meta,busyKey,quiet){
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||''},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
+    {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -1672,7 +1692,7 @@ async function aiOpening(id,quiet){
   const d=state.deals[id];const c=calc(d);
   const res=await runAI('deal:'+id,`${negName()} is writing the opening offer…`,(ai,signal)=>ai.json(promptOpening(d,c),{signal}),quiet);
   if(!res||!state.deals[id])return;
-  setDraft(id,{kind:'opening',action:'opening',price:c.opening,email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),why:`Opening at ${money(c.opening)}: ${state.settings.buy.anchorGap}% under your ceiling, leaving room for ${state.settings.buy.maxRounds-1} counters.`});
+  setDraft(id,{kind:'opening',action:'opening',price:c.opening,flags:arvTheirs(d)?[{cls:'amber',text:`This offer is built on the seller’s own ARV of ${money(d.arv)}, which ${negName()} hasn’t checked against comps yet. Press In-depth analysis first if you’re not sure.`}]:[],email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),why:`Opening at ${money(c.opening)}: ${state.settings.buy.anchorGap}% under your ceiling, leaving room for ${state.settings.buy.maxRounds-1} counters.`});
 }
 async function aiReply(id,instruction,quiet,label){
   const d=state.deals[id];const c=calc(d);const next=nextLadder(d,c);const last=lastOurPrice(d);
@@ -1774,8 +1794,9 @@ function markSent(id,ch){
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
     if(dr.action==='accept')d.stage='negotiating';
   }
-  dr.sent[ch]=true;d.needsYou=null;
-  if(dr.sent.email&&dr.sent.sms)d.draft=null;
+  dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;
+  const other=ch==='email'?'sms':'email';const otherLeft=!dr.sent[other]&&(other==='sms'?(!!dr.sms&&canText(d)):(!!(dr.email&&dr.email.body)&&canEmail(d)));
+  if(!otherLeft)d.draft=null;
   saveDeal(d);
 }
 function logMessage(id,ask){
@@ -2108,6 +2129,7 @@ async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
   if(!auto&&!opts.noDeep&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(auto&&photoCount(d2)&&!d2.analysis)await aiDeep(id,true,secrets().model||'claude-sonnet-5-5');
   if(!quiet&&!opts.noDeep)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
 }
 function applyResearch(d,j,res,got){
@@ -2119,7 +2141,9 @@ function applyResearch(d,j,res,got){
   const rv=j.rent&&parseNum(j.rent.value);if(rv&&!d.rent)d.rentEst=rv;
   const ra=j.arv&&parseNum(j.arv.value);
   if(ra&&(arvTheirs(d)||!d.arv||['maya','comps'].includes(d.arvSource))){if(arvTheirs(d)&&d.arv)d.wsClaims=Object.assign({},d.wsClaims,{arv:(d.wsClaims||{}).arv??d.arv});
-    d.arv=floor500(ra);d.arvSource=(d.comps||[]).length?'comps':'maya';d.arvWhy=String(j.arv.why||'').slice(0,400)}
+    d.arv=floor500(ra);d.arvSource=(d.comps||[]).length?'comps':'maya';d.arvWhy=String(j.arv.why||'').slice(0,400);
+    const g=compGrid(d);const used=g.rows.filter(r=>r.use).length;const gv=g.smart;
+    if(used>=3&&gv&&Math.abs(gv-d.arv)/d.arv>0.10){const lo=Math.min(gv,d.arv);d.arvWhy=`${negName()} read ${money(floor500(ra))} from the comps; the comps math (size, beds and baths adjusted, ${used} renovated sales) says ${money(gv)}. Using the lower, ${money(lo)}, to be safe. `+d.arvWhy;d.arv=lo}}
   const sl=j.sellerLowest&&parseNum(j.sellerLowest.price);if(sl&&sl>0){const cur=parseNum((d.wsClaims||{}).accept);if(cur==null||sl<cur||(sl===cur&&!(d.wsClaims||{}).acceptQuote))d.wsClaims=Object.assign({},d.wsClaims,{accept:sl,acceptQuote:String(j.sellerLowest.quote||'').slice(0,200)})}
   d.research={at:nowISO(),summary:String(j.summary||''),claims:(j.claimsCheck||[]).slice(0,12).map(x=>({claim:String(x.claim||''),found:String(x.found||''),verdict:['matches','off','unverified'].includes(x.verdict)?x.verdict:'unverified'})),
     redFlags:(j.redFlags||[]).map(String).slice(0,10),arv:j.arv||null,rent:j.rent||null,couldNotOpen:[...new Set([...(j.couldNotOpen||[]).map(String),...(got.blocked||[]),...(res.failed||[]).map(x=>x.url)])].slice(0,8),
@@ -2251,8 +2275,8 @@ function marketMods(d,c){const m=marketFor(d);if(!m||!m.Z)return [];const l=m.Z.
 function buildBrief(){
   const ds=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage));const now=Date.now();
   const a=d=>streetOf(d.address)||'Untitled deal';const k=counts();
-  const needs=ds.filter(d=>d.needsYou&&d.draft).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
-  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&d.draft)).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
+  const needs=ds.filter(d=>d.needsYou&&draftOpen(d)).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
+  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&draftOpen(d))).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
   const follow=ds.filter(d=>{const f=followDue(d);return f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled)}).map(d=>({id:d.id,addr:a(d),step:followDue(d).step+1}));
   const scored=ds.map(d=>{const S=dealScore(d,null,true);return S?{d,S}:null}).filter(Boolean).sort((x,y)=>y.S.score-x.S.score);
   const top=scored.filter(x=>x.S.score>=65||(x.S.at80&&x.S.at80>=x.S.basis*.85)).slice(0,5).map(({d,S})=>({id:d.id,addr:a(d),score:S.score,grade:S.grade[0],best:STRAT_LABEL[S.best],basis:S.basis,at80:S.at80,source:d.source}));
@@ -2456,7 +2480,7 @@ function cpCanSendNow(c,it){
 }
 /* one step of the queue: called every tick (device every 3 min, Maya 24/7 every 5) */
 async function campaignTick(){
-  if(!gmailOn()||!aiOn())return 0;let sent=0;
+  if(!gmailOn()||!aiOn()||approveMode())return 0;let sent=0;
   const quota=state.conn.mailQuota;if(quota&&quota.left!=null&&quota.left<20&&quota.day===isoDay())return 0;
   const todayAgents=new Set(cpList().flatMap(c=>c.items.filter(i=>i.sentAt&&isoDay(i.sentAt)===isoDay()&&i.agent).map(i=>i.agent.email)));
   for(const c of cpList()){
@@ -2500,7 +2524,7 @@ function viewCampaigns(){
     `<button class="btn" data-act="cp-new">${ico('plus')}New campaign</button>`);
   const tabs=L.length?`<div class="cp-tabs" role="tablist">${L.map(x=>{const s=cpStats(x);return `<button role="tab" aria-selected="${c&&c.id===x.id}" data-act="cp-open" data-id="${x.id}"><b>${esc(x.name)}</b><span class="xs muted">${x.status==='running'?'Sending':x.status==='paused'?'Paused':x.status==='done'?'Done':'Draft'} · ${s.sent}/${s.total} sent${s.replied?` · ${s.replied} replies`:''}</span></button>`}).join('')}</div>`:'';
   if(!c)return `<div class="wrap page">${head}${cpEmptyHTML()}</div>`;
-  return `<div class="wrap page">${head}${tabs}${cpEditorHTML(c)}</div>`;
+  return `<div class="wrap page">${head}${approveMode()?`<div class="note amber">${ico('shield')} You press Send is on (Connect → Autopilot), so campaigns don’t send anything. Turn it off when you want campaigns to run.</div>`:''}${tabs}${cpEditorHTML(c)}</div>`;
 }
 function cpRedfinLinks(c){
   const chip=(z,cls,label)=>`<a class="qchip ${cls}" href="https://www.redfin.com/zipcode/${z}" target="_blank" rel="noopener">${esc(label||z)}</a>`;

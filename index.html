@@ -1306,7 +1306,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261024-2101';
+const APP_V='20261024-2204';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1323,7 +1323,7 @@ const DEFAULTS={
   creative:{enabled:true,maxDownPct:10,maxRate:5,termYears:30,maxOverPct:10},
   neg:{name:'Maya',title:'Acquisitions Manager',tone:'friendly',disclose:true,optOutLine:false,senderName:''},
   conn:{phone:'manual',autoCheck:true,autoImport:true,gmailQuery:''},
-  auto:{enabled:false,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
+  auto:{enabled:false,approveAll:true,openingChannel:'email',maxOpenings:5,maxOpeningsDay:10,newDealsOn:false,wsAuto:false,followUps:true},
   rental:{taxInsMonthly:300,mgmtPct:8,maintPct:5,vacancyPct:5,refiLtv:75,refiRate:7.5,hmPoints:2,hmRate:11,refiCostPct:2},
   notify:{email:'',sms:false,onReply:true,onNeeds:true,ccMe:false},
   research:{auto:true,maxPrice:175000,dailyMax:3},
@@ -1469,7 +1469,8 @@ const IDB={db:null,
 };
 const KEYS=['settings','deals','practice','mail','activity','conn','campaigns','research','spend'];
 /* Maya 24/7 (the Gmail script runs this same code) stops starting new work near its time limit */
-const WORKER={on:false,deadline:0};const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
+const WORKER={on:false,deadline:0};
+const approveMode=()=>state.settings.auto.approveAll!==false;const timeUp=()=>WORKER.on&&Date.now()>WORKER.deadline;
 const saveTimers={};
 function writeKey(key){
   const val=state[key];
@@ -1503,6 +1504,7 @@ function route(){
   state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
+  {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
@@ -1529,10 +1531,12 @@ function arvTheirs(d){return d.arvSource==='wholesaler'||((!d.arvSource||d.arvSo
 function theirFloor(d){const v=[curList(d),parseNum((d.wsClaims||{}).accept),lastTheirPrice(d)].filter(x=>x!=null&&x>0);return v.length?Math.min(...v):null}
 function lastTheirPrice(d){const o=(d.offers||[]).filter(x=>x.by==='them');return o.length?o[o.length-1].price:null}
 function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.at:(outs(d)[0]||{}).at||null}
+/* a draft needs you only until it goes out on some channel */
+const draftOpen=d=>!!(d&&d.draft&&!((d.draft.sent||{}).email||(d.draft.sent||{}).sms));
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
-function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
+function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!(d.handledAt&&String(d.handledAt)>=String(li))&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
 function followDue(d){
-  if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||d.draft)return null;
+  if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||draftOpen(d))return null;
   const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
   const due=new Date(d.follow.base).getTime()+days[d.follow.step]*DAY;
   return {due,step:d.follow.step,overdue:Date.now()>=due};
@@ -1543,7 +1547,7 @@ function offerStatus(d){
   if(d.stage==='dead')return ['Archived','slate'];
   if(d.stage==='closed')return ['Closed','blue'];
   if(d.stage==='contract')return ['Under contract','green'];
-  if(d.draft&&!ourCount(d))return ['Draft ready','purple'];
+  if(draftOpen(d)&&!ourCount(d))return ['Draft ready','purple'];
   if(ins(d).length&&ourCount(d))return ['Responded','green'];
   if(ourCount(d))return ['Offer sent','slate'];
   return ['Not sent','amber'];
@@ -1766,8 +1770,8 @@ const TAG_BY_ID=Object.fromEntries(TAGDEFS.map(t=>[t.id,t]));
 function counts(){
   const ds=Object.values(state.deals);
   return {
-    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
-    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
+    reply:ds.filter(d=>replyWaiting(d)&&!draftOpen(d)&&!(d.autopilot&&state.settings.auto.enabled)).length,
+    draft:ds.filter(d=>draftOpen(d)&&!['dead','closed'].includes(d.stage)).length,
     follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
     ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d)).length,
     newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
@@ -1929,9 +1933,9 @@ ${compsText(d)}
 Numbers from the investor's model (do not change them):
 - Our ceiling (maximum allowable cash offer): ${money(c.mao)}. SECRET: never state it, hint at it, or offer above it in cash.
 - Our target landing price: ${money(c.target)}.
-- Our last offer: ${money(last)}. Offers made so far: ${ourCount(d)} of a planned ${s.buy.maxRounds}.
+- ${last!=null?`Our last offer: ${money(last)}. Offers made so far: ${ourCount(d)} of a planned ${s.buy.maxRounds}.`:`We have NOT made an offer yet. If you make one now, open at ${money(c.opening)} (lower is fine), never above our ceiling.`}${c.capByThem?` They already said they would take ${money(c.floor)}, so treat that as their real asking and expect them to go lower.`:''}
 - Their last stated number: ${theirs!=null?money(theirs):'none yet'}.
-- Suggested next cash counter on our concession ladder: ${money(next)}. You may hold at ${money(last)} or counter anywhere from ${money(last)} up to ${money(c.mao)}. Smaller moves are better. Do not move twice in a row without them moving.
+- Suggested next cash ${last!=null?'counter on our concession ladder':'offer'}: ${money(next)}. ${last!=null?`You may hold at ${money(last)} or counter anywhere from ${money(last)} up to ${money(c.mao)}.`:''} Smaller moves are better. Do not move twice in a row without them moving.
 - ${cr.enabled?`Creative option: seller financing at a price up to ${money(c.sfCap)}, down payment up to ${cr.maxDownPct}%, interest up to ${cr.maxRate}%, ${cr.termYears}-year amortization. ${sf} Use it only when they will not come down on price but might accept terms.`:'Creative financing is not allowed on this deal.'}
 ${instruction?`\nTHE INVESTOR'S INSTRUCTION FOR THIS MESSAGE (follow it within the limits above): ${instruction}\n`:''}
 Conversation so far (oldest first):
@@ -1947,6 +1951,7 @@ Choose one action:
 - "stop": they asked not to be contacted; draft only a one-line acknowledgment.
 When you counter or hold, walk the math in one or two sentences so the number reads as reasoned: our ARV, the repairs, holding, closing and resale costs, and the margin an investor needs, arriving at our number. Never reveal the ceiling.
 If they claim a higher value, defend our ARV with the comps above. Also judge their sentiment.
+Be nitpicky with their newest message: read it line by line, including the end. Answer every question they asked. Put any new fact (price change, the lowest price they'd take, deadline, other buyers, access, condition, tenant, photos sent or missing) in "summary" or "sellerSignals". "theirCounter" is the lowest price they stated or said they would accept in this message (e.g. "we could probably do 45" = 45000), else null. If they ask for something you can't promise (inspection waivers, closing dates, earnest money above ${money(s.buy.emd)}), choose "ask_owner".
 
 ${signRules()}
 
@@ -2032,11 +2037,13 @@ Reply with only JSON:
 "audience":"home buyer|investor|mixed","audienceConfidence":"low|medium|high","motivation":"distressed property|motivated seller|stale listing|estate or probate|tired landlord|retail listing",
 "redFlags":["..."],"verify":["things to check on site"],"rooms":{"bedrooms":number|null,"bathrooms":number|null},"photoNotes":"what the photos showed and did not show"}`;
 }
-const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
+const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler or seller email or text. Read every line, including the bottom of the email and any quoted text: a price cut or "we'd take less" is often in the last sentence. Use null for anything not stated; never guess a number. Numbers are plain numbers in dollars or square feet.
 
-Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. "acceptPrice" is the lowest price they say they would take, if they say one (for example "with a cash offer we can probably accept 47,000" means 47000); otherwise null. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
+"asking" is the CURRENT price: if they say the price was reduced, use the new one and put the old one in "previousAsking". Keep their ARV and repair numbers exactly as they say them; they are claims to be checked, not facts. If their ARV or repairs look off for the house (for example ARV more than 2.5 times the asking, or "light rehab" on a house that needs a roof), say so in "redFlags".
 
-Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
+Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. "acceptPrice" is the lowest price they say they would take, if they say one (for example "with a cash offer we can probably accept 47,000" means 47000); otherwise null. An alert email can list many properties: include every one, keep each description under 25 words, at most 2 red flags and no notes, so the whole answer stays short. If the message is about one property, be thorough: a description up to 80 words, every red flag, and in "notes" every other detail that matters for an offer (tenant and lease, rent, utilities, earnest money, closing date, assignment fee, title, liens, probate, HOA, roof/HVAC/foundation/water/fire condition, showing times, who to contact).
+
+Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"previousAsking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"],"notes":["other details that matter for an offer"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
 Message:
 """${t.slice(0,16000)}"""`;
@@ -2280,7 +2287,10 @@ async function syncWholesalerEmails(acct){
     state.mail.emails[m.id]=Object.assign({},m,{status:'new',acct:acct.id});n++}
   saveMail();
   for(const [id,m] of replied)if((m.atts||0)>0){try{await pullDealAttachments(id,true,[m.id])}catch(e){}}
-  if(n&&state.settings.conn.autoImport&&aiOn()){for(const m of Object.values(state.mail.emails).filter(x=>x.status==='new').sort(byDate).reverse().slice(0,8))await importEmail(m.id,true)}
+  /* new emails, plus ones Maya couldn't read before (no credits, a hiccup): retried up to 3 times, an hour apart */
+  if(state.settings.conn.autoImport&&aiOn()){const now=Date.now();
+    const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)).sort(byDate).reverse().slice(0,8);
+    for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
   return n;
 }
 function replyTarget(m){
@@ -2303,7 +2313,7 @@ async function draftReplies(){
     if(k>=5||timeUp())break;
     if(d.example||d.optedOut||(d.autopilot&&state.settings.auto.enabled)||!replyWaiting(d))continue;
     const li=ins(d).slice(-1)[0];const tag=li&&(li.gmailId||li.at);if(!li||d.draftedFor===tag)continue;
-    if(d.draft){if(String(d.draft.at)>String(li.at))continue;d.draft=null}   /* a draft older than their newest message is out of date */
+    if(d.draft&&draftOpen(d)&&String(d.draft.at)>String(li.at))continue;d.draft=null;   /* a draft older than their newest message is out of date */
     d.draftedFor=tag;saveDeal(d,true);
     await aiReply(d.id,null,true);
     const dd=state.deals[d.id];if(dd&&dd.draft){dd.needsYou=dd.needsYou||`review the reply ${negName()} drafted`;saveDeal(dd,true);k++;
@@ -2423,7 +2433,7 @@ async function pingOwner(d,kind,text,key){
   const N=state.settings.notify||{};if(kind==='reply'&&!N.onReply)return;if(kind==='needs'&&!N.onNeeds)return;if(d.example)return;
   const k=kind+':'+(key||'');d.pinged=d.pinged||{};if(d.pinged[k])return;d.pinged[k]=nowISO();
   const ks=Object.keys(d.pinged);if(ks.length>40)for(const x of ks.slice(0,ks.length-40))delete d.pinged[x];saveDeal(d,true);
-  const to=(N.email||'').trim();const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
+  const to=(N.email||'').trim()||(gmailOn()?sendEmail():'');const link=ONLINE_URL+'#deal/'+d.id;const where=streetOf(d.address);
   if(to&&gmailOn()){try{await bridge('send',{to,subject:`OfferDesk · ${where}: ${kind==='needs'?negName()+' needs your call':'reply waiting'}`,body:`${text}\n\nOpen the deal: ${link}\n\n— ${negName()}, OfferDesk`,name:'OfferDesk · '+negName()})}catch(e){logActivity(d.id,'warn','Couldn’t email you about '+where+': '+bridgeErr(e))}}
   const ph=e164(state.settings.profile.phone);
   if(N.sms&&smsOn()&&ph){try{await bridge('sms_send',{to:ph,body:`OfferDesk · ${where}: ${text}`.slice(0,300)+' '+link})}catch(e){logActivity(d.id,'warn','Couldn’t text you about '+where+': '+bridgeErr(e))}}
@@ -2440,6 +2450,7 @@ function draftSafety(d){
   if(dr.price!=null&&dr.price>cap)why.push('price above ceiling');
   else if(dr.price!=null&&act!=='creative'&&c.mao&&dr.price>c.mao*state.settings.buy.escalatePct/100)why.push(`above ${state.settings.buy.escalatePct}% of your ceiling`);
   if((dr.flags||[]).some(f=>f.cls==='red'))why.push('flagged');
+  if(arvTheirs(d)&&dr.price!=null)why.push('the ARV is still the seller’s own claim (not checked against comps)');
   return why;
 }
 async function autoSend(d){
@@ -2468,10 +2479,12 @@ async function autopilotRun(manual){
       const d=state.deals[id];if(!d||!d.autopilot||d.optedOut||d.example||['dead','closed','contract'].includes(d.stage))continue;
       const c=calc(d);if(!c.ready||c.dead)continue;
       if(!(canEmail(d)||canText(d)))continue;
+      if(d.draft&&!draftOpen(d)){d.draft=null;saveDeal(d,true)}
       if(d.draft){if(d.needsYou)continue;
         /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
         const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
       else if(replyWaiting(d)&&!ourCount(d)&&d.convo)await aiReply(id,null,true);
+      else if(!ourCount(d)&&arvTheirs(d)&&!d.campaign){if(!d.research)maybeResearch(id);continue}
       else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
@@ -2481,9 +2494,13 @@ async function autopilotRun(manual){
       const why=draftSafety(dd);const act=dd.draft.action||dd.draft.kind;const price=dd.draft.price;
       if(why.length){dd.needsYou=why.join(', ');saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)} and is waiting for you: ${dd.needsYou}.`);
         const th=dd.draft.theirCounter;pingOwner(dd,'needs',`${th!=null?`${((dd.agent&&dd.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} came back at ${money(th)}. `:''}${negName()} drafted a ${(ACTION_LABEL[act]||'reply').toLowerCase()}${price!=null?` at ${money(price)}`:''} and is waiting for you: ${dd.needsYou}.`,dd.draft.at);continue}
+      /* approval mode: the draft is ready, he presses Send */
+      if(approveMode()){if(!dd.needsYou){dd.needsYou='ready for you to send';saveDeal(dd,true);logActivity(id,'needs',`${negName()} drafted ${act==='opening'?'an opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} for ${streetOf(dd.address)}${price!=null?' at '+money(price):''}. It’s waiting for you to press Send.`);
+          pingOwner(dd,'needs',`${negName()} drafted ${act==='opening'?'an opening offer':act==='followup'?'a follow-up':'a reply'}${price!=null?' at '+money(price):''} on ${streetOf(dd.address)}. Review it and press Send.`,dd.draft.at)}
+        if(act==='opening')openings--;continue}
       if(await autoSend(dd)){acted++;if(act==='opening')openings--;logActivity(id,'sent',`${negName()} sent ${act==='opening'?'the opening offer':act==='followup'?'a follow-up':'a '+(ACTION_LABEL[act]||'reply').toLowerCase()} on ${streetOf(dd.address)}${price?' at '+money(price):''}.`)}
     }
-    if(manual)toast(acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
+    if(manual)toast(approveMode()?`${negName()} drafted what was due. Nothing goes out until you press Send.`:acted?`${negName()} handled ${acted} deal${acted>1?'s':''}.`:`Nothing for ${negName()} to send right now.`);
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
@@ -2775,7 +2792,9 @@ function newDeal(o){
   if(o.listPrice!=null&&!(o.priceHistory||[]).length)d.priceHistory=[{date:o.listedDate||at,price:o.listPrice}];
   return d;
 }
-function pushMsg(d,m){d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m'),at:nowISO()},m))}
+function pushMsg(d,m){d.thread=d.thread||[];let at=m.at||nowISO();
+  if(m.dir==='out'&&!m.at){const li=lastAt(ins(d));if(li&&String(li)>=String(at))at=new Date(new Date(li).getTime()+1000).toISOString()}
+  d.thread.push(Object.assign({id:uid('m')},m,{at}))}
 /* A ZIP's first three digits give its state (USPS ranges), so a deal that only has a ZIP still gets the right state
    (and the right ZIP market file). homeState() = the state of his first starred target market. */
 const ZIP3=[[5,5,'NY'],[6,9,'PR'],[10,27,'MA'],[28,29,'RI'],[30,38,'NH'],[39,49,'ME'],[50,59,'VT'],[60,69,'CT'],[70,89,'NJ'],[100,149,'NY'],[150,196,'PA'],[197,199,'DE'],[200,205,'DC'],[206,219,'MD'],[220,246,'VA'],[247,268,'WV'],[270,289,'NC'],[290,299,'SC'],[300,319,'GA'],[320,349,'FL'],[350,369,'AL'],[370,385,'TN'],[386,397,'MS'],[398,399,'GA'],[400,427,'KY'],[430,459,'OH'],[460,479,'IN'],[480,499,'MI'],[500,528,'IA'],[530,549,'WI'],[550,567,'MN'],[570,577,'SD'],[580,588,'ND'],[590,599,'MT'],[600,629,'IL'],[630,658,'MO'],[660,679,'KS'],[680,693,'NE'],[700,714,'LA'],[716,729,'AR'],[733,733,'TX'],[730,749,'OK'],[750,799,'TX'],[800,816,'CO'],[820,831,'WY'],[832,838,'ID'],[840,847,'UT'],[850,865,'AZ'],[870,884,'NM'],[885,885,'TX'],[889,898,'NV'],[900,961,'CA'],[967,968,'HI'],[970,979,'OR'],[980,994,'WA'],[995,999,'AK']];
@@ -2861,8 +2880,9 @@ async function extractDeals(text,meta,busyKey,quiet){
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||''},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
+    {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
@@ -2950,7 +2970,7 @@ async function aiOpening(id,quiet){
   const d=state.deals[id];const c=calc(d);
   const res=await runAI('deal:'+id,`${negName()} is writing the opening offer…`,(ai,signal)=>ai.json(promptOpening(d,c),{signal}),quiet);
   if(!res||!state.deals[id])return;
-  setDraft(id,{kind:'opening',action:'opening',price:c.opening,email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),why:`Opening at ${money(c.opening)}: ${state.settings.buy.anchorGap}% under your ceiling, leaving room for ${state.settings.buy.maxRounds-1} counters.`});
+  setDraft(id,{kind:'opening',action:'opening',price:c.opening,flags:arvTheirs(d)?[{cls:'amber',text:`This offer is built on the seller’s own ARV of ${money(d.arv)}, which ${negName()} hasn’t checked against comps yet. Press In-depth analysis first if you’re not sure.`}]:[],email:{subject:String(res.email&&res.email.subject||''),body:String(res.email&&res.email.body||'')},sms:String(res.sms||''),why:`Opening at ${money(c.opening)}: ${state.settings.buy.anchorGap}% under your ceiling, leaving room for ${state.settings.buy.maxRounds-1} counters.`});
 }
 async function aiReply(id,instruction,quiet,label){
   const d=state.deals[id];const c=calc(d);const next=nextLadder(d,c);const last=lastOurPrice(d);
@@ -3052,8 +3072,9 @@ function markSent(id,ch){
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
     if(dr.action==='accept')d.stage='negotiating';
   }
-  dr.sent[ch]=true;d.needsYou=null;
-  if(dr.sent.email&&dr.sent.sms)d.draft=null;
+  dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;
+  const other=ch==='email'?'sms':'email';const otherLeft=!dr.sent[other]&&(other==='sms'?(!!dr.sms&&canText(d)):(!!(dr.email&&dr.email.body)&&canEmail(d)));
+  if(!otherLeft)d.draft=null;
   saveDeal(d);
 }
 function logMessage(id,ask){
@@ -3154,7 +3175,7 @@ function alertHTML(){
   if(otherCopy())return `<div class="alertbar"><div class="wrap">${ico('refresh')} This copy of OfferDesk keeps its own keys and Gmail links, separate from your real one. Use the online version instead: <a href="${ONLINE_URL}" target="_blank" rel="noopener" style="text-transform:none;letter-spacing:0">${ONLINE_URL.replace('https://','')}</a></div></div>`;
   if(!aiOn())return `<div class="alertbar"><div class="wrap">${ico('bolt')} ${n} needs your Anthropic API key before she can work. <a href="#settings/connections">Connect ›</a></div></div>`;
   if(k.reply)parts.push(`${k.reply} agent${k.reply>1?'s':''} replied — your turn to respond`);
-  const needs=Object.values(state.deals).filter(d=>d.needsYou&&d.draft).length;
+  const needs=Object.values(state.deals).filter(d=>d.needsYou&&draftOpen(d)).length;
   if(needs)parts.push(`${needs} draft${needs>1?'s':''} waiting for your OK`);
   else if(k.draft)parts.push(`${k.draft} draft${k.draft>1?'s':''} ready to send`);
   if(!parts.length)return '';
@@ -3179,13 +3200,13 @@ function viewDashboard(){
   if(!ds.length)return `<div class="wrap page">${head}${setup}${emptyHTML('home','No deals on your desk yet',`Add a listing (paste it from Zillow or Redfin and ${n} reads it), or connect Gmail so wholesaler deals land here on their own.`,`<button class="btn primary" data-act="add-deal">${ico('plus')}Add your first listing</button><a class="btn" href="#leads">Inbox Leads</a>`)}</div>`;
   const todo=[];
   for(const d of ds){
-    if(d.draft&&!['dead','closed'].includes(d.stage))todo.push({d,c:d.needsYou?'orange':'purple',pri:d.needsYou?0:1,label:d.needsYou?`${negName()} needs your OK: ${d.needsYou}`:`Draft ready: ${ACTION_LABEL[d.draft.action||d.draft.kind]||'message'}${d.draft.price!=null?' at '+money(d.draft.price):''}`,btn:'Review'});
-    else if(replyWaiting(d))todo.push({d,c:'blue',pri:0,label:`Reply waiting · ${(ins(d).slice(-1)[0]||{}).channel==='sms'?'text':'email'} ${ago(lastAt(ins(d)))}${d.autopilot&&state.settings.auto.enabled?` · ${negName()} will answer`:''}`,btn:`Ask ${negName()}`});
-    const f=followDue(d);if(f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled))todo.push({d,c:'amber',pri:2,label:`Follow-up #${f.step+1} due · no reply in ${daysSince(lastAt(outs(d)))} days`,btn:'Draft follow-up'});
-    if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d))todo.push({d,c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
+    if(draftOpen(d)&&!['dead','closed'].includes(d.stage))todo.push({d,k:'draft',c:d.needsYou?'orange':'purple',pri:d.needsYou?0:1,label:d.needsYou?`${negName()} needs your OK: ${d.needsYou}`:`Draft ready: ${ACTION_LABEL[d.draft.action||d.draft.kind]||'message'}${d.draft.price!=null?' at '+money(d.draft.price):''}`,btn:'Review'});
+    else if(replyWaiting(d))todo.push({d,k:'reply',c:'blue',pri:0,label:`Reply waiting · ${(ins(d).slice(-1)[0]||{}).channel==='sms'?'text':'email'} ${ago(lastAt(ins(d)))}${d.autopilot&&state.settings.auto.enabled?` · ${negName()} will answer`:''}`,btn:`Ask ${negName()}`});
+    const f=followDue(d);if(f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled))todo.push({d,k:'follow',c:'amber',pri:2,label:`Follow-up #${f.step+1} due · no reply in ${daysSince(lastAt(outs(d)))} days`,btn:'Draft follow-up'});
+    if(d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d))todo.push({d,k:'new',c:'orange',pri:3,label:`New wholesaler deal · ${verdict(d,calc(d)).text}`,btn:'Review'});
   }
   todo.sort((a,b)=>(a.d.example?1:0)-(b.d.example?1:0)||a.pri-b.pri);
-  const todoHTML=todo.length?`<div class="todo">${todo.slice(0,12).map(t=>`<div class="todo-row${t.d.example?' is-ex':''}">${thumbHTML(t.d)}<div class="what"><b>${esc(streetOf(t.d.address)||'Untitled deal')}${t.d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="small"><span class="tag ${t.c}">${esc(t.label)}</span></span></div><button class="btn sm ${t.pri===0?'primary':''}" data-act="open" data-id="${t.d.id}">${esc(t.btn)}</button></div>`).join('')}</div>`:`<div class="note green">Nothing needs you right now. ${state.settings.auto.enabled?`${n} is working the pipeline.`:'Turn on autopilot and '+n+' works the pipeline for you.'}</div>`;
+  const todoHTML=todo.length?`<div class="todo">${todo.slice(0,12).map(t=>`<div class="todo-row${t.d.example?' is-ex':''}">${thumbHTML(t.d)}<div class="what"><b>${esc(streetOf(t.d.address)||'Untitled deal')}${t.d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="small"><span class="tag ${t.c}">${esc(t.label)}</span></span></div><div class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn sm ${t.pri===0?'primary':''}" data-act="open" data-id="${t.d.id}">${esc(t.btn)}</button><button class="btn sm ghost" data-act="todo-done" data-id="${t.d.id}" data-k="${t.k}" title="${esc({draft:'Discard this draft',reply:'I answered it myself',follow:'Skip this follow-up',new:'Mark as reviewed'}[t.k]||'Done')}" aria-label="Done">${ico('check')}Done</button></div></div>`).join('')}</div>`:`<div class="note green">Nothing needs you right now. ${state.settings.auto.enabled?`${n} is working the pipeline.`:'Turn on autopilot and '+n+' works the pipeline for you.'}</div>`;
   const acts=state.activity.slice(0,8);
   const feed=acts.length?`<div class="todo">${acts.map(a=>{const s=ACT_STYLE[a.kind]||ACT_STYLE.info;return `<button class="act-row" style="border:1px solid var(--line);border-radius:12px" ${a.dealId&&state.deals[a.dealId]?`data-act="open" data-id="${a.dealId}"`:''}><span class="ai" style="background:${s[1]}">${ico(s[0])}</span><span><span class="small" style="display:block">${esc(a.text)}</span><span class="xs muted">${ago(a.at)}</span></span></button>`}).join('')}</div>`:`<p class="small muted">${n}’s sends, agents’ replies and new deals show up here.</p>`;
   const live=ds.filter(d=>['sent','negotiating'].includes(d.stage));
@@ -3229,7 +3250,7 @@ function railHTML(d,c,mini){
 /* ================= Listings ================= */
 const SPECIAL=[
   ['target','In my target markets',d=>!!dealTarget(d)],['campaign','From a campaign',d=>!!d.campaign],
-  ['reply','Reply waiting',d=>replyWaiting(d)],['draft','Draft ready',d=>!!d.draft],['star','Starred',d=>!!d.starred],
+  ['reply','Reply waiting',d=>replyWaiting(d)],['draft','Draft ready',d=>draftOpen(d)],['star','Starred',d=>!!d.starred],
   ['drop','Price dropped',d=>priceDropped(d)],['stale','Stale (2× ZIP avg days)',d=>{const x=dom(d);return x!=null&&x>=Math.max(60,2*(zipDom(d)||45))}],
   ['flip','Works as flip',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoFlip],['ws','Works as wholesale',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<=c.maoWs],
   ['half','Ask under 50% of ARV',(d,c)=>c.ready&&curList(d)!=null&&curList(d)<c.A*.5],['one','1% rule',d=>{const r=d.rent||d.rentEst;return r&&curList(d)&&r>=.01*(curList(d)+(d.rehab||0))}],
@@ -3314,7 +3335,7 @@ function kcardHTML(d){
     <div class="meta">${d.beds??'?'} bd • ${d.baths??'?'} ba • ${numFmt(d.sqft)} sqft <span class="mini-tag" style="background:var(--b-${ms[1]});color:var(--t-${ms[1]})">${ms[0]}</span>${d.example?'<span class="tag ex">Fake · practice</span>':''}</div>
     <div class="meta">${d.source==='wholesaler'?'Wholesaler':'Agent'}: <b style="color:var(--ink-2)">${esc(((d.agent&&d.agent.name)||d.wholesalerName||'—').replace(/\s*\(example\)/i,''))}</b></div>
     <div class="metrics"><div class="metric"><span>${their!=null?'Agent':'Asking'}</span><b>${moneyK(their??curList(d))}</b>${their!=null?`<em>orig ${moneyK(curList(d))}</em>`:''}</div><div class="metric offer"><span>Offer</span><b>${moneyK(lastOurPrice(d)??(c.ready?c.opening:null))}</b>${lastOurPrice(d)==null&&c.ready?'<em>planned</em>':''}</div><div class="metric mao"><span>MAO</span><b>${c.ready?moneyK(c.mao):'—'}</b></div></div>
-    ${d.needsYou?`<div class="knote">${ico('bolt')} Needs you: ${esc(d.needsYou)}</div>`:d.draft?`<div class="knote" style="background:var(--b-purple);color:var(--t-purple)">Draft ready: ${esc(ACTION_LABEL[d.draft.action||d.draft.kind]||'message')}</div>`:replyWaiting(d)?`<div class="knote" style="background:var(--b-blue);color:var(--t-blue)">Reply waiting</div>`:''}
+    ${d.needsYou&&draftOpen(d)?`<div class="knote">${ico('bolt')} Needs you: ${esc(d.needsYou)}</div>`:draftOpen(d)?`<div class="knote" style="background:var(--b-purple);color:var(--t-purple)">Draft ready: ${esc(ACTION_LABEL[d.draft.action||d.draft.kind]||'message')}</div>`:replyWaiting(d)?`<div class="knote" style="background:var(--b-blue);color:var(--t-blue)">Reply waiting</div>`:''}
     <div class="meta">${ico('calendar')}${lastC?fmtDate(lastC):'No contact yet'}${replyWaiting(d)?` <span style="color:var(--t-green)">${ico('chat')}</span>`:''}</div>
     <input class="qnote" id="qn-${d.id}" data-qnote="${d.id}" value="${esc(d.quickNote||'')}" placeholder="+ Quick note" aria-label="Quick note">
     <div class="kfoot">${switchHTML(d.autopilot,'autopilot',d.id,'Autopilot')}<span>Autopilot</span><button class="chatbtn" data-act="open-chat" data-id="${d.id}">${ico('chat')}Chat with ${esc(negName())}</button></div>
@@ -3376,7 +3397,7 @@ function viewDeal(){
   const autoLive=d.autopilot&&state.settings.auto.enabled;
   const head=`<div class="deal-head"><div style="min-width:0"><a class="backbtn" href="#listings">${ico('back')}Back to listings</a>
     <div class="deal-title"><h1>${esc(streetOf(d.address)||'Untitled deal')}</h1>${d.autopilot?`<span class="tag purple">${ico('bolt')}Autopilot ${autoLive?'ON':'set (master switch off)'}</span>`:''}${ins(d).length&&ourCount(d)?'<span class="tag green">Replied</span>':''}${d.example?'<span class="tag ex">Fake · practice</span>':''}${d.optedOut?'<span class="tag red">Opted out</span>':''}${scoreTag(d)}</div>
-    ${d.example?`<div class="ex-banner" role="note">${ico('practice')}Fake practice deal. Made up for training, not a real property or offer.</div>`:''}<p class="muted" style="margin-top:4px">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.autopilot?` · ${autoLive?n+' replies automatically within your limits':'Turn on autopilot in Connect for '+n+' to act'}`:''}</p></div>
+    ${d.example?`<div class="ex-banner" role="note">${ico('practice')}Fake practice deal. Made up for training, not a real property or offer.</div>`:''}<p class="muted" style="margin-top:4px">${esc([d.city,d.state,d.zip].filter(Boolean).join(', '))}${d.autopilot?` · ${autoLive?(approveMode()?n+' drafts on her own; you press Send':n+' replies automatically within your limits'):'Turn on autopilot in Connect for '+n+' to act'}`:''}</p></div>
     <div class="row"><label class="small muted" for="deal-stage" style="font-weight:700">Stage</label><select class="fsel" id="deal-stage" aria-label="Stage">${STAGES.map(s=>`<option value="${s.id}" ${d.stage===s.id?'selected':''}>${s.label}</option>`).join('')}</select>
     <button class="btn" data-act="star" data-id="${d.id}" style="color:${d.starred?'var(--s-amber)':'inherit'}">${d.starred?icoFill('star'):ico('star')}${d.starred?'Starred':'Star'}</button>
     ${c.ready&&!['dead','closed'].includes(d.stage)?`<button class="btn primary" data-act="offer-preview">${ico('send')}${ourCount(d)?'Preview next offer':'Preview offer'}</button>`:''}<button class="btn" data-act="in-depth" ${state.busy['depth:'+d.id]||!aiOn()?'disabled':''}>${ico('spark')}${state.busy['depth:'+d.id]?'Analyzing…':'In-depth analysis'}</button><button class="btn" data-act="one-pager">${ico('doc')}One-pager</button><a class="btn" href="#report/${d.id}">${ico('doc')}Lender report</a><button class="btn" data-act="practice-deal">${ico('practice')}Practice call</button></div></div>`;
@@ -3540,7 +3561,7 @@ function detailsCard(d,c){
   <label class="field"><span>Listed on</span><input class="input" type="date" id="pd-listed" data-fd="listedDate" data-t="date" value="${esc(d.listedDate?isoDay(d.listedDate):'')}"></label>${f('pd-url','listingUrl','Listing link',d.listingUrl)}</div>
   <label class="field"><span>Listing description</span><textarea class="input" id="pd-desc" data-fd="description" rows="3">${esc(d.description)}</textarea></label>
   <label class="field"><span>Private notes ${esc(negName())} reads (never quoted)</span><textarea data-dict class="input" id="pd-notes" data-fd="notes" rows="3" placeholder="Seller situation, what the agent said on the phone…">${esc(d.notes)}</textarea></label>
-  ${isWs&&d.wsClaims?`<div class="note"><b>What the wholesaler claimed:</b> ${[['Asking',d.wsClaims.asking],['ARV',d.wsClaims.arv],['Repairs',d.wsClaims.rehab],['Rent',d.wsClaims.rent]].filter(x=>x[1]!=null).map(([l,v])=>l+' '+money(v)).join(' · ')}${d.wsClaims.terms?' · Terms: '+esc(d.wsClaims.terms):''}${d.wsClaims.deadline?' · Deadline: '+esc(d.wsClaims.deadline):''}${d.wsClaims.access?' · Access: '+esc(d.wsClaims.access):''}${(d.wsClaims.redFlags||[]).length?`<br><b>Check:</b> ${d.wsClaims.redFlags.map(esc).join(' · ')}`:''}</div>`:''}
+  ${isWs&&d.wsClaims?`<div class="note"><b>What the wholesaler claimed:</b> ${[['Asking',d.wsClaims.asking],['They’d take',d.wsClaims.accept],['ARV',d.wsClaims.arv],['Repairs',d.wsClaims.rehab],['Rent',d.wsClaims.rent]].filter(x=>x[1]!=null).map(([l,v])=>l+' '+money(v)).join(' · ')}${d.wsClaims.terms?' · Terms: '+esc(d.wsClaims.terms):''}${d.wsClaims.deadline?' · Deadline: '+esc(d.wsClaims.deadline):''}${d.wsClaims.access?' · Access: '+esc(d.wsClaims.access):''}${(d.wsClaims.redFlags||[]).length?`<br><b>Check:</b> ${d.wsClaims.redFlags.map(esc).join(' · ')}`:''}${(d.wsClaims.notes||[]).length?`<br><b>Also in the email:</b> ${d.wsClaims.notes.map(esc).join(' · ')}`:''}</div>`:''}
   ${['contract','closed'].includes(d.stage)?`<div><b>Contract checklist</b>${items.map(([k,l])=>`<label class="check"><input type="checkbox" id="ck-${k}" data-fd="checklist.${k}" data-t="bool" ${ck[k]?'checked':''}><span>${esc(l)}</span></label>`).join('')}</div>`:''}
   <div class="row"><button class="btn danger" data-act="delete-deal">${ico('trash')}Delete deal</button></div></section>`;
 }
@@ -4117,6 +4138,7 @@ async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
   if(!auto&&!opts.noDeep&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(auto&&photoCount(d2)&&!d2.analysis)await aiDeep(id,true,secrets().model||'claude-sonnet-5-5');
   if(!quiet&&!opts.noDeep)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
 }
 function applyResearch(d,j,res,got){
@@ -4128,7 +4150,9 @@ function applyResearch(d,j,res,got){
   const rv=j.rent&&parseNum(j.rent.value);if(rv&&!d.rent)d.rentEst=rv;
   const ra=j.arv&&parseNum(j.arv.value);
   if(ra&&(arvTheirs(d)||!d.arv||['maya','comps'].includes(d.arvSource))){if(arvTheirs(d)&&d.arv)d.wsClaims=Object.assign({},d.wsClaims,{arv:(d.wsClaims||{}).arv??d.arv});
-    d.arv=floor500(ra);d.arvSource=(d.comps||[]).length?'comps':'maya';d.arvWhy=String(j.arv.why||'').slice(0,400)}
+    d.arv=floor500(ra);d.arvSource=(d.comps||[]).length?'comps':'maya';d.arvWhy=String(j.arv.why||'').slice(0,400);
+    const g=compGrid(d);const used=g.rows.filter(r=>r.use).length;const gv=g.smart;
+    if(used>=3&&gv&&Math.abs(gv-d.arv)/d.arv>0.10){const lo=Math.min(gv,d.arv);d.arvWhy=`${negName()} read ${money(floor500(ra))} from the comps; the comps math (size, beds and baths adjusted, ${used} renovated sales) says ${money(gv)}. Using the lower, ${money(lo)}, to be safe. `+d.arvWhy;d.arv=lo}}
   const sl=j.sellerLowest&&parseNum(j.sellerLowest.price);if(sl&&sl>0){const cur=parseNum((d.wsClaims||{}).accept);if(cur==null||sl<cur||(sl===cur&&!(d.wsClaims||{}).acceptQuote))d.wsClaims=Object.assign({},d.wsClaims,{accept:sl,acceptQuote:String(j.sellerLowest.quote||'').slice(0,200)})}
   d.research={at:nowISO(),summary:String(j.summary||''),claims:(j.claimsCheck||[]).slice(0,12).map(x=>({claim:String(x.claim||''),found:String(x.found||''),verdict:['matches','off','unverified'].includes(x.verdict)?x.verdict:'unverified'})),
     redFlags:(j.redFlags||[]).map(String).slice(0,10),arv:j.arv||null,rent:j.rent||null,couldNotOpen:[...new Set([...(j.couldNotOpen||[]).map(String),...(got.blocked||[]),...(res.failed||[]).map(x=>x.url)])].slice(0,8),
@@ -4423,8 +4447,8 @@ function voiceBarHTML(s){
 function buildBrief(){
   const ds=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage));const now=Date.now();
   const a=d=>streetOf(d.address)||'Untitled deal';const k=counts();
-  const needs=ds.filter(d=>d.needsYou&&d.draft).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
-  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&d.draft)).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
+  const needs=ds.filter(d=>d.needsYou&&draftOpen(d)).map(d=>({id:d.id,addr:a(d),why:d.needsYou,their:lastTheirPrice(d),draft:d.draft.price??null}));
+  const replies=ds.filter(d=>replyWaiting(d)&&!(d.needsYou&&draftOpen(d))).map(d=>({id:d.id,addr:a(d),at:lastAt(ins(d)),their:lastTheirPrice(d)}));
   const follow=ds.filter(d=>{const f=followDue(d);return f&&f.overdue&&!(d.autopilot&&state.settings.auto.enabled)}).map(d=>({id:d.id,addr:a(d),step:followDue(d).step+1}));
   const scored=ds.map(d=>{const S=dealScore(d,null,true);return S?{d,S}:null}).filter(Boolean).sort((x,y)=>y.S.score-x.S.score);
   const top=scored.filter(x=>x.S.score>=65||(x.S.at80&&x.S.at80>=x.S.basis*.85)).slice(0,5).map(({d,S})=>({id:d.id,addr:a(d),score:S.score,grade:S.grade[0],best:STRAT_LABEL[S.best],basis:S.basis,at80:S.at80,source:d.source}));
@@ -4583,9 +4607,10 @@ function setAuto(){
   const A=state.settings.auto;const n=esc(negName());const ready=aiOn()&&gmailOn();
   return `<section class="auto"><div class="ah"><span class="ci grad">${ico('bolt')}</span><div><h3>Autopilot master switch</h3><p class="small muted">When on, ${n} works every deal that has its own Autopilot toggle on, every 3 minutes while OfferDesk is open in a browser tab.</p></div><span class="spacer"></span>${switchHTML(A.enabled,'auto-master',null,'Autopilot master switch')}</div>
     ${!ready?`<div class="note amber">${n} needs ${!aiOn()?'an API key':''}${!aiOn()&&!gmailOn()?' and ':''}${!gmailOn()?'Gmail (or texting)':''} before she can send anything. <a href="#settings/connections">Connect</a></div>`:''}
+    <div class="note ${A.approveAll!==false?'green':'amber'} row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>${A.approveAll!==false?'You press Send (on).':'You press Send is off.'}</b> ${A.approveAll!==false?`${n} drafts offers, replies and follow-ups, but nothing goes out until you press Send. Campaigns don’t send either.`:`${n} sends on her own within your limits, and stops for you near your ceiling.`}</span>${switchHTML(A.approveAll!==false,'approve-all',null,'You press Send')}</div>
     <div class="row"><button class="btn sm" data-act="run-auto" ${state.autoRunning?'disabled':''}>${ico('bolt')}${state.autoRunning?'Working…':'Run '+n+' now'}</button><span class="small muted">${cloudOn()?`She works while OfferDesk is open on any of your devices, one device at a time.${leaseHolder()?' Right now: '+esc(leaseHolder())+'.':''}`:'Leave this tab open (it can be in the background) and she keeps working.'}</span></div></section>
   <div class="split"><section class="card"><div class="card-head"><span class="ci purple">${ico('send')}</span><div><h2>What she does on her own</h2></div></div>
-    <ol class="steps"><li><b>Outreach:</b> sends the opening offer on new deals (up to ${A.maxOpenings} per run).</li><li><b>Follow-up:</b> nudges on day ${state.settings.followDays.join(', ')} until they answer. Price drops trigger a fresh follow-up.</li><li><b>Negotiate:</b> answers replies with counters on your concession ladder, holds, or a seller-finance pitch within your limits.</li><li><b>Close:</b> stops and hands it to you.</li></ol>
+    <ol class="steps"><li><b>Outreach:</b> ${A.approveAll!==false?'drafts':'sends'} the opening offer on new deals (up to ${A.maxOpenings} per run)${A.approveAll!==false?' for you to send':''}.</li><li><b>Follow-up:</b> ${A.approveAll!==false?'drafts nudges for':'nudges on'} day ${state.settings.followDays.join(', ')} until they answer. Price drops trigger a fresh follow-up.</li><li><b>Negotiate:</b> answers replies with counters on your concession ladder, holds, or a seller-finance pitch within your limits.</li><li><b>Close:</b> stops and hands it to you.</li></ol>
     <label class="field"><span>Opening offer goes out by</span><select class="input" id="st-auto-ch" data-fs="auto.openingChannel" data-t="text">${[['email','Email'],['sms','Text'],['both','Email and text']].map(([v,l])=>`<option value="${v}" ${A.openingChannel===v?'selected':''}>${l}</option>`).join('')}</select></label>
     <div class="grid-fields">${fset('auto.maxOpenings','Max opening offers per run')}${fset('auto.maxOpeningsDay','Max opening offers per day')}</div>
     <label class="check"><input type="checkbox" id="st-auto-fu" data-fs="auto.followUps" data-t="bool" ${A.followUps?'checked':''}><span>Send follow-ups automatically</span></label>
@@ -4612,7 +4637,7 @@ function setMaya(){
     <label class="check"><input type="checkbox" id="st-neg-disclose" data-fs="neg.disclose" data-t="bool" ${S.neg.disclose?'checked':''}><span>If someone asks, ${n} says honestly she’s an AI acquisitions agent working for you</span></label>
     <label class="check"><input type="checkbox" id="st-neg-opt" data-fs="neg.optOutLine" data-t="bool" ${S.neg.optOutLine?'checked':''}><span>End emails with a one-line “reply remove” opt-out</span></label></section></div>
   <section class="card" id="pings"><div class="card-head"><span class="ci orange">${ico('bell')}</span><div><h2>${n} pings you</h2><p>So you hear about replies and decisions without keeping the tab in view</p></div></div>
-    <div class="grid-fields">${fset('notify.email','Email me at','text','inputmode="email" placeholder="your personal email"')}</div>
+    <div class="grid-fields">${fset('notify.email','Email me at (blank = your connected Gmail)','text','inputmode="email" placeholder="'+esc(gmailOn()?sendEmail():'your email')+'"')}</div>
     <label class="check"><input type="checkbox" id="st-n-needs" data-fs="notify.onNeeds" data-t="bool" ${S.notify.onNeeds?'checked':''}><span>When ${n} needs your call (an agent came back with a number near your max, an accept, a walk-away)</span></label>
     <label class="check"><input type="checkbox" id="st-n-reply" data-fs="notify.onReply" data-t="bool" ${S.notify.onReply?'checked':''}><span>When an agent replies on a deal ${n} isn’t handling on autopilot</span></label>
     <label class="check"><input type="checkbox" id="st-n-sms" data-fs="notify.sms" data-t="bool" ${S.notify.sms?'checked':''} ${smsOn()?'':'disabled'}><span>Also text me at ${esc(S.profile.phone||'your US phone')} ${smsOn()?'':'(needs Twilio)'}</span></label>
@@ -4623,7 +4648,7 @@ function setWs(){
   const ws=state.settings.wholesalers||[];
   const n=esc(negName());const R=state.settings.research||{};
   return `<section class="card"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n} researches new deals</h2><p>New wholesaler deals worth a look, on her own</p></div><div class="ch-r">${switchHTML(R.auto!==false,'research-auto',null,'Auto research')}</div></div>
-    <p class="small">She opens the links that came with the deal (Google Drive photo folders, deal pages), pulls the photos, finds the property’s history and recent sales nearby and checks the wholesaler’s numbers. To keep your Anthropic bill down, she does this on her own only for deals inside your buy box whose asking isn’t already well above your ceiling, uses your main model, and stops after the daily limit below. Pressing <b>Research this deal</b> on a deal does the full version (big model plus the photo inspection), usually 10–30¢.</p>
+    <p class="small">She opens the links that came with the deal (Google Drive photo folders, deal pages), pulls the photos, finds the property’s history and recent sales nearby, checks the wholesaler’s numbers, and prices the repairs from the photos when there are any. To keep your Anthropic bill down, she does this on her own only for deals inside your buy box whose asking isn’t already well above your ceiling, uses your main model, and stops after the daily limit below. Pressing <b>Research this deal</b> on a deal does the full version (big model plus the photo inspection), usually 10–30¢.</p>
     <label class="field" style="max-width:320px"><span>Most deals to research on her own per day</span><input class="input tnum" id="st-rday" data-fs="research.dailyMax" data-t="num" value="${R.dailyMax??3}" inputmode="numeric"></label>
     <p class="small muted">Reading emails and property pages uses the small, cheap model, and she skips pages that are a login wall or about a different house.</p></section>
   <section class="card"><div class="card-head"><span class="ci orange">${ico('leads')}</span><div><h2>Wholesalers</h2><p>Emails from these addresses are pulled into Inbox Leads</p></div><div class="ch-r"><button class="btn sm" data-act="ws-add">${ico('plus')}Add wholesaler</button></div></div>
@@ -5305,7 +5330,7 @@ function cpCanSendNow(c,it){
 }
 /* one step of the queue: called every tick (device every 3 min, Maya 24/7 every 5) */
 async function campaignTick(){
-  if(!gmailOn()||!aiOn())return 0;let sent=0;
+  if(!gmailOn()||!aiOn()||approveMode())return 0;let sent=0;
   const quota=state.conn.mailQuota;if(quota&&quota.left!=null&&quota.left<20&&quota.day===isoDay())return 0;
   const todayAgents=new Set(cpList().flatMap(c=>c.items.filter(i=>i.sentAt&&isoDay(i.sentAt)===isoDay()&&i.agent).map(i=>i.agent.email)));
   for(const c of cpList()){
@@ -5349,7 +5374,7 @@ function viewCampaigns(){
     `<button class="btn" data-act="cp-new">${ico('plus')}New campaign</button>`);
   const tabs=L.length?`<div class="cp-tabs" role="tablist">${L.map(x=>{const s=cpStats(x);return `<button role="tab" aria-selected="${c&&c.id===x.id}" data-act="cp-open" data-id="${x.id}"><b>${esc(x.name)}</b><span class="xs muted">${x.status==='running'?'Sending':x.status==='paused'?'Paused':x.status==='done'?'Done':'Draft'} · ${s.sent}/${s.total} sent${s.replied?` · ${s.replied} replies`:''}</span></button>`}).join('')}</div>`:'';
   if(!c)return `<div class="wrap page">${head}${cpEmptyHTML()}</div>`;
-  return `<div class="wrap page">${head}${tabs}${cpEditorHTML(c)}</div>`;
+  return `<div class="wrap page">${head}${approveMode()?`<div class="note amber">${ico('shield')} You press Send is on (Connect → Autopilot), so campaigns don’t send anything. Turn it off when you want campaigns to run.</div>`:''}${tabs}${cpEditorHTML(c)}</div>`;
 }
 function cpRedfinLinks(c){
   const chip=(z,cls,label)=>`<a class="qchip ${cls}" href="https://www.redfin.com/zipcode/${z}" target="_blank" rel="noopener">${esc(label||z)}</a>`;
@@ -6132,7 +6157,7 @@ async function workerToggle(on){
   state.busy.worker={label:on?`Turning on ${negName()} 24/7…`:'Turning it off…'};render();
   try{const r=await bridge('worker_setup',{on,acct:a.id,url:a.url,every:5},a.id);if(!r.ok)throw {code:'bridge_err',message:r.error||'error'};
     state.settings.worker={on:!!on,at:nowISO()};fullAuto(!!on);saveSettings();
-    toast(on?`${negName()} 24/7 is on, and she’s fully automatic: she sends offers, replies and follow-ups herself, within your limits. She still stops for you near your ceiling.`:`${negName()} 24/7 is off. She’ll draft and wait for you to press Send.`,7000);WK.at=0;await workerRefresh()}
+    toast(on?(approveMode()?`${negName()} 24/7 is on. She reads your email, pulls in deals and drafts offers, replies and follow-ups around the clock. Nothing goes out until you press Send.`:`${negName()} 24/7 is on, and she’s fully automatic: she sends offers, replies and follow-ups herself, within your limits. She still stops for you near your ceiling.`):`${negName()} 24/7 is off.`,7000);WK.at=0;await workerRefresh()}
   catch(e){toast(bridgeErr(e),6200)}finally{delete state.busy.worker;render()}
 }
 /* 24/7 means fully automatic: autopilot on for every open deal (wholesaler deals too), drafts already waiting get sent */
@@ -6140,7 +6165,7 @@ function fullAuto(on){const A=state.settings.auto;
   if(on){A.enabled=true;A.newDealsOn=true;A.wsAuto=true;for(const d of Object.values(state.deals)){if(d.example||d.optedOut||!['new','sent','negotiating'].includes(d.stage||'new'))continue;d.autopilot=true}persist('deals')}
   else{A.enabled=false;A.wsAuto=false}}
 function workerCardHTML(){
-  const n=esc(negName());const head=(pill)=>`<div class="card-head"><span class="ci grad">${ico('bolt')}</span><div><h2>${n} 24/7</h2><p>Fully automatic: sends offers, answers, follows up and pulls in new deals, even with every device closed</p></div><div class="ch-r">${pill||''}</div></div>`;
+  const n=esc(negName());const head=(pill)=>`<div class="card-head"><span class="ci grad">${ico('bolt')}</span><div><h2>${n} 24/7</h2><p>${approveMode()?'Reads your email, pulls in deals and drafts everything with every device closed. You press Send.':'Fully automatic: sends offers, answers, follows up and pulls in new deals, even with every device closed'}</p></div><div class="ch-r">${pill||''}</div></div>`;
   if(!cloudOn())return `<section class="conn-card" id="conn-247">${head('<span class="pill slate">Off</span>')}<p class="small">Turn on cloud save above first. ${n} 24/7 runs inside the same Gmail script, using your cloud copy of the desk.</p></section>`;
   if(!WK.busy&&Date.now()-WK.at>90e3)setTimeout(workerRefresh,0);
   const info=acctInfo(cm().acct)||{};const old=(info.version||1)<4||/older version/.test(WK.err);
@@ -6151,7 +6176,7 @@ function workerCardHTML(){
     ${old?`<div class="note amber">Your Gmail script is an older version. Copy the bridge code again (Gmail card, step 2), paste it over the old code in Apps Script, then Deploy → Manage deployments → Edit → New version → Deploy, and click Allow when Google asks. Then press Test on the Gmail card.</div>`:''}
     <ul class="small" style="margin:0 0 10px;padding-left:18px;display:grid;gap:4px">
       <li>Every 5 minutes your Gmail script takes a quick look: is a device open? any new email? anything due? Most checks take a second.</li>
-      <li>When there’s work and no device has OfferDesk open, it runs ${n}: opening offers, replies within your limits, follow-ups, campaign emails, new wholesaler deals, and the morning brief data. You don’t press Send; she still stops for you near your ceiling.</li>
+      <li>When there’s work and no device has OfferDesk open, it runs ${n}: opening offers, replies within your limits, follow-ups, campaign emails, new wholesaler deals, and the morning brief data. ${approveMode()?'Everything waits for you to press Send (Connect → Autopilot).':'You don’t press Send; she still stops for you near your ceiling.'}</li>
       <li>Deep photo inspections and web research wait for the next time you open OfferDesk (they take longer than Google allows per step).</li></ul>
     ${on?`<p class="small"><b>Last check:</b> ${s.lastTick?ago(new Date(s.lastTick).toISOString()):'not yet'}${s.next&&s.next>Date.now()?` · next planned work ${fmtWhen(new Date(s.next).toISOString())}`:''}${s.left!=null?` · ${s.left} emails left today`:''}</p>${lastLine?`<p class="small">${esc(lastLine)}</p>`:''}${last&&last.warn&&last.warn.length?`<div class="note amber small">${esc(last.warn.slice(0,2).join(' · '))}</div>`:''}`:''}
     ${WK.err&&!old?`<div class="note amber small">${esc(WK.err)}</div>`:''}
@@ -6289,6 +6314,12 @@ A['ai-reply']=()=>aiReply(state.dealId);
 A['ai-follow']=()=>aiFollow(state.dealId,false);
 A.redraft=()=>{const d=D();const k=d.draft&&d.draft.kind;const ins_=d.draft&&d.draft.instruction;d.draft=null;saveDeal(d);if(k==='opening'&&!ourCount(d))aiOpening(d.id);else if(k==='followup')aiFollow(d.id,false);else aiReply(d.id,ins_)};
 A['discard-draft']=()=>{const d=D();d.draft=null;d.needsYou=null;saveDeal(d)};
+A['todo-done']=el=>{const d=state.deals[el.dataset.id];if(!d)return;const k=el.dataset.k;
+  if(k==='draft'){d.draft=null;d.needsYou=null}
+  else if(k==='reply'){d.handledAt=lastAt(ins(d))||nowISO();d.needsYou=null}
+  else if(k==='follow'){d.follow=d.follow||{base:nowISO(),step:0};d.follow.step++}
+  else if(k==='new')d.reviewed=true;
+  saveDeal(d);toast({draft:'Draft discarded.',reply:'Marked as answered.',follow:'Skipped this follow-up.',new:'Marked as reviewed.'}[k]||'Done.')};
 A['send-email']=()=>sendEmailNow(state.dealId);
 A['send-sms']=()=>sendTextNow(state.dealId);
 A['send-force']=async()=>{const d=D();if(canEmail(d)&&!(d.draft.sent||{}).email)await sendEmailNow(d.id);else if(canText(d)&&!(d.draft.sent||{}).sms)await sendTextNow(d.id);else toast('No connected channel for this deal. Copy the text instead.')};
@@ -6299,7 +6330,7 @@ A['compose-send']=async el=>{const d=D();const ch=el.dataset.ch;const keep=d.dra
   d.draft={kind:'manual',action:'custom',price:null,email:{subject:state.drafts['cmp-subj']||('Re: '+streetOf(d.address)),body},sms:body,at:nowISO()};
   const ok=ch==='sms'?await sendTextNow(d.id):await sendEmailNow(d.id);
   const dd=state.deals[d.id];if(ok){state.drafts[ch==='sms'?'cmp-sms':'cmp-body']='';const last=(dd.thread||[]).slice(-1)[0];if(last)last.by='you'}
-  dd.draft=keep||null;saveDeal(dd)};
+  dd.draft=ok?null:(keep||null);if(ok)dd.needsYou=null;saveDeal(dd)};
 A['compose-log']=el=>{const d=D();const ch=el.dataset.ch;const body=(state.drafts[ch==='sms'?'cmp-sms':'cmp-body']||'').trim();if(!body){toast('Write the message first.');return}
   pushMsg(d,{dir:'out',channel:ch,subject:ch==='email'?state.drafts['cmp-subj']||'':'',text:body,by:'you'});d.follow={base:nowISO(),step:0};if(d.stage==='new')d.stage='sent';state.drafts[ch==='sms'?'cmp-sms':'cmp-body']='';saveDeal(d)};
 A.copy=async el=>{const src=document.getElementById(el.dataset.src);if(!src)return;try{await navigator.clipboard.writeText(src.value);toast('Copied')}catch(e){src.focus();src.select();toast('Selected. Press Ctrl+C to copy.')}};
@@ -6392,6 +6423,7 @@ A['brief-toggle']=()=>{const B=state.settings.brief=state.settings.brief||{};B.o
 A['brief-test']=async()=>{if(!cloudOn()){toast('Turn on cloud save first.');return}state.busy.brief={label:negName()+' is writing your brief…'};render();
   try{await pushBrief(true);const r=await bridge('brief_test',{},cm().acct);toast(r.sent?'Brief sent. Check your inbox.':r.error==='no_email'?'Add your email in Settings → '+negName()+' & you, then try again.':'Couldn’t send it: '+(r.error||'unknown'),5200);if(r.sent)briefSync()}
   catch(e){toast(bridgeErr(e),5600)}finally{delete state.busy.brief;render()}};
+A['approve-all']=()=>{const A=state.settings.auto;A.approveAll=A.approveAll===false;saveSettings();toast(A.approveAll?`${negName()} drafts, you press Send.`:`${negName()} now sends on her own within your limits.`,5200)};
 A['research-auto']=()=>{const R=state.settings.research=state.settings.research||{};R.auto=R.auto===false;saveSettings()};
 A['big-model']=el=>{state.settings.ai=state.settings.ai||{};state.settings.ai.bigModel=el.dataset.v;saveSettings()};
 A['rehab-reset']=()=>{state.settings.rehab=Object.assign({},state.settings.rehab,{costs:{}});saveSettings();toast('Repair prices reset to the defaults.')};

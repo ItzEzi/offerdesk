@@ -16,10 +16,12 @@ function arvTheirs(d){return d.arvSource==='wholesaler'||((!d.arvSource||d.arvSo
 function theirFloor(d){const v=[curList(d),parseNum((d.wsClaims||{}).accept),lastTheirPrice(d)].filter(x=>x!=null&&x>0);return v.length?Math.min(...v):null}
 function lastTheirPrice(d){const o=(d.offers||[]).filter(x=>x.by==='them');return o.length?o[o.length-1].price:null}
 function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.at:(outs(d)[0]||{}).at||null}
+/* a draft needs you only until it goes out on some channel */
+const draftOpen=d=>!!(d&&d.draft&&!((d.draft.sent||{}).email||(d.draft.sent||{}).sms));
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
-function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
+function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!(d.handledAt&&String(d.handledAt)>=String(li))&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
 function followDue(d){
-  if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||d.draft)return null;
+  if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||draftOpen(d))return null;
   const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
   const due=new Date(d.follow.base).getTime()+days[d.follow.step]*DAY;
   return {due,step:d.follow.step,overdue:Date.now()>=due};
@@ -30,7 +32,7 @@ function offerStatus(d){
   if(d.stage==='dead')return ['Archived','slate'];
   if(d.stage==='closed')return ['Closed','blue'];
   if(d.stage==='contract')return ['Under contract','green'];
-  if(d.draft&&!ourCount(d))return ['Draft ready','purple'];
+  if(draftOpen(d)&&!ourCount(d))return ['Draft ready','purple'];
   if(ins(d).length&&ourCount(d))return ['Responded','green'];
   if(ourCount(d))return ['Offer sent','slate'];
   return ['Not sent','amber'];
@@ -253,8 +255,8 @@ const TAG_BY_ID=Object.fromEntries(TAGDEFS.map(t=>[t.id,t]));
 function counts(){
   const ds=Object.values(state.deals);
   return {
-    reply:ds.filter(d=>replyWaiting(d)&&!d.draft&&!(d.autopilot&&state.settings.auto.enabled)).length,
-    draft:ds.filter(d=>d.draft&&!['dead','closed'].includes(d.stage)).length,
+    reply:ds.filter(d=>replyWaiting(d)&&!draftOpen(d)&&!(d.autopilot&&state.settings.auto.enabled)).length,
+    draft:ds.filter(d=>draftOpen(d)&&!['dead','closed'].includes(d.stage)).length,
     follow:ds.filter(d=>{const f=followDue(d);return f&&f.overdue}).length,
     ws:ds.filter(d=>d.source==='wholesaler'&&d.stage==='new'&&!d.reviewed&&!overBox(d)&&!checking(d)).length,
     newMail:Object.values(state.mail.emails).filter(e=>e.status==='new').length,
