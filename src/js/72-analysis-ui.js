@@ -1,5 +1,5 @@
 /* ================= deal score, comps, rental (deal page cards) ================= */
-function scoreTag(d){const S=dealScore(d);if(!S)return '';return `<span class="tag score ${S.grade[1]}" title="Deal score at ${money(S.basis)}">${S.score} · ${esc(STRAT_LABEL[S.best])}</span>`}
+function scoreTag(d){const S=dealScore(d);if(!S)return '';const theirs=arvTheirs(d)||rehabTheirs(d);return `<span class="tag score ${theirs?'slate':S.grade[1]}" title="Deal score at ${money(S.basis)}${theirs?', using the seller’s own ARV/repair numbers':''}">${S.score} · ${esc(STRAT_LABEL[S.best])}${theirs?' <small style="font-size:.45em;font-weight:700;opacity:.8">on their numbers</small>':''}</span>`}
 function scoreRing(score,cls){const r=34,C=2*Math.PI*r,f=Math.max(0,Math.min(100,score))/100;return `<svg class="ring ${cls}" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="${r}" class="ring-bg"/><circle cx="42" cy="42" r="${r}" class="ring-fg" stroke-dasharray="${(C*f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 42 42)"/><text x="42" y="49" text-anchor="middle">${score}</text></svg>`}
 function scoreCard(d,c){
   if(!c.ready)return '';const S=dealScore(d,null,true);if(!S)return '';const n=esc(negName());const L=curList(d);

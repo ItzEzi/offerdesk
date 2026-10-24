@@ -71,7 +71,7 @@ async function extractDeals(text,meta,busyKey,quiet){
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[],relinked=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
+  const made=[],relinked=[],touched=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
@@ -79,17 +79,19 @@ async function extractDeals(text,meta,busyKey,quiet){
     /* reading an email again: a house already pulled from this same email (same ZIP and price) is that deal, never a copy */
     const xs=hasStreet({address:String(x.address||'')});
     const twin=meta.msgId?Object.values(state.deals).find(o=>o.source==='wholesaler'&&!o.example&&!made.includes(o.id)&&(o.seenMsgIds||[]).includes(meta.msgId)&&String(o.zip||'').slice(0,5)===String(x.zip||'').slice(0,5)&&curList(o)===(asking??null)&&(!xs||!hasStreet(o)||dealKey(o)===dealKey({address:String(x.address),zip:String(x.zip||'')}))):null;
-    if(twin&&hasStreet(twin)){updated++;continue}
+    if(twin&&hasStreet(twin)){updated++;touched.push(twin.id);continue}
     if(twin){if(xs)twin.address=String(x.address);
       const nl=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].filter(u=>/^https?:/i.test(u));
       if(nl.length){twin.links=nl.slice(0,8);twin.linksOnly=list.length>1}
       for(const k of ['beds','baths','sqft','year']){const v=parseNum(x[k]);if(twin[k]==null&&v!=null)twin[k]=v}
-      delete twin.linkFill;saveDeal(twin,true);relinked.push(twin.id);updated++;continue}
+      if(parseNum(x.acceptPrice))twin.wsClaims=Object.assign({},twin.wsClaims,{accept:parseNum(x.acceptPrice)});
+      delete twin.linkFill;saveDeal(twin,true);relinked.push(twin.id);touched.push(twin.id);updated++;continue}
     const old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
-    if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;continue}
-    const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
+    if(old&&parseNum(x.acceptPrice))old.wsClaims=Object.assign({},old.wsClaims,{accept:parseNum(x.acceptPrice)});
+    if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
+    const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
@@ -101,13 +103,13 @@ async function extractDeals(text,meta,busyKey,quiet){
   /* open each deal's links first (address, numbers, Drive photos), then research the ones at or under his buy box */
   const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
   made.forEach(afterNewDeal);relinked.forEach(afterNewDeal);
-  return {deals:made,relinked,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
+  return {deals:made,relinked,touched:[...new Set([...made,...touched])],updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
 /* what Maya did with the last 30 days of wholesaler emails, so "0 new" never looks like nothing happened */
 function mailStats(){
   const since=Date.now()-30*DAY;const ms=Object.values(state.mail.emails).filter(m=>new Date(m.date||0).getTime()>=since);
   const st={read:0,withDeals:0,noDeal:0,waiting:0,deals:0,over:0,passed:0,gone:0};
-  for(const m of ms){if(m.status==='new'){st.waiting++;continue}if(m.status==='ignored')continue;st.read++;
+  for(const m of ms){if(m.status==='new'){st.waiting++;continue}if(m.status==='ignored'||m.status==='reply')continue;st.read++;
     if(m.status==='nodeal'){st.noDeal++;continue}st.withDeals++;
     for(const id of m.dealIds||[]){const d=state.deals[id];if(!d){st.gone++;continue}st.deals++;if(d.stage==='dead')st.passed++;else if(overBox(d))st.over++}}
   return st;
@@ -120,6 +122,36 @@ function mailRecap(st){st=st||mailStats();
   if(st.waiting)p.push(`${st.waiting} waiting: press Pull out all`);
   return p.join(' · ')+'.';
 }
+/* ---------- photos attached to a deal's emails ----------
+   Pulled once per email. In 24/7 mode there's no photo storage, so they wait for the next device that opens.
+   Gmail script v6 sends big phone photos (up to 10 MB) in batches and says which ones it had to skip. */
+function attMsgs(d){const ids=new Set();for(const id of d.seenMsgIds||[]){const m=state.mail.emails[id];if(m&&(m.atts||0)>0)ids.add(id)}
+  for(const t of d.thread||[])if(t.dir==='in'&&t.gmailId&&(t.atts||0)>0)ids.add(t.gmailId);return [...ids]}
+async function pullDealAttachments(id,quiet,only){
+  const d=state.deals[id];if(!d||d.example||!gmailOn())return 0;
+  const done=new Set(d.attDone||[]);const todo=(only||attMsgs(d)).filter(m=>!done.has(m));if(!todo.length)return 0;
+  if(WORKER.on||!IDB.db){d.attPending=true;saveDeal(d,true);return 0}
+  let added=0;const skipped=(d.attSkipped||[]).slice();
+  for(const mid of todo){
+    const rec=state.mail.emails[mid]||{};const acct=rec.acct||d.gmailAccount||undefined;let start=0,guard=0,got=0,ok=false;
+    try{while(start!=null&&guard++<8){const r=await bridge('attachments',{id:mid,max:12,start},acct);ok=true;
+        const blobs=(r.files||[]).map(x=>b64ToBlob(x.data,x.type));got+=blobs.length;if(blobs.length)added+=await addPhotoBlobs(id,blobs,'email');
+        for(const x of r.skipped||[])skipped.push({msg:mid,name:String(x.name||''),why:String(x.why||'')});start=r.next==null?null:r.next}}
+    catch(e){if(!quiet)toast(bridgeErr(e),5200)}
+    if(!ok)continue;done.add(mid);
+    const tm=(d.thread||[]).find(t=>t.gmailId===mid);const expected=+(rec.atts||(tm&&tm.atts)||0);
+    if(!got&&expected&&!skipped.some(x=>x.msg===mid))skipped.push({msg:mid,name:'',why:'old_script',n:expected});
+  }
+  const dd=state.deals[id];if(!dd)return added;dd.attDone=[...done].slice(-100);dd.attSkipped=skipped.slice(-40);delete dd.attPending;saveDeal(dd,true);
+  if(added)logActivity(id,'info',`${negName()} added ${added} photo${added>1?'s':''} from the email${todo.length>1?'s':''} on ${streetOf(dd.address)}.`);
+  render();return added;
+}
+/* on open: deals whose email photos haven't come in yet (24/7 brought them in, or they arrived before this version) */
+async function resumeAttachments(){if(WORKER.on||!gmailOn()||!IDB.db)return;
+  if(bridgeV()>=6)for(const d of Object.values(state.deals)){const old=(d.attSkipped||[]).filter(x=>x.why==='old_script').map(x=>x.msg);if(!old.length)continue;
+    d.attDone=(d.attDone||[]).filter(m=>!old.includes(m));d.attSkipped=(d.attSkipped||[]).filter(x=>x.why!=='old_script');saveDeal(d,true)}
+  const ds=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage)&&(d.attPending||attMsgs(d).some(m=>!(d.attDone||[]).includes(m)))).slice(0,6);
+  for(const d of ds){try{await pullDealAttachments(d.id,true)}catch(e){}}}
 /* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
 function pullSummary(rs){
   const ok=rs.filter(r=>r&&!r.err);const add=ok.reduce((a,r)=>a+(r.deals||[]).length,0),upd=ok.reduce((a,r)=>a+(r.updated||0),0),over=ok.reduce((a,r)=>a+(r.over||0),0);
@@ -135,9 +167,9 @@ function pullSummary(rs){
 }
 async function importEmail(id,quiet){
   const m=state.mail.emails[id];if(!m)return;const f=parseFrom(m.from);
-  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email'},'mail:'+id,quiet);
+  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email',subject:m.subject||''},'mail:'+id,quiet);
   if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated||(mm.dealIds||[]).length?'imported':'nodeal';mm.dealIds=[...new Set([...(mm.dealIds||[]),...r.deals,...(r.relinked||[])])]}saveMail();
-  if(r.deals.length===1&&(m.atts||0)>0){try{const a=await bridge('attachments',{id:m.id,max:8},m.acct||undefined);const blobs=(a.files||[]).map(x=>b64ToBlob(x.data,x.type));if(blobs.length)await addPhotoBlobs(r.deals[0],blobs,'email')}catch(e){}}
+  if((m.atts||0)>0&&(r.touched||[]).length===1)await pullDealAttachments(r.touched[0],true,[m.id]);
   render();if(!quiet)toast(pullSummary([r]),6000);
   return r;
 }
@@ -208,10 +240,10 @@ async function quickAction(id,qa){
   await aiReply(id,q.ins,false,`${negName()}: ${q.label.toLowerCase()}…`);
   const dd=state.deals[id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:`Draft ready below${dd.draft.price?' at '+money(dd.draft.price):''}. ${dd.draft.why||''}`.trim(),at:nowISO()});saveDeal(dd)}
 }
-async function aiDeep(id,quiet){
+async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
-  const model=bigModel();
+  const model=forceModel||bigModel();
   const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
   dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
@@ -220,7 +252,7 @@ async function aiDeep(id,quiet){
   const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));
   const lines=fromBook.length||custom.length?[...fromBook,...custom]:(Array.isArray(res.rehabLines)?res.rehabLines.map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)})):[]);
   if(lines.length){dd.rehabLines=lines;dd.rehabCont=parseNum(res.contingencyPct)??10;
-    const tot=Math.round(dd.rehabLines.reduce((a,x)=>a+(x.cost||0),0)*(1+(dd.rehabCont||0)/100));if(!dd.rehab||dd.rehabSource==='maya'){dd.rehab=tot;dd.rehabSource='maya'}}
+    const tot=Math.round(dd.rehabLines.reduce((a,x)=>a+(x.cost||0),0)*(1+(dd.rehabCont||0)/100));if(!dd.rehab||dd.rehabSource==='maya'||rehabTheirs(dd)){dd.rehab=tot;dd.rehabSource='maya'}}
   const av=res.arv&&parseNum(res.arv.value);if(av&&(!dd.arv||dd.arvSource==='maya')){dd.arv=floor500(av);dd.arvSource='maya'}
   const rv=res.rent&&parseNum(res.rent.value);if(rv&&!dd.rent)dd.rentEst=rv;
   if(res.rooms){if(!dd.beds&&parseNum(res.rooms.bedrooms))dd.beds=parseNum(res.rooms.bedrooms);if(!dd.baths&&parseNum(res.rooms.bathrooms))dd.baths=parseNum(res.rooms.bathrooms)}

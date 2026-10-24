@@ -74,6 +74,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .maya-pill .spend{padding:2px 8px;border-radius:99px;background:var(--b-green);color:var(--t-green);font-variant-numeric:tabular-nums;white-space:nowrap}
 .maya-pill .spend.mid{background:var(--b-amber);color:var(--ink)}
 .maya-pill .spend.low{background:var(--b-red);color:var(--t-red)}
+.depth{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--sunk);display:grid;gap:4px}
 .meter{height:10px;border-radius:99px;background:var(--sunk);overflow:hidden;margin:4px 0}
 .meter span{display:block;height:100%;border-radius:99px;background:var(--t-green)}
 .meter span.mid{background:var(--t-orange)}.meter span.low{background:var(--t-red)}

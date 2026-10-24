@@ -13,7 +13,7 @@
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 5 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 6 });
 }
 
 function doPost(e) {
@@ -37,7 +37,7 @@ function doPost(e) {
 function handle_(req) {
   try {
     switch (req.action) {
-      case 'ping': return { ok: true, version: 5, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'ping': return { ok: true, version: 6, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
       case 'cloud_meta': return cloudMeta_();
       case 'cloud_get': return cloudGet_(req.names || []);
       case 'cloud_put': return cloudPut_(req.parts || {});
@@ -52,7 +52,7 @@ function handle_(req) {
       case 'brief_test': return morningBrief();
       case 'worker_setup': return workerSetup_(req);
       case 'worker_status': return workerStatus_();
-      case 'attachments': return { ok: true, files: attachments_(String(req.id || ''), Number(req.max) || 6) };
+      case 'attachments': return attachments_(String(req.id || ''), Number(req.max) || 6, Number(req.start) || 0);
       case 'search': return { ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) };
       case 'message': return message_(String(req.id || ''));
       case 'send': return send_(req);
@@ -182,17 +182,23 @@ function smsInbox_(since) {
     .filter(function (m) { return m && (!since || m.at > since); });
 }
 
-function attachments_(id, max) {
+/* photos attached to an email, a batch at a time (phone photos are big): skips tiny logos, converts iPhone HEIC when Google can,
+   and says which ones it had to skip and why */
+function attachments_(id, max, start) {
   var m = GmailApp.getMessageById(id);
-  if (!m) return [];
-  var out = [];
-  m.getAttachments({ includeInlineImages: true }).forEach(function (a) {
-    if (out.length >= max) return;
-    var ct = a.getContentType() || '';
-    if (ct.indexOf('image/') !== 0 || a.getSize() > 3 * 1024 * 1024 || a.getSize() < 15000) return;
-    out.push({ name: a.getName(), type: ct, data: Utilities.base64Encode(a.getBytes()) });
-  });
-  return out;
+  if (!m) return { ok: true, files: [], skipped: [], next: null };
+  var imgs = m.getAttachments({ includeInlineImages: true }).filter(function (a) { return (a.getContentType() || '').indexOf('image/') === 0 && a.getSize() >= 15000; });
+  var out = [], skipped = [], bytes = 0, i = start || 0;
+  for (; i < imgs.length; i++) {
+    if (out.length >= max || bytes > 18 * 1024 * 1024) break;
+    var a = imgs[i], ct = a.getContentType() || '', size = a.getSize();
+    if (size > 10 * 1024 * 1024) { skipped.push({ name: a.getName(), why: 'too_big' }); continue; }
+    var blob = a.copyBlob();
+    if (/heic|heif/i.test(ct)) { try { blob = blob.getAs('image/jpeg'); ct = 'image/jpeg'; } catch (e) { skipped.push({ name: a.getName(), why: 'heic' }); continue; } }
+    var b = blob.getBytes(); bytes += b.length;
+    out.push({ name: a.getName(), type: ct, data: Utilities.base64Encode(b) });
+  }
+  return { ok: true, files: out, skipped: skipped, next: i < imgs.length ? i : null };
 }
 
 /* ---------- OfferDesk Cloud (Google Drive) ---------- */

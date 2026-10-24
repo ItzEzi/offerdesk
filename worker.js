@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261023-1539: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261024-2101: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261023-1539';
+const APP_V='20261024-2101';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -245,10 +245,14 @@ const outs=d=>(d.thread||[]).filter(t=>t.dir==='out');
 const ins=d=>(d.thread||[]).filter(t=>t.dir==='in');
 const lastAt=a=>a.length?a[a.length-1].at:null;
 function lastOurPrice(d){const o=(d.offers||[]).filter(x=>x.by==='us');return o.length?o[o.length-1].price:null}
+/* the lowest price the other side has said they'd take: asking, a stated "we'd accept", or their last counter */
+function rehabTheirs(d){return d.rehabSource==='wholesaler'||(!d.rehabSource&&d.rehab!=null&&(d.wsClaims||{}).rehab===d.rehab)}
+function arvTheirs(d){return d.arvSource==='wholesaler'||((!d.arvSource||d.arvSource==='you')&&d.arv!=null&&d.source==='wholesaler'&&(d.wsClaims||{}).arv===d.arv)}
+function theirFloor(d){const v=[curList(d),parseNum((d.wsClaims||{}).accept),lastTheirPrice(d)].filter(x=>x!=null&&x>0);return v.length?Math.min(...v):null}
 function lastTheirPrice(d){const o=(d.offers||[]).filter(x=>x.by==='them');return o.length?o[o.length-1].price:null}
 function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.at:(outs(d)[0]||{}).at||null}
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
-function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo)}
+function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
 function followDue(d){
   if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||d.draft)return null;
   const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
@@ -285,8 +289,11 @@ function calc(d){
   c.maoWs=Math.max(0,floor500(c.buyerMax-(s.wsFee||0)));
   c.maoCalc=strat==='wholesale'?c.maoWs:c.maoFlip;
   c.locked=d.lockedMao>0;
-  c.mao=c.locked?d.lockedMao:c.maoCalc;
-  let open=floor500(c.mao*(1-(s.anchorGap||0)/100));
+  c.mao=c.locked?d.lockedMao:c.maoCalc;c.maoNumbers=c.mao;
+  /* if they said they'd take less than our numbers allow, that's the most we pay, and the opening goes below it */
+  const fl=theirFloor(d);c.floor=fl;if(fl!=null&&c.mao>fl){c.mao=fl;c.capByThem=true}
+  const gap=(s.anchorGap||0)/100;let open=floor500(c.mao*(1-gap));
+  if(fl!=null)open=Math.min(open,floor500(fl*(1-gap)));
   if(L)open=Math.min(open,floor500(L*.97));
   c.opening=Math.max(0,open);
   c.target=d.targetPrice>0?d.targetPrice:round500(c.opening+(c.mao-c.opening)*((s.targetPct??40)/100));
@@ -294,7 +301,7 @@ function calc(d){
   c.wsAt=P=>P==null?null:{fee:c.buyerMax-P};
   c.resultAt=P=>{if(P==null)return null;if(strat==='wholesale'){const f=c.buyerMax-P;return {val:f,label:money(f)+' fee',ok:f>=0}}const r=c.flipAt(P);return {val:r.profit,label:money(r.profit)+' · '+pct(r.roi,1)+' ROI',ok:r.profit>=0}};
   c.dead=c.mao<=0;
-  const cr=state.settings.creative;c.sfCap=floor500(c.mao*(1+(cr.maxOverPct||0)/100));
+  const cr=state.settings.creative;c.sfCap=floor500(c.maoNumbers*(1+(cr.maxOverPct||0)/100));
   const w=weightedArv(d);
   if(w&&w.arv){const d2=Object.assign({},d,{arv:w.arv,lockedMao:null});const tmp=calcBase(d2);c.compArv=w.arv;c.compCeiling=tmp}
   return c;
@@ -749,9 +756,9 @@ Reply with only JSON:
 }
 const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler email or text. Use null for anything not stated. Numbers are plain numbers in dollars or square feet.
 
-Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
+Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. "acceptPrice" is the lowest price they say they would take, if they say one (for example "with a cash offer we can probably accept 47,000" means 47000); otherwise null. An alert email can list many properties: include every one, keep each description under 25 words and at most 2 red flags, so the whole answer stays short.
 
-Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
+Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
 Message:
 """${t.slice(0,16000)}"""`;
@@ -989,10 +996,42 @@ async function syncWholesalerEmails(acct){
   const r=await bridge('search',{query:buildQuery(),max:30},acct.id);let n=0;
   const seen=new Set(Object.values(state.deals).flatMap(d=>d.seenMsgIds||[]));
   const agentEmails=new Set(Object.values(state.deals).filter(d=>d.source!=='wholesaler').map(d=>((d.agent&&d.agent.email)||'').trim().toLowerCase()).filter(Boolean));
-  for(const m of r.messages||[]){if(state.mail.emails[m.id]||seen.has(m.id))continue;if(agentEmails.has(parseFrom(m.from).email))continue;if(connectedAccts().some(a=>(acctInfo(a.id).email||'').toLowerCase()===parseFrom(m.from).email))continue;state.mail.emails[m.id]=Object.assign({},m,{status:'new',acct:acct.id});n++}
+  const replied=[];
+  for(const m of r.messages||[]){if(state.mail.emails[m.id]||seen.has(m.id))continue;if(agentEmails.has(parseFrom(m.from).email))continue;if(connectedAccts().some(a=>(acctInfo(a.id).email||'').toLowerCase()===parseFrom(m.from).email))continue;
+    const tgt=replyTarget(m);if(tgt){takeReply(tgt,m,acct);replied.push([tgt.id,m]);continue}
+    state.mail.emails[m.id]=Object.assign({},m,{status:'new',acct:acct.id});n++}
   saveMail();
+  for(const [id,m] of replied)if((m.atts||0)>0){try{await pullDealAttachments(id,true,[m.id])}catch(e){}}
   if(n&&state.settings.conn.autoImport&&aiOn()){for(const m of Object.values(state.mail.emails).filter(x=>x.status==='new').sort(byDate).reverse().slice(0,8))await importEmail(m.id,true)}
   return n;
+}
+function replyTarget(m){
+  const em=parseFrom(m.from).email;const live=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!d.linksOnly&&d.agent&&replyable(d.agent.email));
+  const byThread=live.find(d=>d.gmailThreadId&&d.gmailThreadId===m.threadId);if(byThread)return byThread;
+  if(!/^\s*re\s*:/i.test(m.subject||''))return null;
+  const bySender=live.filter(d=>(d.agent.email||'').trim().toLowerCase()===em&&(outs(d).length||d.convo));
+  return bySender.length===1?bySender[0]:null;
+}
+function takeReply(d,m,acct){
+  d.seenMsgIds=(d.seenMsgIds||[]).concat(m.id).slice(-200);
+  receive(d,{dir:'in',channel:'email',subject:m.subject||'',text:stripQuoted(m.body),at:m.date,gmailId:m.id,atts:m.atts||0,inbox:acctInfo(acct.id).email});
+  d.convo=true;if(!d.gmailThreadId){d.gmailThreadId=m.threadId;d.gmailAccount=acct.id}
+  state.mail.emails[m.id]=Object.assign({},m,{status:'reply',acct:acct.id,dealIds:[d.id]});saveDeal(d,true);
+}
+/* someone answered and Maya isn't on autopilot for that deal: she still drafts the answer for you to review */
+async function draftReplies(){
+  if(!aiOn())return 0;let k=0;
+  for(const d of Object.values(state.deals)){
+    if(k>=5||timeUp())break;
+    if(d.example||d.optedOut||(d.autopilot&&state.settings.auto.enabled)||!replyWaiting(d))continue;
+    const li=ins(d).slice(-1)[0];const tag=li&&(li.gmailId||li.at);if(!li||d.draftedFor===tag)continue;
+    if(d.draft){if(String(d.draft.at)>String(li.at))continue;d.draft=null}   /* a draft older than their newest message is out of date */
+    d.draftedFor=tag;saveDeal(d,true);
+    await aiReply(d.id,null,true);
+    const dd=state.deals[d.id];if(dd&&dd.draft){dd.needsYou=dd.needsYou||`review the reply ${negName()} drafted`;saveDeal(dd,true);k++;
+      pingOwner(dd,'needs',`${((dd.agent&&dd.agent.name)||'They').replace(/\s*\(example\)/i,'')} replied. ${negName()} drafted an answer for you to review.`,tag)}
+  }
+  return k;
 }
 function chooseDeal(cands,m){
   if(cands.length<2)return cands[0];
@@ -1010,7 +1049,7 @@ function receive(d,msg){
   d.needsYou=null;
 }
 async function syncReplies(acct){
-  const live=Object.values(state.deals).filter(d=>['sent','negotiating','contract'].includes(d.stage)&&!d.optedOut&&d.agent&&d.agent.email&&outs(d).length);
+  const live=Object.values(state.deals).filter(d=>['sent','negotiating','contract'].includes(d.stage)&&!d.optedOut&&!d.example&&d.agent&&replyable(d.agent.email)&&(outs(d).length||d.convo));
   if(!live.length)return 0;
   const emails=[...new Set(live.map(d=>d.agent.email.trim().toLowerCase()))];let n=0;
   for(let i=0;i<emails.length;i+=15){
@@ -1021,8 +1060,9 @@ async function syncReplies(acct){
       const cands=live.filter(d=>d.agent.email.trim().toLowerCase()===em&&!(d.seenMsgIds||[]).includes(m.id));
       const d=chooseDeal(cands,m);if(!d)continue;
       d.seenMsgIds=(d.seenMsgIds||[]).concat(m.id).slice(-200);
-      if(String(m.date)<String(outs(d)[0].at)){saveDeal(d,true);continue}
-      receive(d,{dir:'in',channel:'email',subject:m.subject||'',text:stripQuoted(m.body),at:m.date,gmailId:m.id,inbox:acctInfo(acct.id).email});
+      const o0=outs(d)[0];if(o0&&String(m.date)<String(o0.at)){saveDeal(d,true);continue}
+      receive(d,{dir:'in',channel:'email',subject:m.subject||'',text:stripQuoted(m.body),at:m.date,gmailId:m.id,atts:m.atts||0,inbox:acctInfo(acct.id).email});
+      if((m.atts||0)>0){try{await pullDealAttachments(d.id,true,[m.id])}catch(e){}}
       if(!d.gmailThreadId||(d.gmailAccount!==sendAcct().id&&acct.id===sendAcct().id)){d.gmailThreadId=m.threadId;d.gmailAccount=acct.id}
       saveDeal(d,true);n++;
     }
@@ -1063,6 +1103,7 @@ async function syncAll(manual){
     if(fails.length&&fails.length===connectedAccts().length)throw {code:'bridge_err',message:fails.join(' / ')};
     if(fails.length)logActivity(null,'warn','Gmail check failed for '+fails.join(' / '));
     const t=(smsOn()||gvOn())?await syncTexts():0;
+    try{await draftReplies()}catch(e){}
     state.mail.lastSync=nowISO();saveMail();persist('deals');
     if(manual||r||t){const head=`Checked Gmail: ${e?`${e} new wholesaler email${e===1?'':'s'}`:'no new wholesaler emails since the last check'}, ${r} new repl${r===1?'y':'ies'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}.`;
       toast(manual?head+' '+mailRecap():head,manual?9000:3800)}
@@ -1152,6 +1193,7 @@ async function autopilotRun(manual){
       if(d.draft){if(d.needsYou)continue;
         /* a draft written before their latest message is out of date: drop it, a fresh one comes next run */
         const li=ins(d).slice(-1)[0];if(li&&String(li.at)>String(d.draft.at)){d.draft=null;saveDeal(d,true);continue}}
+      else if(replyWaiting(d)&&!ourCount(d)&&d.convo)await aiReply(id,null,true);
       else if(!ourCount(d)){if(d.campaign||openings<=0||!hasStreet(d)||overBox(d)||openingsToday()>=(+state.settings.auto.maxOpeningsDay||10))continue;await aiOpening(id,true)}
       else if(replyWaiting(d)){
         if(!d.deepOnReply&&!WORKER.on){const pre=state.deals[id];pre.deepOnReply=nowISO();saveDeal(pre,true);if(!pre.analysis||String(pre.analysis.at)<String(firstOfferAt(pre)||''))await aiDeep(id,true);if(!calc(state.deals[id]).ready)continue}
@@ -1521,7 +1563,7 @@ async function extractDeals(text,meta,busyKey,quiet){
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[],relinked=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
+  const made=[],relinked=[],touched=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
@@ -1529,17 +1571,19 @@ async function extractDeals(text,meta,busyKey,quiet){
     /* reading an email again: a house already pulled from this same email (same ZIP and price) is that deal, never a copy */
     const xs=hasStreet({address:String(x.address||'')});
     const twin=meta.msgId?Object.values(state.deals).find(o=>o.source==='wholesaler'&&!o.example&&!made.includes(o.id)&&(o.seenMsgIds||[]).includes(meta.msgId)&&String(o.zip||'').slice(0,5)===String(x.zip||'').slice(0,5)&&curList(o)===(asking??null)&&(!xs||!hasStreet(o)||dealKey(o)===dealKey({address:String(x.address),zip:String(x.zip||'')}))):null;
-    if(twin&&hasStreet(twin)){updated++;continue}
+    if(twin&&hasStreet(twin)){updated++;touched.push(twin.id);continue}
     if(twin){if(xs)twin.address=String(x.address);
       const nl=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].filter(u=>/^https?:/i.test(u));
       if(nl.length){twin.links=nl.slice(0,8);twin.linksOnly=list.length>1}
       for(const k of ['beds','baths','sqft','year']){const v=parseNum(x[k]);if(twin[k]==null&&v!=null)twin[k]=v}
-      delete twin.linkFill;saveDeal(twin,true);relinked.push(twin.id);updated++;continue}
+      if(parseNum(x.acceptPrice))twin.wsClaims=Object.assign({},twin.wsClaims,{accept:parseNum(x.acceptPrice)});
+      delete twin.linkFill;saveDeal(twin,true);relinked.push(twin.id);touched.push(twin.id);updated++;continue}
     const old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
-    if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;continue}
-    const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
+    if(old&&parseNum(x.acceptPrice))old.wsClaims=Object.assign({},old.wsClaims,{accept:parseNum(x.acceptPrice)});
+    if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
+    const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),occupancy:x.occupancy||''},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
@@ -1551,13 +1595,13 @@ async function extractDeals(text,meta,busyKey,quiet){
   /* open each deal's links first (address, numbers, Drive photos), then research the ones at or under his buy box */
   const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
   made.forEach(afterNewDeal);relinked.forEach(afterNewDeal);
-  return {deals:made,relinked,updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
+  return {deals:made,relinked,touched:[...new Set([...made,...touched])],updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
 /* what Maya did with the last 30 days of wholesaler emails, so "0 new" never looks like nothing happened */
 function mailStats(){
   const since=Date.now()-30*DAY;const ms=Object.values(state.mail.emails).filter(m=>new Date(m.date||0).getTime()>=since);
   const st={read:0,withDeals:0,noDeal:0,waiting:0,deals:0,over:0,passed:0,gone:0};
-  for(const m of ms){if(m.status==='new'){st.waiting++;continue}if(m.status==='ignored')continue;st.read++;
+  for(const m of ms){if(m.status==='new'){st.waiting++;continue}if(m.status==='ignored'||m.status==='reply')continue;st.read++;
     if(m.status==='nodeal'){st.noDeal++;continue}st.withDeals++;
     for(const id of m.dealIds||[]){const d=state.deals[id];if(!d){st.gone++;continue}st.deals++;if(d.stage==='dead')st.passed++;else if(overBox(d))st.over++}}
   return st;
@@ -1570,6 +1614,36 @@ function mailRecap(st){st=st||mailStats();
   if(st.waiting)p.push(`${st.waiting} waiting: press Pull out all`);
   return p.join(' · ')+'.';
 }
+/* ---------- photos attached to a deal's emails ----------
+   Pulled once per email. In 24/7 mode there's no photo storage, so they wait for the next device that opens.
+   Gmail script v6 sends big phone photos (up to 10 MB) in batches and says which ones it had to skip. */
+function attMsgs(d){const ids=new Set();for(const id of d.seenMsgIds||[]){const m=state.mail.emails[id];if(m&&(m.atts||0)>0)ids.add(id)}
+  for(const t of d.thread||[])if(t.dir==='in'&&t.gmailId&&(t.atts||0)>0)ids.add(t.gmailId);return [...ids]}
+async function pullDealAttachments(id,quiet,only){
+  const d=state.deals[id];if(!d||d.example||!gmailOn())return 0;
+  const done=new Set(d.attDone||[]);const todo=(only||attMsgs(d)).filter(m=>!done.has(m));if(!todo.length)return 0;
+  if(WORKER.on||!IDB.db){d.attPending=true;saveDeal(d,true);return 0}
+  let added=0;const skipped=(d.attSkipped||[]).slice();
+  for(const mid of todo){
+    const rec=state.mail.emails[mid]||{};const acct=rec.acct||d.gmailAccount||undefined;let start=0,guard=0,got=0,ok=false;
+    try{while(start!=null&&guard++<8){const r=await bridge('attachments',{id:mid,max:12,start},acct);ok=true;
+        const blobs=(r.files||[]).map(x=>b64ToBlob(x.data,x.type));got+=blobs.length;if(blobs.length)added+=await addPhotoBlobs(id,blobs,'email');
+        for(const x of r.skipped||[])skipped.push({msg:mid,name:String(x.name||''),why:String(x.why||'')});start=r.next==null?null:r.next}}
+    catch(e){if(!quiet)toast(bridgeErr(e),5200)}
+    if(!ok)continue;done.add(mid);
+    const tm=(d.thread||[]).find(t=>t.gmailId===mid);const expected=+(rec.atts||(tm&&tm.atts)||0);
+    if(!got&&expected&&!skipped.some(x=>x.msg===mid))skipped.push({msg:mid,name:'',why:'old_script',n:expected});
+  }
+  const dd=state.deals[id];if(!dd)return added;dd.attDone=[...done].slice(-100);dd.attSkipped=skipped.slice(-40);delete dd.attPending;saveDeal(dd,true);
+  if(added)logActivity(id,'info',`${negName()} added ${added} photo${added>1?'s':''} from the email${todo.length>1?'s':''} on ${streetOf(dd.address)}.`);
+  render();return added;
+}
+/* on open: deals whose email photos haven't come in yet (24/7 brought them in, or they arrived before this version) */
+async function resumeAttachments(){if(WORKER.on||!gmailOn()||!IDB.db)return;
+  if(bridgeV()>=6)for(const d of Object.values(state.deals)){const old=(d.attSkipped||[]).filter(x=>x.why==='old_script').map(x=>x.msg);if(!old.length)continue;
+    d.attDone=(d.attDone||[]).filter(m=>!old.includes(m));d.attSkipped=(d.attSkipped||[]).filter(x=>x.why!=='old_script');saveDeal(d,true)}
+  const ds=Object.values(state.deals).filter(d=>!d.example&&!['dead','closed'].includes(d.stage)&&(d.attPending||attMsgs(d).some(m=>!(d.attDone||[]).includes(m)))).slice(0,6);
+  for(const d of ds){try{await pullDealAttachments(d.id,true)}catch(e){}}}
 /* one plain sentence about what "Pull out" did, so it never looks like nothing happened */
 function pullSummary(rs){
   const ok=rs.filter(r=>r&&!r.err);const add=ok.reduce((a,r)=>a+(r.deals||[]).length,0),upd=ok.reduce((a,r)=>a+(r.updated||0),0),over=ok.reduce((a,r)=>a+(r.over||0),0);
@@ -1585,9 +1659,9 @@ function pullSummary(rs){
 }
 async function importEmail(id,quiet){
   const m=state.mail.emails[id];if(!m)return;const f=parseFrom(m.from);
-  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email'},'mail:'+id,quiet);
+  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email',subject:m.subject||''},'mail:'+id,quiet);
   if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated||(mm.dealIds||[]).length?'imported':'nodeal';mm.dealIds=[...new Set([...(mm.dealIds||[]),...r.deals,...(r.relinked||[])])]}saveMail();
-  if(r.deals.length===1&&(m.atts||0)>0){try{const a=await bridge('attachments',{id:m.id,max:8},m.acct||undefined);const blobs=(a.files||[]).map(x=>b64ToBlob(x.data,x.type));if(blobs.length)await addPhotoBlobs(r.deals[0],blobs,'email')}catch(e){}}
+  if((m.atts||0)>0&&(r.touched||[]).length===1)await pullDealAttachments(r.touched[0],true,[m.id]);
   render();if(!quiet)toast(pullSummary([r]),6000);
   return r;
 }
@@ -1658,10 +1732,10 @@ async function quickAction(id,qa){
   await aiReply(id,q.ins,false,`${negName()}: ${q.label.toLowerCase()}…`);
   const dd=state.deals[id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:`Draft ready below${dd.draft.price?' at '+money(dd.draft.price):''}. ${dd.draft.why||''}`.trim(),at:nowISO()});saveDeal(dd)}
 }
-async function aiDeep(id,quiet){
+async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
-  const model=bigModel();
+  const model=forceModel||bigModel();
   const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
   dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
@@ -1670,7 +1744,7 @@ async function aiDeep(id,quiet){
   const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));
   const lines=fromBook.length||custom.length?[...fromBook,...custom]:(Array.isArray(res.rehabLines)?res.rehabLines.map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)})):[]);
   if(lines.length){dd.rehabLines=lines;dd.rehabCont=parseNum(res.contingencyPct)??10;
-    const tot=Math.round(dd.rehabLines.reduce((a,x)=>a+(x.cost||0),0)*(1+(dd.rehabCont||0)/100));if(!dd.rehab||dd.rehabSource==='maya'){dd.rehab=tot;dd.rehabSource='maya'}}
+    const tot=Math.round(dd.rehabLines.reduce((a,x)=>a+(x.cost||0),0)*(1+(dd.rehabCont||0)/100));if(!dd.rehab||dd.rehabSource==='maya'||rehabTheirs(dd)){dd.rehab=tot;dd.rehabSource='maya'}}
   const av=res.arv&&parseNum(res.arv.value);if(av&&(!dd.arv||dd.arvSource==='maya')){dd.arv=floor500(av);dd.arvSource='maya'}
   const rv=res.rent&&parseNum(res.rent.value);if(rv&&!dd.rent)dd.rentEst=rv;
   if(res.rooms){if(!dd.beds&&parseNum(res.rooms.bedrooms))dd.beds=parseNum(res.rooms.bedrooms);if(!dd.baths&&parseNum(res.rooms.bathrooms))dd.baths=parseNum(res.rooms.bathrooms)}
@@ -1833,6 +1907,7 @@ function promptResearch(d,ctx){
 Property: ${where||'unknown address'}
 ${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
 ${(d.description||'').slice(0,1200)}
+${ins(d).length?`What they wrote to us (newest last):\n${ins(d).slice(-4).map(t=>'--- '+String(t.text||'').slice(0,1500)).join('\n')}`:''}
 ${ctx.links.length?`Links that came with the deal (open the ones that help):\n${ctx.links.map(u=>'- '+u).join('\n')}`:''}
 ${ctx.pages.length?`Pages we already opened for you (trimmed):\n${ctx.pages.map(p=>`--- ${p.url} (${p.title||''})\n${p.text.slice(0,6000)}`).join('\n')}`:''}
 ${ctx.blocked.length?`These links blocked our robot: ${ctx.blocked.join(', ')}`:''}
@@ -1844,7 +1919,7 @@ Find:
 4. A market rent estimate with the source.
 5. Check every number the ${isWs?'wholesaler':'listing'} gives against what you found.
 6. Red flags: flood zone, foundation, fire, tenant-occupied, HOA, code violations, unpermitted work, auctions or liens, anything odd in the history.
-Our current ARV on file is ${money(c.A)}; give your own view of ARV from the comps.
+Our current ARV on file is ${money(c.A)}${arvTheirs(d)?' (that is the wholesaler’s claim, not checked)':''}; give your own ARV from the renovated sold comps, and say in \"why\" which comps it rests on.
 
 Finish with only this JSON (no text after it):
 {"facts":{"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other|null","source":"url"},
@@ -1853,6 +1928,7 @@ Finish with only this JSON (no text after it):
 "rent":{"value":number|null,"why":"one sentence","source":"url"},
 "arv":{"value":number|null,"low":number|null,"high":number|null,"why":"one or two sentences"},
 "claimsCheck":[{"claim":"what they say","found":"what you found","verdict":"matches|off|unverified"}],
+"sellerLowest":{"price":number|null,"quote":"their exact words, if they said the lowest price they would take (e.g. 'with a cash offer we can probably accept 47,000')"},
 "redFlags":["..."],"couldNotOpen":["urls you could not read"],
 "summary":"three or four plain sentences for the investor: is this worth pursuing and why"}`;
 }
@@ -1861,7 +1937,7 @@ async function openLinks(id,links,opts){
   opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[],why={};let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess,why};
   for(const u of links.slice(0,5)){
     let r;const hit=LINKCACHE.get(u);
-    if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});if(r.kind!=='blocked')LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
+    if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
     if(r.kind==='page'&&ROBOT_PAGE.test(String(r.title||'')+' '+String(r.text||'').slice(0,600)))r=Object.assign({},r,{kind:'blocked',status:'robot_check'});
     if(r.kind==='blocked'){blocked.push(u);why[u]=r.status;if(r.status==='drive_no_access')noAccess.push(u);
       /* the page is blocked, but the web address it led to often spells out the street address */
@@ -2018,21 +2094,21 @@ function resumeLinks(){
   drainLinks();
   if(reread.length)relinkEmails(reread.slice(0,10));
 }
-async function researchDeal(id,quiet,auto){
+async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   const d=state.deals[id];if(!d)return;if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return}
   if(state.busy['research:'+id])return;
   const links=dealLinks(d);const before=photoCount(d);
   state.busy['research:'+id]={label:links.length&&gmailOn()?`${negName()} is opening the links…`:`${negName()} is researching ${streetOf(d.address)}…`};render();
   let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
   const dd=state.deals[id];if(!dd)return;
-  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:bigModel(),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
+  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:(opts.model||bigModel()),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
   if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
   const d2=state.deals[id];if(!d2)return;
   applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
-  if(!auto&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
-  if(!quiet)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
+  if(!auto&&!opts.noDeep&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(!quiet&&!opts.noDeep)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
 }
 function applyResearch(d,j,res,got){
   const f=j.facts||{};for(const k of ['beds','baths','sqft','lotSqft','year']){const v=parseNum(f[k]);if(v!=null&&d[k]==null)d[k]=v}
@@ -2041,18 +2117,56 @@ function applyResearch(d,j,res,got){
   const have=new Set((d.comps||[]).map(x=>normAddr(x.addr)));const comps=(Array.isArray(j.comps)?j.comps:[]).filter(x=>parseNum(x.price)&&x.addr&&!have.has(normAddr(x.addr))&&normAddr(x.addr)!==normAddr(streetOf(d.address)));
   d.comps=(d.comps||[]).concat(comps.slice(0,12).map(x=>({addr:String(x.addr),price:parseNum(x.price),soldDate:x.soldDate?isoDay(x.soldDate):'',sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true,url:String(x.url||''),web:true})));
   const rv=j.rent&&parseNum(j.rent.value);if(rv&&!d.rent)d.rentEst=rv;
+  const ra=j.arv&&parseNum(j.arv.value);
+  if(ra&&(arvTheirs(d)||!d.arv||['maya','comps'].includes(d.arvSource))){if(arvTheirs(d)&&d.arv)d.wsClaims=Object.assign({},d.wsClaims,{arv:(d.wsClaims||{}).arv??d.arv});
+    d.arv=floor500(ra);d.arvSource=(d.comps||[]).length?'comps':'maya';d.arvWhy=String(j.arv.why||'').slice(0,400)}
+  const sl=j.sellerLowest&&parseNum(j.sellerLowest.price);if(sl&&sl>0){const cur=parseNum((d.wsClaims||{}).accept);if(cur==null||sl<cur||(sl===cur&&!(d.wsClaims||{}).acceptQuote))d.wsClaims=Object.assign({},d.wsClaims,{accept:sl,acceptQuote:String(j.sellerLowest.quote||'').slice(0,200)})}
   d.research={at:nowISO(),summary:String(j.summary||''),claims:(j.claimsCheck||[]).slice(0,12).map(x=>({claim:String(x.claim||''),found:String(x.found||''),verdict:['matches','off','unverified'].includes(x.verdict)?x.verdict:'unverified'})),
     redFlags:(j.redFlags||[]).map(String).slice(0,10),arv:j.arv||null,rent:j.rent||null,couldNotOpen:[...new Set([...(j.couldNotOpen||[]).map(String),...(got.blocked||[]),...(res.failed||[]).map(x=>x.url)])].slice(0,8),
     sources:(res.sources||[]).slice(0,14),searches:res.searches||0,photos:got.photos||0,comps:comps.length,events:hist.length};
 }
+/* ================= In-depth analysis: Opus 5.5, only when you press it =================
+   Photos from the emails and links, then Opus research (history, sold comps, its own ARV, the seller's lowest price),
+   then an Opus inspection that prices every repair line with a reason. The numbers update from Maya's own work. */
+async function inDepth(id){
+  const d=state.deals[id];if(!d)return;if(!aiOn()){toast(aiErr({code:'no_ai'}),5200);return}
+  const key='depth:'+id;if(state.busy[key])return;const n=negName();const before=spendBy(1).t;
+  const step=l=>{state.busy[key]={label:l};render()};
+  try{
+    step(`${n} is gathering the photos from the emails and links…`);
+    try{await pullDealAttachments(id,true)}catch(e){}
+    if(gmailOn()&&dealLinks(state.deals[id]||{}).length){try{await fillFromLinks(id,true,true)}catch(e){}}
+    step(`${n} is researching with Opus 5.5: sale history, sold comps and her own ARV…`);
+    await researchDeal(id,true,false,{model:'claude-opus-5-5',noDeep:true});
+    const pc=photoCount(state.deals[id]||{});
+    step(pc?`${n} is inspecting ${pc} photo${pc>1?'s':''} with Opus 5.5 and pricing every repair…`:`${n} has no photos, so she’s estimating repairs from the description with Opus 5.5…`);
+    await aiDeep(id,true,'claude-opus-5-5');
+  }finally{delete state.busy[key];render()}
+  const dd=state.deals[id];if(!dd)return;const c=calc(dd);const errs=state.aiErrs||{};
+  const err=errs['research:'+id]||errs['deep:'+id]||null;
+  dd.depth={at:nowISO(),arv:dd.arv,arvSource:dd.arvSource,arvWhy:dd.arvWhy||'',rehab:dd.rehab,rehabSource:dd.rehabSource,comps:(dd.comps||[]).filter(x=>x.web).length,photos:photoCount(dd),floor:c.floor,mao:c.mao,opening:c.opening,capByThem:!!c.capByThem,cost:+(spendBy(1).t-before).toFixed(4),err};
+  saveDeal(dd);logActivity(id,'info',`${n} finished the in-depth analysis of ${streetOf(dd.address)} (about ${usd(dd.depth.cost)}).`);
+  toast(err?`In-depth analysis partly done: ${err}`:`In-depth analysis done (${usd(dd.depth.cost)}). ARV ${money(dd.arv)}, repairs ${money(dd.rehab)}, ceiling ${money(c.mao)}, opening ${money(c.opening)}.`,8000);
+}
+function depthHTML(d){
+  const D=d.depth;const n=esc(negName());const busy=state.busy['depth:'+d.id];if(!D&&!busy)return '';
+  const c=calc(d);const comps=(d.comps||[]).filter(x=>x.web).length;
+  return `<div class="depth">${busy?busyHTML('depth:'+d.id,false):''}${D?`<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>In-depth analysis</b><span class="xs muted">${fmtWhen(D.at)} · Opus 5.5 · cost ${usd(D.cost)}</span></div>
+    <ul class="small" style="margin:6px 0 0;padding-left:18px;display:grid;gap:4px">
+      <li><b>ARV ${money(d.arv)}</b> ${d.arvSource==='comps'?`from ${comps} sold comp${comps===1?'':'s'} (listed below)`:d.arvSource==='maya'?`${n}’s estimate (few good comps found)`:arvTheirs(d)?'is still the wholesaler’s claim: no usable comps found':'(your number)'}${d.arvWhy?`. ${esc(d.arvWhy)}`:''}${(d.wsClaims||{}).arv&&!arvTheirs(d)?` The wholesaler said ${money(d.wsClaims.arv)}.`:''}</li>
+      <li><b>Repairs ${money(d.rehab)}</b> ${d.rehabSource==='maya'?`from ${D.photos?D.photos+' photo'+(D.photos>1?'s':''):'the description (no photos yet)'}, line by line in the inspection below`:rehabTheirs(d)?'is still the wholesaler’s claim':'(your number)'}</li>
+      ${c.floor!=null&&(d.wsClaims||{}).accept?`<li><b>They’d take ${money(d.wsClaims.accept)}</b>${d.wsClaims.acceptQuote?`: “${esc(d.wsClaims.acceptQuote)}”`:''}</li>`:''}
+      <li><b>Ceiling ${money(c.mao)}</b>${c.capByThem?` (capped at what they’d take; your numbers allow ${money(c.maoNumbers)})`:''} · <b>opening offer ${money(c.opening)}</b></li></ul>
+    ${D.err?`<div class="note amber small">Part of it didn’t finish: ${esc(D.err)}</div>`:''}`:''}</div>`;
+}
 function researchCard(d){
   const R=d.research;const n=esc(negName());const busy=state.busy['research:'+d.id];const links=dealLinks(d);
   const vt={matches:['Matches','green'],off:['Off','red'],unverified:['Unverified','slate']};
-  if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="research" ${busy||!aiOn()?'disabled':''}>${ico('spark')}Research this deal</button></div></div>${busyHTML('research:'+d.id)}
+  if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="in-depth" ${busy||state.busy['depth:'+d.id]||!aiOn()?'disabled':''}>${ico('spark')}In-depth analysis (Opus)</button></div></div>${busyHTML('research:'+d.id)}${depthHTML(d)}
     ${d.researchSkip==='price'?`<p class="small">${n} didn’t research this one on her own: the asking is already well above your ceiling, so it isn’t worth paying for.</p>`:d.researchSkip==='cap'?`<p class="small">${n} skipped this one: she already did today’s ${(state.settings.research||{}).dailyMax??3} automatic researches. Press the button if you want it.</p>`:d.researchSkip==='address'&&!hasStreet(d)?`<p class="small">${n} will research this once it has a street address (research without one can’t find the history or nearby sales).</p>`:''}
-    <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}Takes about a minute and usually costs 10–30¢ on your Anthropic account. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
+    <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}In-depth analysis uses Opus 5.5: it pulls the photos, finds the sale history and sold comps for its own ARV, and prices every repair from the photos. It takes a couple of minutes and roughly 50¢–$1; the meter shows the exact cost. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
   const arv=R.arv&&parseNum(R.arv.value);
-  return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm" data-act="research" ${busy?'disabled':''}>${ico('refresh')}Run again</button></div></div>${busyHTML('research:'+d.id)}
+  return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm primary" data-act="in-depth" ${busy||state.busy['depth:'+d.id]?'disabled':''}>${ico('spark')}In-depth analysis (Opus)</button></div></div>${busyHTML('research:'+d.id)}${depthHTML(d)}
   ${R.summary?`<p>${esc(R.summary)}</p>`:''}
   ${arv?`<div class="row"><span class="chip">${n}’s ARV view <b>${money(arv)}</b>${R.arv.low?` (${moneyK(R.arv.low)}–${moneyK(R.arv.high)})`:''}</span>${R.arv.why?`<span class="small muted">${esc(R.arv.why)}</span>`:''}</div>`:''}
   ${R.claims.length?`<div class="tbl-wrap"><table class="tbl" style="min-width:620px"><thead><tr><th>They say</th><th>${n} found</th><th>Verdict</th></tr></thead><tbody>${R.claims.map(x=>`<tr style="cursor:default"><td>${esc(x.claim)}</td><td>${esc(x.found)}</td><td><span class="tag ${vt[x.verdict][1]}">${vt[x.verdict][0]}</span></td></tr>`).join('')}</tbody></table></div>`:''}

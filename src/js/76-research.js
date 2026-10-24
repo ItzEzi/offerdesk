@@ -88,6 +88,7 @@ function promptResearch(d,ctx){
 Property: ${where||'unknown address'}
 ${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
 ${(d.description||'').slice(0,1200)}
+${ins(d).length?`What they wrote to us (newest last):\n${ins(d).slice(-4).map(t=>'--- '+String(t.text||'').slice(0,1500)).join('\n')}`:''}
 ${ctx.links.length?`Links that came with the deal (open the ones that help):\n${ctx.links.map(u=>'- '+u).join('\n')}`:''}
 ${ctx.pages.length?`Pages we already opened for you (trimmed):\n${ctx.pages.map(p=>`--- ${p.url} (${p.title||''})\n${p.text.slice(0,6000)}`).join('\n')}`:''}
 ${ctx.blocked.length?`These links blocked our robot: ${ctx.blocked.join(', ')}`:''}
@@ -99,7 +100,7 @@ Find:
 4. A market rent estimate with the source.
 5. Check every number the ${isWs?'wholesaler':'listing'} gives against what you found.
 6. Red flags: flood zone, foundation, fire, tenant-occupied, HOA, code violations, unpermitted work, auctions or liens, anything odd in the history.
-Our current ARV on file is ${money(c.A)}; give your own view of ARV from the comps.
+Our current ARV on file is ${money(c.A)}${arvTheirs(d)?' (that is the wholesaler’s claim, not checked)':''}; give your own ARV from the renovated sold comps, and say in \"why\" which comps it rests on.
 
 Finish with only this JSON (no text after it):
 {"facts":{"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other|null","source":"url"},
@@ -108,6 +109,7 @@ Finish with only this JSON (no text after it):
 "rent":{"value":number|null,"why":"one sentence","source":"url"},
 "arv":{"value":number|null,"low":number|null,"high":number|null,"why":"one or two sentences"},
 "claimsCheck":[{"claim":"what they say","found":"what you found","verdict":"matches|off|unverified"}],
+"sellerLowest":{"price":number|null,"quote":"their exact words, if they said the lowest price they would take (e.g. 'with a cash offer we can probably accept 47,000')"},
 "redFlags":["..."],"couldNotOpen":["urls you could not read"],
 "summary":"three or four plain sentences for the investor: is this worth pursuing and why"}`;
 }
@@ -116,7 +118,7 @@ async function openLinks(id,links,opts){
   opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[],why={};let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess,why};
   for(const u of links.slice(0,5)){
     let r;const hit=LINKCACHE.get(u);
-    if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});if(r.kind!=='blocked')LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
+    if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
     if(r.kind==='page'&&ROBOT_PAGE.test(String(r.title||'')+' '+String(r.text||'').slice(0,600)))r=Object.assign({},r,{kind:'blocked',status:'robot_check'});
     if(r.kind==='blocked'){blocked.push(u);why[u]=r.status;if(r.status==='drive_no_access')noAccess.push(u);
       /* the page is blocked, but the web address it led to often spells out the street address */
@@ -273,21 +275,21 @@ function resumeLinks(){
   drainLinks();
   if(reread.length)relinkEmails(reread.slice(0,10));
 }
-async function researchDeal(id,quiet,auto){
+async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   const d=state.deals[id];if(!d)return;if(!aiOn()){if(!quiet)toast(aiErr({code:'no_ai'}),5200);return}
   if(state.busy['research:'+id])return;
   const links=dealLinks(d);const before=photoCount(d);
   state.busy['research:'+id]={label:links.length&&gmailOn()?`${negName()} is opening the links…`:`${negName()} is researching ${streetOf(d.address)}…`};render();
   let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
   const dd=state.deals[id];if(!dd)return;
-  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:bigModel(),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
+  const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:(opts.model||bigModel()),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
   if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
   const d2=state.deals[id];if(!d2)return;
   applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
-  if(!auto&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
-  if(!quiet)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
+  if(!auto&&!opts.noDeep&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(!quiet&&!opts.noDeep)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
 }
 function applyResearch(d,j,res,got){
   const f=j.facts||{};for(const k of ['beds','baths','sqft','lotSqft','year']){const v=parseNum(f[k]);if(v!=null&&d[k]==null)d[k]=v}
@@ -296,18 +298,56 @@ function applyResearch(d,j,res,got){
   const have=new Set((d.comps||[]).map(x=>normAddr(x.addr)));const comps=(Array.isArray(j.comps)?j.comps:[]).filter(x=>parseNum(x.price)&&x.addr&&!have.has(normAddr(x.addr))&&normAddr(x.addr)!==normAddr(streetOf(d.address)));
   d.comps=(d.comps||[]).concat(comps.slice(0,12).map(x=>({addr:String(x.addr),price:parseNum(x.price),soldDate:x.soldDate?isoDay(x.soldDate):'',sqft:parseNum(x.sqft),beds:parseNum(x.beds),baths:parseNum(x.baths),dist:parseNum(x.dist),status:COMP_ST[x.status]?x.status:'sold',reno:x.reno===false?false:true,url:String(x.url||''),web:true})));
   const rv=j.rent&&parseNum(j.rent.value);if(rv&&!d.rent)d.rentEst=rv;
+  const ra=j.arv&&parseNum(j.arv.value);
+  if(ra&&(arvTheirs(d)||!d.arv||['maya','comps'].includes(d.arvSource))){if(arvTheirs(d)&&d.arv)d.wsClaims=Object.assign({},d.wsClaims,{arv:(d.wsClaims||{}).arv??d.arv});
+    d.arv=floor500(ra);d.arvSource=(d.comps||[]).length?'comps':'maya';d.arvWhy=String(j.arv.why||'').slice(0,400)}
+  const sl=j.sellerLowest&&parseNum(j.sellerLowest.price);if(sl&&sl>0){const cur=parseNum((d.wsClaims||{}).accept);if(cur==null||sl<cur||(sl===cur&&!(d.wsClaims||{}).acceptQuote))d.wsClaims=Object.assign({},d.wsClaims,{accept:sl,acceptQuote:String(j.sellerLowest.quote||'').slice(0,200)})}
   d.research={at:nowISO(),summary:String(j.summary||''),claims:(j.claimsCheck||[]).slice(0,12).map(x=>({claim:String(x.claim||''),found:String(x.found||''),verdict:['matches','off','unverified'].includes(x.verdict)?x.verdict:'unverified'})),
     redFlags:(j.redFlags||[]).map(String).slice(0,10),arv:j.arv||null,rent:j.rent||null,couldNotOpen:[...new Set([...(j.couldNotOpen||[]).map(String),...(got.blocked||[]),...(res.failed||[]).map(x=>x.url)])].slice(0,8),
     sources:(res.sources||[]).slice(0,14),searches:res.searches||0,photos:got.photos||0,comps:comps.length,events:hist.length};
 }
+/* ================= In-depth analysis: Opus 5.5, only when you press it =================
+   Photos from the emails and links, then Opus research (history, sold comps, its own ARV, the seller's lowest price),
+   then an Opus inspection that prices every repair line with a reason. The numbers update from Maya's own work. */
+async function inDepth(id){
+  const d=state.deals[id];if(!d)return;if(!aiOn()){toast(aiErr({code:'no_ai'}),5200);return}
+  const key='depth:'+id;if(state.busy[key])return;const n=negName();const before=spendBy(1).t;
+  const step=l=>{state.busy[key]={label:l};render()};
+  try{
+    step(`${n} is gathering the photos from the emails and links…`);
+    try{await pullDealAttachments(id,true)}catch(e){}
+    if(gmailOn()&&dealLinks(state.deals[id]||{}).length){try{await fillFromLinks(id,true,true)}catch(e){}}
+    step(`${n} is researching with Opus 5.5: sale history, sold comps and her own ARV…`);
+    await researchDeal(id,true,false,{model:'claude-opus-5-5',noDeep:true});
+    const pc=photoCount(state.deals[id]||{});
+    step(pc?`${n} is inspecting ${pc} photo${pc>1?'s':''} with Opus 5.5 and pricing every repair…`:`${n} has no photos, so she’s estimating repairs from the description with Opus 5.5…`);
+    await aiDeep(id,true,'claude-opus-5-5');
+  }finally{delete state.busy[key];render()}
+  const dd=state.deals[id];if(!dd)return;const c=calc(dd);const errs=state.aiErrs||{};
+  const err=errs['research:'+id]||errs['deep:'+id]||null;
+  dd.depth={at:nowISO(),arv:dd.arv,arvSource:dd.arvSource,arvWhy:dd.arvWhy||'',rehab:dd.rehab,rehabSource:dd.rehabSource,comps:(dd.comps||[]).filter(x=>x.web).length,photos:photoCount(dd),floor:c.floor,mao:c.mao,opening:c.opening,capByThem:!!c.capByThem,cost:+(spendBy(1).t-before).toFixed(4),err};
+  saveDeal(dd);logActivity(id,'info',`${n} finished the in-depth analysis of ${streetOf(dd.address)} (about ${usd(dd.depth.cost)}).`);
+  toast(err?`In-depth analysis partly done: ${err}`:`In-depth analysis done (${usd(dd.depth.cost)}). ARV ${money(dd.arv)}, repairs ${money(dd.rehab)}, ceiling ${money(c.mao)}, opening ${money(c.opening)}.`,8000);
+}
+function depthHTML(d){
+  const D=d.depth;const n=esc(negName());const busy=state.busy['depth:'+d.id];if(!D&&!busy)return '';
+  const c=calc(d);const comps=(d.comps||[]).filter(x=>x.web).length;
+  return `<div class="depth">${busy?busyHTML('depth:'+d.id,false):''}${D?`<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>In-depth analysis</b><span class="xs muted">${fmtWhen(D.at)} · Opus 5.5 · cost ${usd(D.cost)}</span></div>
+    <ul class="small" style="margin:6px 0 0;padding-left:18px;display:grid;gap:4px">
+      <li><b>ARV ${money(d.arv)}</b> ${d.arvSource==='comps'?`from ${comps} sold comp${comps===1?'':'s'} (listed below)`:d.arvSource==='maya'?`${n}’s estimate (few good comps found)`:arvTheirs(d)?'is still the wholesaler’s claim: no usable comps found':'(your number)'}${d.arvWhy?`. ${esc(d.arvWhy)}`:''}${(d.wsClaims||{}).arv&&!arvTheirs(d)?` The wholesaler said ${money(d.wsClaims.arv)}.`:''}</li>
+      <li><b>Repairs ${money(d.rehab)}</b> ${d.rehabSource==='maya'?`from ${D.photos?D.photos+' photo'+(D.photos>1?'s':''):'the description (no photos yet)'}, line by line in the inspection below`:rehabTheirs(d)?'is still the wholesaler’s claim':'(your number)'}</li>
+      ${c.floor!=null&&(d.wsClaims||{}).accept?`<li><b>They’d take ${money(d.wsClaims.accept)}</b>${d.wsClaims.acceptQuote?`: “${esc(d.wsClaims.acceptQuote)}”`:''}</li>`:''}
+      <li><b>Ceiling ${money(c.mao)}</b>${c.capByThem?` (capped at what they’d take; your numbers allow ${money(c.maoNumbers)})`:''} · <b>opening offer ${money(c.opening)}</b></li></ul>
+    ${D.err?`<div class="note amber small">Part of it didn’t finish: ${esc(D.err)}</div>`:''}`:''}</div>`;
+}
 function researchCard(d){
   const R=d.research;const n=esc(negName());const busy=state.busy['research:'+d.id];const links=dealLinks(d);
   const vt={matches:['Matches','green'],off:['Off','red'],unverified:['Unverified','slate']};
-  if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="research" ${busy||!aiOn()?'disabled':''}>${ico('spark')}Research this deal</button></div></div>${busyHTML('research:'+d.id)}
+  if(!R)return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>She opens the deal’s links, pulls the photos, finds the history and recent sales, and checks every number</p></div><div class="ch-r"><button class="btn primary" data-act="in-depth" ${busy||state.busy['depth:'+d.id]||!aiOn()?'disabled':''}>${ico('spark')}In-depth analysis (Opus)</button></div></div>${busyHTML('research:'+d.id)}${depthHTML(d)}
     ${d.researchSkip==='price'?`<p class="small">${n} didn’t research this one on her own: the asking is already well above your ceiling, so it isn’t worth paying for.</p>`:d.researchSkip==='cap'?`<p class="small">${n} skipped this one: she already did today’s ${(state.settings.research||{}).dailyMax??3} automatic researches. Press the button if you want it.</p>`:d.researchSkip==='address'&&!hasStreet(d)?`<p class="small">${n} will research this once it has a street address (research without one can’t find the history or nearby sales).</p>`:''}
-    <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}Takes about a minute and usually costs 10–30¢ on your Anthropic account. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
+    <p class="small muted">${links.length?`${links.length} link${links.length>1?'s':''} found with this deal${gmailOn()?'':' (connect Gmail so she can open Google Drive photo folders)'}. `:''}In-depth analysis uses Opus 5.5: it pulls the photos, finds the sale history and sold comps for its own ARV, and prices every repair from the photos. It takes a couple of minutes and roughly 50¢–$1; the meter shows the exact cost. Zillow and Realtor.com block robots, so for those she uses web search instead.</p></section>`;
   const arv=R.arv&&parseNum(R.arv.value);
-  return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm" data-act="research" ${busy?'disabled':''}>${ico('refresh')}Run again</button></div></div>${busyHTML('research:'+d.id)}
+  return `<section class="card" id="research"><div class="card-head"><span class="ci grad">${ico('search')}</span><div><h2>${n}’s research</h2><p>${fmtWhen(R.at)} · ${R.sources.length} source${R.sources.length===1?'':'s'}${R.comps?` · ${R.comps} comps added`:''}${R.events?` · ${R.events} history events`:''}${R.photos?` · ${R.photos} photos`:''}</p></div><div class="ch-r"><button class="btn sm primary" data-act="in-depth" ${busy||state.busy['depth:'+d.id]?'disabled':''}>${ico('spark')}In-depth analysis (Opus)</button></div></div>${busyHTML('research:'+d.id)}${depthHTML(d)}
   ${R.summary?`<p>${esc(R.summary)}</p>`:''}
   ${arv?`<div class="row"><span class="chip">${n}’s ARV view <b>${money(arv)}</b>${R.arv.low?` (${moneyK(R.arv.low)}–${moneyK(R.arv.high)})`:''}</span>${R.arv.why?`<span class="small muted">${esc(R.arv.why)}</span>`:''}</div>`:''}
   ${R.claims.length?`<div class="tbl-wrap"><table class="tbl" style="min-width:620px"><thead><tr><th>They say</th><th>${n} found</th><th>Verdict</th></tr></thead><tbody>${R.claims.map(x=>`<tr style="cursor:default"><td>${esc(x.claim)}</td><td>${esc(x.found)}</td><td><span class="tag ${vt[x.verdict][1]}">${vt[x.verdict][0]}</span></td></tr>`).join('')}</tbody></table></div>`:''}

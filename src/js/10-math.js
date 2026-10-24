@@ -10,10 +10,14 @@ const outs=d=>(d.thread||[]).filter(t=>t.dir==='out');
 const ins=d=>(d.thread||[]).filter(t=>t.dir==='in');
 const lastAt=a=>a.length?a[a.length-1].at:null;
 function lastOurPrice(d){const o=(d.offers||[]).filter(x=>x.by==='us');return o.length?o[o.length-1].price:null}
+/* the lowest price the other side has said they'd take: asking, a stated "we'd accept", or their last counter */
+function rehabTheirs(d){return d.rehabSource==='wholesaler'||(!d.rehabSource&&d.rehab!=null&&(d.wsClaims||{}).rehab===d.rehab)}
+function arvTheirs(d){return d.arvSource==='wholesaler'||((!d.arvSource||d.arvSource==='you')&&d.arv!=null&&d.source==='wholesaler'&&(d.wsClaims||{}).arv===d.arv)}
+function theirFloor(d){const v=[curList(d),parseNum((d.wsClaims||{}).accept),lastTheirPrice(d)].filter(x=>x!=null&&x>0);return v.length?Math.min(...v):null}
 function lastTheirPrice(d){const o=(d.offers||[]).filter(x=>x.by==='them');return o.length?o[o.length-1].price:null}
 function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.at:(outs(d)[0]||{}).at||null}
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
-function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo)}
+function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
 function followDue(d){
   if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||d.draft)return null;
   const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
@@ -50,8 +54,11 @@ function calc(d){
   c.maoWs=Math.max(0,floor500(c.buyerMax-(s.wsFee||0)));
   c.maoCalc=strat==='wholesale'?c.maoWs:c.maoFlip;
   c.locked=d.lockedMao>0;
-  c.mao=c.locked?d.lockedMao:c.maoCalc;
-  let open=floor500(c.mao*(1-(s.anchorGap||0)/100));
+  c.mao=c.locked?d.lockedMao:c.maoCalc;c.maoNumbers=c.mao;
+  /* if they said they'd take less than our numbers allow, that's the most we pay, and the opening goes below it */
+  const fl=theirFloor(d);c.floor=fl;if(fl!=null&&c.mao>fl){c.mao=fl;c.capByThem=true}
+  const gap=(s.anchorGap||0)/100;let open=floor500(c.mao*(1-gap));
+  if(fl!=null)open=Math.min(open,floor500(fl*(1-gap)));
   if(L)open=Math.min(open,floor500(L*.97));
   c.opening=Math.max(0,open);
   c.target=d.targetPrice>0?d.targetPrice:round500(c.opening+(c.mao-c.opening)*((s.targetPct??40)/100));
@@ -59,7 +66,7 @@ function calc(d){
   c.wsAt=P=>P==null?null:{fee:c.buyerMax-P};
   c.resultAt=P=>{if(P==null)return null;if(strat==='wholesale'){const f=c.buyerMax-P;return {val:f,label:money(f)+' fee',ok:f>=0}}const r=c.flipAt(P);return {val:r.profit,label:money(r.profit)+' · '+pct(r.roi,1)+' ROI',ok:r.profit>=0}};
   c.dead=c.mao<=0;
-  const cr=state.settings.creative;c.sfCap=floor500(c.mao*(1+(cr.maxOverPct||0)/100));
+  const cr=state.settings.creative;c.sfCap=floor500(c.maoNumbers*(1+(cr.maxOverPct||0)/100));
   const w=weightedArv(d);
   if(w&&w.arv){const d2=Object.assign({},d,{arv:w.arv,lockedMao:null});const tmp=calcBase(d2);c.compArv=w.arv;c.compCeiling=tmp}
   return c;
