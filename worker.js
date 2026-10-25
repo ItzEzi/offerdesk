@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261025-0403: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261025-0412: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261025-0403';
+const APP_V='20261025-0412';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -771,12 +771,13 @@ Reply with only JSON:
 "redFlags":["..."],"verify":["things to check on site"],"rooms":{"bedrooms":number|null,"bathrooms":number|null},"photoNotes":"what the photos showed and did not show"}`;
 }
 const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler or seller email or text. Read every line, including the bottom of the email and any quoted text: a price cut or "we'd take less" is often in the last sentence. Use null for anything not stated; never guess a number. Numbers are plain numbers in dollars or square feet.
+Sellers and small wholesalers often write casually: no subject, no $ signs, prices in thousands ("sold for 207", "my asking was 100", "if I get 95 I'm happy" mean $207,000, $100,000 and $95,000 when they are house prices), lowercase street names, everything in one paragraph. It is still a deal if it names a property and a price.
 
 "asking" is the CURRENT price: if they say the price was reduced, use the new one and put the old one in "previousAsking". Keep their ARV and repair numbers exactly as they say them; they are claims to be checked, not facts. If their ARV or repairs look off for the house (for example ARV more than 2.5 times the asking, or "light rehab" on a house that needs a roof), say so in "redFlags".
 
 Put up to 3 URLs that show each property (its own listing or deal page first, then Google Drive or Dropbox photo folders, deal pages, video tours, Zillow or Redfin links) in "links", and up to 2 direct image URLs in "photoLinks". Long links are shortened to tokens like [link3]: copy the token exactly as a link. Alert emails often put the link on the property's picture, written as [picture link: ...] next to that house's details: that link belongs to that house, so list it first in its "links". Skip unsubscribe, social media, calendar and "upgrade" links. "acceptPrice" is the lowest price they say they would take, if they say one (for example "with a cash offer we can probably accept 47,000" means 47000); otherwise null. An alert email can list many properties: include every one, keep each description under 25 words, at most 2 red flags and no notes, so the whole answer stays short. If the message is about one property, be thorough: a description up to 80 words, every red flag, and in "notes" every other detail that matters for an offer (tenant and lease, rent, utilities, earnest money, closing date, assignment fee, title, liens, probate, HOA, roof/HVAC/foundation/water/fire condition, showing times, who to contact).
 
-Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"previousAsking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"],"notes":["other details that matter for an offer"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
+Reply with only JSON: {"deals":[{"address":"street address","city":"","state":"","zip":"","asking":number|null,"previousAsking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"propertyType":"single_family|multi_family|townhouse|condo|land|mobile|other","occupancy":"vacant|occupied|unknown","acceptPrice":number|null,"terms":"cash only, seller finance, subject-to, etc. or null","deadline":"text or null","access":"text or null","photoLinks":["direct image URLs"],"theirComps":[{"addr":"street of a sale they cite as a comp","price":number|null,"sqft":number|null,"when":"when it sold, as they said it, or null","dist":"distance as they said it, or null"}],"links":["URLs that show the property"],"description":"one or two sentences about condition and the pitch","redFlags":["claims that look inflated, missing info, pressure tactics"],"notes":["other details that matter for an offer"]}],"wholesaler":{"name":"","company":"","email":"","phone":""}}
 
 Message:
 """${t.slice(0,16000)}"""`;
@@ -1007,6 +1008,8 @@ function buildQuery(defaultOnly){
   parts.push('("property alert" OR "deal alert" OR "new properties" OR "buying criteria" OR "new deal" OR "new listing" OR "price reduced")');
   parts.push('((bed OR beds OR bedroom OR bedrooms OR bd) (bath OR baths OR ba) (sqft OR "sq ft" OR "square feet"))');
   parts.push('from:(realestatebees.com OR housecashin.com OR investorlift.com OR davebuyshousesindiana.com)');
+  /* plain one-off pitches with no subject or deal words ("the address is 435 N Oxford… comps are… my asking was 100, open to offers") */
+  parts.push('(("off market" OR "off-market" OR comps OR "sq ft" OR sqft) (asking OR "open to offers" OR "best offer" OR "make an offer"))');
   return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
@@ -1614,7 +1617,7 @@ async function extractDeals(text,meta,busyKey,quiet){
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||'',comps:theirComps(x)},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
@@ -1764,6 +1767,8 @@ async function quickAction(id,qa){
   await aiReply(id,q.ins,false,`${negName()}: ${q.label.toLowerCase()}…`);
   const dd=state.deals[id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:`Draft ready below${dd.draft.price?' at '+money(dd.draft.price):''}. ${dd.draft.why||''}`.trim(),at:nowISO()});saveDeal(dd)}
 }
+function theirComps(x){return (Array.isArray(x&&x.theirComps)?x.theirComps:[]).filter(c=>c&&c.addr).slice(0,6).map(c=>({addr:String(c.addr).slice(0,80),price:parseNum(c.price),sqft:parseNum(c.sqft),when:c.when?String(c.when).slice(0,40):'',dist:c.dist?String(c.dist).slice(0,30):''}))}
+const compClaimText=c=>`${c.addr}${c.price?`, sold ${money(c.price)}`:''}${c.when?` (${c.when})`:''}${c.sqft?`, ${numFmt(c.sqft)} sqft`:''}${c.dist?`, ${c.dist}`:''}`;
 async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
@@ -1941,7 +1946,7 @@ function promptResearch(d,ctx){
 
 Property: ${where||'unknown address'}
 ${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
-${(d.description||'').slice(0,1200)}
+${(ws.comps||[]).length?`The wholesaler cited these sales as comps. Check each one (did it sell, when, for how much, its size, and whether it is really comparable: new construction, fully renovated, much bigger or smaller, a different kind of street) and report it in claimsCheck:\n${ws.comps.map(c=>'- '+compClaimText(c)).join('\n')}\n`:''}${(d.description||'').slice(0,1200)}
 ${ins(d).length?`What they wrote to us (newest last):\n${ins(d).slice(-4).map(t=>'--- '+String(t.text||'').slice(0,1500)).join('\n')}`:''}
 ${ctx.links.length?`Links that came with the deal (open the ones that help):\n${ctx.links.map(u=>'- '+u).join('\n')}`:''}
 ${ctx.pages.length?`Pages we already opened for you (trimmed):\n${ctx.pages.map(p=>`--- ${p.url} (${p.title||''})\n${p.text.slice(0,6000)}`).join('\n')}`:''}

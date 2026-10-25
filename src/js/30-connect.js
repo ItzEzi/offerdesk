@@ -109,6 +109,8 @@ function buildQuery(defaultOnly){
   parts.push('("property alert" OR "deal alert" OR "new properties" OR "buying criteria" OR "new deal" OR "new listing" OR "price reduced")');
   parts.push('((bed OR beds OR bedroom OR bedrooms OR bd) (bath OR baths OR ba) (sqft OR "sq ft" OR "square feet"))');
   parts.push('from:(realestatebees.com OR housecashin.com OR investorlift.com OR davebuyshousesindiana.com)');
+  /* plain one-off pitches with no subject or deal words ("the address is 435 N Oxford… comps are… my asking was 100, open to offers") */
+  parts.push('(("off market" OR "off-market" OR comps OR "sq ft" OR sqft) (asking OR "open to offers" OR "best offer" OR "make an offer"))');
   return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));

@@ -93,7 +93,7 @@ async function extractDeals(text,meta,busyKey,quiet){
     if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
-      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||''},
+      wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||'',comps:theirComps(x)},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
     pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
@@ -243,6 +243,8 @@ async function quickAction(id,qa){
   await aiReply(id,q.ins,false,`${negName()}: ${q.label.toLowerCase()}…`);
   const dd=state.deals[id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:`Draft ready below${dd.draft.price?' at '+money(dd.draft.price):''}. ${dd.draft.why||''}`.trim(),at:nowISO()});saveDeal(dd)}
 }
+function theirComps(x){return (Array.isArray(x&&x.theirComps)?x.theirComps:[]).filter(c=>c&&c.addr).slice(0,6).map(c=>({addr:String(c.addr).slice(0,80),price:parseNum(c.price),sqft:parseNum(c.sqft),when:c.when?String(c.when).slice(0,40):'',dist:c.dist?String(c.dist).slice(0,30):''}))}
+const compClaimText=c=>`${c.addr}${c.price?`, sold ${money(c.price)}`:''}${c.when?` (${c.when})`:''}${c.sqft?`, ${numFmt(c.sqft)} sqft`:''}${c.dist?`, ${c.dist}`:''}`;
 async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);

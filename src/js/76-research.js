@@ -87,7 +87,7 @@ function promptResearch(d,ctx){
 
 Property: ${where||'unknown address'}
 ${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
-${(d.description||'').slice(0,1200)}
+${(ws.comps||[]).length?`The wholesaler cited these sales as comps. Check each one (did it sell, when, for how much, its size, and whether it is really comparable: new construction, fully renovated, much bigger or smaller, a different kind of street) and report it in claimsCheck:\n${ws.comps.map(c=>'- '+compClaimText(c)).join('\n')}\n`:''}${(d.description||'').slice(0,1200)}
 ${ins(d).length?`What they wrote to us (newest last):\n${ins(d).slice(-4).map(t=>'--- '+String(t.text||'').slice(0,1500)).join('\n')}`:''}
 ${ctx.links.length?`Links that came with the deal (open the ones that help):\n${ctx.links.map(u=>'- '+u).join('\n')}`:''}
 ${ctx.pages.length?`Pages we already opened for you (trimmed):\n${ctx.pages.map(p=>`--- ${p.url} (${p.title||''})\n${p.text.slice(0,6000)}`).join('\n')}`:''}
