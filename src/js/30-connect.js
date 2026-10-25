@@ -280,7 +280,7 @@ function draftSafety(d){
   const c=calc(d);const dr=d.draft;const why=[];if(!dr)return ['no draft'];
   const act=dr.action||dr.kind;if(!AUTO_OK.has(act))why.push(ACTION_LABEL[act]||act);
   const cap=act==='creative'?c.sfCap:c.mao;
-  const over=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap),...ceilingCheck(dr.sms,d,c,cap)];
+  const over=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap,dr),...ceilingCheck(dr.sms,d,c,cap,dr)];
   if(over.length)why.push('mentions '+[...new Set(over)].map(money).join(', '));
   if(dr.price!=null&&dr.price>cap)why.push('price above ceiling');
   else if(dr.price!=null&&act!=='creative'&&c.mao&&dr.price>c.mao*state.settings.buy.escalatePct/100)why.push(`above ${state.settings.buy.escalatePct}% of your ceiling`);

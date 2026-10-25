@@ -144,9 +144,18 @@ function marketSignal(d){
   return {level:rejection?'rejection':'stale',cuts,drop,dom:dm,text:parts.join(', ')};
 }
 function amort(P,ratePct,years){const n=years*12;if(!P||!n)return 0;const r=ratePct/100/12;return r===0?P/n:P*r/(1-Math.pow(1+r,-n))}
-function ceilingCheck(text,d,c,cap){
+/* the ceiling guard reads OFFERS: only these messages put a price of ours on the table */
+const OFFER_ACTS=new Set(['opening','counter','hold','accept','creative','followup']);
+const isOfferDraft=dr=>!!dr&&OFFER_ACTS.has(dr.action||dr.kind);
+function dollarAmounts(t){const out=[];const re=/\$\s?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s?([kKmM])?(?![\w])/g;let m;while((m=re.exec(String(t||'')))){let v=parseFloat(m[1].replace(/,/g,''));if(m[2])v*=/k/i.test(m[2])?1e3:1e6;out.push(Math.round(v))}return out}
+function ceilingCheck(text,d,c,cap,dr){
   if(!c.ready||!text)return [];
-  const allowed=[curList(d),origList(d),d.listPrice,c.A,d.rehab,d.wsClaims&&d.wsClaims.arv,d.wsClaims&&d.wsClaims.rehab,...(d.priceHistory||[]).map(p=>p.price),...(d.offers||[]).filter(o=>o.by==='them').map(o=>o.price),...(d.comps||[]).map(x=>x.price)].filter(v=>v!=null&&isFinite(v));
+  if(dr&&!isOfferDraft(dr))return [];   /* withdrawing, stepping back, checking in: talking about numbers is fine */
+  const ws=d.wsClaims||{},R=d.research||{},An=d.analysis||{};const ra=R.arv||{},aa=An.arv||{};
+  /* numbers already on the table: theirs, the house's, the comps', the repairs', and what we offered before */
+  const allowed=[curList(d),origList(d),d.listPrice,c.A,d.rehab,ws.arv,ws.rehab,ws.asking,ws.accept,ws.rent,d.rent,d.rentEst,ra.value,ra.low,ra.high,aa.value,aa.low,aa.high,
+    ...(d.priceHistory||[]).map(p=>p.price),...(d.offers||[]).map(o=>o.price),...(d.comps||[]).map(x=>x.price),...(d.rehabLines||[]).map(x=>x.cost),
+    ...ins(d).flatMap(t=>dollarAmounts(t.text)),...outs(d).flatMap(t=>dollarAmounts(t.text))].filter(v=>v!=null&&isFinite(v));
   const lim=cap||c.mao;const bad=[];const re=/\$\s?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s?([kKmM])?(?![\w])/g;let m;
   while((m=re.exec(text))){let v=parseFloat(m[1].replace(/,/g,''));if(m[2])v*=/k/i.test(m[2])?1e3:1e6;v=Math.round(v);
     if(v>lim&&v<c.A*1.6&&!allowed.some(a=>Math.abs(a-v)<=Math.max(600,a*.006)))bad.push(v)}

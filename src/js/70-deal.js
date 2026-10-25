@@ -214,10 +214,10 @@ function nextStepHTML(d,c){
 function draftHTML(d,c){
   const dr=d.draft;const n=esc(negName());const act=dr.action||dr.kind;
   const cap=act==='creative'?c.sfCap:c.mao;
-  const over=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap),...ceilingCheck(dr.sms,d,c,cap)];
-  const priceOver=dr.price!=null&&c.ready&&dr.price>cap;const guarded=!!(over.length||priceOver);
+  const over=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap,dr),...ceilingCheck(dr.sms,d,c,cap,dr)];
+  const priceOver=isOfferDraft(dr)&&dr.price!=null&&c.ready&&dr.price>cap;const guarded=!!(over.length||priceOver);
   const flags=(dr.flags||[]).map(f=>`<div class="note ${f.cls==='green'?'green':f.cls==='red'?'red':'amber'}">${esc(f.text)}</div>`).join('');
-  const guard=guarded?`<div class="note red"><b>Ceiling guard:</b> this draft mentions ${[...new Set([...(priceOver?[dr.price]:[]),...over])].map(money).join(', ')}, above your ${act==='creative'?'seller-finance cap':'ceiling'} of ${money(cap)}. Edit it before sending.</div>`:'';
+  const guard=!guarded?'':cap<=0?`<div class="note red"><b>Ceiling guard:</b> at this ARV (${money(c.A)}) and repairs (${money(d.rehab)}) no price hits your target, so your ceiling is $0 and ${n} shouldn’t offer anything yet. Check the ARV and repairs (In-depth analysis), or step back instead.</div>`:`<div class="note red"><b>Ceiling guard:</b> this offer ${priceOver?`is ${money(dr.price)}`:`mentions ${[...new Set(over)].map(money).join(', ')}`}, above your ${act==='creative'?'seller-finance cap':'ceiling'} of ${money(cap)}. Edit it before sending.</div>`;
   const sent=dr.sent||{};const ce=canEmail(d),ct=canText(d);const to=d.agent||{};
   const mail=`mailto:${encodeURIComponent(to.email||'')}?subject=${encodeURIComponent((dr.email&&dr.email.subject)||'')}&body=${encodeURIComponent((dr.email&&dr.email.body)||'')}`;
   const sms=`sms:${encodeURIComponent(to.phone||'')}?&body=${encodeURIComponent(dr.sms||'')}`;

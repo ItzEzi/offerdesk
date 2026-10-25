@@ -207,10 +207,10 @@ ${hist||'(none)'}
 
 INVESTOR: ${msg}
 
-Rules for any draft: never offer above ${money(c.mao)} cash; seller finance only up to ${money(c.sfCap)} with at most ${state.settings.creative.maxDownPct}% down.
+Rules for any draft: label it honestly. "withdraw" = we pull our offer; "walk" = we step back politely; "custom" = anything else that doesn't put a new price of ours on the table. For those, set price to null; you may still mention numbers (their asking, the ARV, the repairs, our old offer). Only "counter", "hold", "accept", "creative" and "followup" state our price. Never offer above ${money(c.mao)} cash; seller finance only up to ${money(c.sfCap)} with at most ${state.settings.creative.maxDownPct}% down.
 ${signRules()}
 
-Reply with only JSON: {"answer":"what you say to the investor, 1 to 5 sentences","draft":null or {"action":"counter|hold|accept|creative|followup|custom","price":number or null,"email":{"subject":"...","body":"..."},"sms":"..."}}`;
+Reply with only JSON: {"answer":"what you say to the investor, 1 to 5 sentences","draft":null or {"action":"counter|hold|accept|creative|followup|withdraw|walk|custom","price":number or null,"email":{"subject":"...","body":"..."},"sms":"..."}}`;
 }
 const REHAB_BOOK=[
   ['paint_int','Interior paint','per sqft of living area',2.75],['paint_ext','Exterior paint','per sqft of living area',2.25],

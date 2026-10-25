@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261024-2204: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261025-0331: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261024-2204';
+const APP_V='20261025-0331';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -61,7 +61,7 @@ const DEFAULTS={
   ui:{listMode:'list'}
 };
 const TONES={friendly:'warm, direct and respectful of the agent’s time',firm:'polite but firm and businesslike, few words',casual:'casual and friendly, short sentences'};
-const ACTION_LABEL={opening:'Opening offer',counter:'Counter',hold:'Hold firm',accept:'Accept their number',creative:'Seller-finance pitch',ask_owner:'Needs your call',walk:'Step back',stop:'They opted out',followup:'Follow-up',custom:'Your instruction',checkin:'Check-in',stall:'Buy time',call:'Ask for a call'};
+const ACTION_LABEL={opening:'Opening offer',counter:'Counter',hold:'Hold firm',accept:'Accept their number',creative:'Seller-finance pitch',ask_owner:'Needs your call',walk:'Step back',withdraw:'Withdraw offer',stop:'They opted out',followup:'Follow-up',custom:'Your instruction',checkin:'Check-in',stall:'Buy time',call:'Ask for a call'};
 const MLS_STATUS={for_sale:['For Sale','blue'],pending:['Pending','orange'],sold:['Sold','red'],off_market:['Off Market','slate'],unknown:['Unknown','slate']};
 const SENTIMENT={warm:['Warm','green'],neutral:['Neutral','slate'],cold:['Cold','blue'],hostile:['Hostile','red']};
 const PROP_TYPES={single_family:'Single family',multi_family:'Multi family',townhouse:'Townhouse',condo:'Condo',land:'Land',mobile:'Mobile home',other:'Other'};
@@ -381,9 +381,18 @@ function marketSignal(d){
   return {level:rejection?'rejection':'stale',cuts,drop,dom:dm,text:parts.join(', ')};
 }
 function amort(P,ratePct,years){const n=years*12;if(!P||!n)return 0;const r=ratePct/100/12;return r===0?P/n:P*r/(1-Math.pow(1+r,-n))}
-function ceilingCheck(text,d,c,cap){
+/* the ceiling guard reads OFFERS: only these messages put a price of ours on the table */
+const OFFER_ACTS=new Set(['opening','counter','hold','accept','creative','followup']);
+const isOfferDraft=dr=>!!dr&&OFFER_ACTS.has(dr.action||dr.kind);
+function dollarAmounts(t){const out=[];const re=/\$\s?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s?([kKmM])?(?![\w])/g;let m;while((m=re.exec(String(t||'')))){let v=parseFloat(m[1].replace(/,/g,''));if(m[2])v*=/k/i.test(m[2])?1e3:1e6;out.push(Math.round(v))}return out}
+function ceilingCheck(text,d,c,cap,dr){
   if(!c.ready||!text)return [];
-  const allowed=[curList(d),origList(d),d.listPrice,c.A,d.rehab,d.wsClaims&&d.wsClaims.arv,d.wsClaims&&d.wsClaims.rehab,...(d.priceHistory||[]).map(p=>p.price),...(d.offers||[]).filter(o=>o.by==='them').map(o=>o.price),...(d.comps||[]).map(x=>x.price)].filter(v=>v!=null&&isFinite(v));
+  if(dr&&!isOfferDraft(dr))return [];   /* withdrawing, stepping back, checking in: talking about numbers is fine */
+  const ws=d.wsClaims||{},R=d.research||{},An=d.analysis||{};const ra=R.arv||{},aa=An.arv||{};
+  /* numbers already on the table: theirs, the house's, the comps', the repairs', and what we offered before */
+  const allowed=[curList(d),origList(d),d.listPrice,c.A,d.rehab,ws.arv,ws.rehab,ws.asking,ws.accept,ws.rent,d.rent,d.rentEst,ra.value,ra.low,ra.high,aa.value,aa.low,aa.high,
+    ...(d.priceHistory||[]).map(p=>p.price),...(d.offers||[]).map(o=>o.price),...(d.comps||[]).map(x=>x.price),...(d.rehabLines||[]).map(x=>x.cost),
+    ...ins(d).flatMap(t=>dollarAmounts(t.text)),...outs(d).flatMap(t=>dollarAmounts(t.text))].filter(v=>v!=null&&isFinite(v));
   const lim=cap||c.mao;const bad=[];const re=/\$\s?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s?([kKmM])?(?![\w])/g;let m;
   while((m=re.exec(text))){let v=parseFloat(m[1].replace(/,/g,''));if(m[2])v*=/k/i.test(m[2])?1e3:1e6;v=Math.round(v);
     if(v>lim&&v<c.A*1.6&&!allowed.some(a=>Math.abs(a-v)<=Math.max(600,a*.006)))bad.push(v)}
@@ -712,10 +721,10 @@ ${hist||'(none)'}
 
 INVESTOR: ${msg}
 
-Rules for any draft: never offer above ${money(c.mao)} cash; seller finance only up to ${money(c.sfCap)} with at most ${state.settings.creative.maxDownPct}% down.
+Rules for any draft: label it honestly. "withdraw" = we pull our offer; "walk" = we step back politely; "custom" = anything else that doesn't put a new price of ours on the table. For those, set price to null; you may still mention numbers (their asking, the ARV, the repairs, our old offer). Only "counter", "hold", "accept", "creative" and "followup" state our price. Never offer above ${money(c.mao)} cash; seller finance only up to ${money(c.sfCap)} with at most ${state.settings.creative.maxDownPct}% down.
 ${signRules()}
 
-Reply with only JSON: {"answer":"what you say to the investor, 1 to 5 sentences","draft":null or {"action":"counter|hold|accept|creative|followup|custom","price":number or null,"email":{"subject":"...","body":"..."},"sms":"..."}}`;
+Reply with only JSON: {"answer":"what you say to the investor, 1 to 5 sentences","draft":null or {"action":"counter|hold|accept|creative|followup|withdraw|walk|custom","price":number or null,"email":{"subject":"...","body":"..."},"sms":"..."}}`;
 }
 const REHAB_BOOK=[
   ['paint_int','Interior paint','per sqft of living area',2.75],['paint_ext','Exterior paint','per sqft of living area',2.25],
@@ -1167,7 +1176,7 @@ function draftSafety(d){
   const c=calc(d);const dr=d.draft;const why=[];if(!dr)return ['no draft'];
   const act=dr.action||dr.kind;if(!AUTO_OK.has(act))why.push(ACTION_LABEL[act]||act);
   const cap=act==='creative'?c.sfCap:c.mao;
-  const over=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap),...ceilingCheck(dr.sms,d,c,cap)];
+  const over=[...ceilingCheck(dr.email&&dr.email.body,d,c,cap,dr),...ceilingCheck(dr.sms,d,c,cap,dr)];
   if(over.length)why.push('mentions '+[...new Set(over)].map(money).join(', '));
   if(dr.price!=null&&dr.price>cap)why.push('price above ceiling');
   else if(dr.price!=null&&act!=='creative'&&c.mao&&dr.price>c.mao*state.settings.buy.escalatePct/100)why.push(`above ${state.settings.buy.escalatePct}% of your ceiling`);
@@ -1734,7 +1743,7 @@ async function aiChat(id,msg){
   dd.mayaChat.push({role:'assistant',content:String(res.answer||'Done.'),at:nowISO()});dd.mayaChat=dd.mayaChat.slice(-40);
   const dr=res.draft;
   if(dr&&(dr.email||dr.sms)){
-    let price=parseNum(dr.price);const act=ACTION_LABEL[dr.action]?dr.action:'custom';const cap=act==='creative'?c.sfCap:c.mao;const flags=[];
+    const act=ACTION_LABEL[dr.action]?dr.action:'custom';let price=OFFER_ACTS.has(act)?parseNum(dr.price):null;const cap=act==='creative'?c.sfCap:c.mao;const flags=[];
     if(price!=null&&price>cap){flags.push({cls:'red',text:`Capped at ${money(cap)}: ${negName()} suggested ${money(price)}.`});price=cap}
     dd.draft={kind:'chat',action:act,price,letterPrice:price,email:{subject:String(dr.email&&dr.email.subject||''),body:String(dr.email&&dr.email.body||'')},sms:String(dr.sms||''),why:'Drafted from your chat instruction.',flags,at:nowISO()};
     dd.needsYou=null;
@@ -1787,11 +1796,12 @@ function markSent(id,ch){
   if(!dr.recorded){
     dr.recorded=true;
     const priceChanged=dr.price!=null&&dr.price!==lastOurPrice(d);
-    if(priceChanged&&dr.action!=='hold'&&dr.action!=='walk'){d.offers=d.offers||[];d.offers.push({at,price:dr.price,by:'us'})}
+    if(priceChanged&&OFFER_ACTS.has(dr.action||dr.kind)&&dr.action!=='hold'){d.offers=d.offers||[];d.offers.push({at,price:dr.price,by:'us'})}
     if(dr.kind==='followup'&&!priceChanged){d.follow=d.follow||{base:at,step:0};d.follow.step++}
     else d.follow={base:at,step:0};
     if(d.stage==='new')d.stage=ins(d).length&&d.source!=='wholesaler'?'negotiating':'sent';
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
+    if(dr.action==='withdraw')d.follow={base:at,step:(state.settings.followDays||[]).length};
     if(dr.action==='accept')d.stage='negotiating';
   }
   dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;

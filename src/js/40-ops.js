@@ -225,7 +225,7 @@ async function aiChat(id,msg){
   dd.mayaChat.push({role:'assistant',content:String(res.answer||'Done.'),at:nowISO()});dd.mayaChat=dd.mayaChat.slice(-40);
   const dr=res.draft;
   if(dr&&(dr.email||dr.sms)){
-    let price=parseNum(dr.price);const act=ACTION_LABEL[dr.action]?dr.action:'custom';const cap=act==='creative'?c.sfCap:c.mao;const flags=[];
+    const act=ACTION_LABEL[dr.action]?dr.action:'custom';let price=OFFER_ACTS.has(act)?parseNum(dr.price):null;const cap=act==='creative'?c.sfCap:c.mao;const flags=[];
     if(price!=null&&price>cap){flags.push({cls:'red',text:`Capped at ${money(cap)}: ${negName()} suggested ${money(price)}.`});price=cap}
     dd.draft={kind:'chat',action:act,price,letterPrice:price,email:{subject:String(dr.email&&dr.email.subject||''),body:String(dr.email&&dr.email.body||'')},sms:String(dr.sms||''),why:'Drafted from your chat instruction.',flags,at:nowISO()};
     dd.needsYou=null;
@@ -278,11 +278,12 @@ function markSent(id,ch){
   if(!dr.recorded){
     dr.recorded=true;
     const priceChanged=dr.price!=null&&dr.price!==lastOurPrice(d);
-    if(priceChanged&&dr.action!=='hold'&&dr.action!=='walk'){d.offers=d.offers||[];d.offers.push({at,price:dr.price,by:'us'})}
+    if(priceChanged&&OFFER_ACTS.has(dr.action||dr.kind)&&dr.action!=='hold'){d.offers=d.offers||[];d.offers.push({at,price:dr.price,by:'us'})}
     if(dr.kind==='followup'&&!priceChanged){d.follow=d.follow||{base:at,step:0};d.follow.step++}
     else d.follow={base:at,step:0};
     if(d.stage==='new')d.stage=ins(d).length&&d.source!=='wholesaler'?'negotiating':'sent';
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
+    if(dr.action==='withdraw')d.follow={base:at,step:(state.settings.followDays||[]).length};
     if(dr.action==='accept')d.stage='negotiating';
   }
   dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;

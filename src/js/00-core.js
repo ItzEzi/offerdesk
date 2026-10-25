@@ -32,7 +32,7 @@ const DEFAULTS={
   ui:{listMode:'list'}
 };
 const TONES={friendly:'warm, direct and respectful of the agent’s time',firm:'polite but firm and businesslike, few words',casual:'casual and friendly, short sentences'};
-const ACTION_LABEL={opening:'Opening offer',counter:'Counter',hold:'Hold firm',accept:'Accept their number',creative:'Seller-finance pitch',ask_owner:'Needs your call',walk:'Step back',stop:'They opted out',followup:'Follow-up',custom:'Your instruction',checkin:'Check-in',stall:'Buy time',call:'Ask for a call'};
+const ACTION_LABEL={opening:'Opening offer',counter:'Counter',hold:'Hold firm',accept:'Accept their number',creative:'Seller-finance pitch',ask_owner:'Needs your call',walk:'Step back',withdraw:'Withdraw offer',stop:'They opted out',followup:'Follow-up',custom:'Your instruction',checkin:'Check-in',stall:'Buy time',call:'Ask for a call'};
 const MLS_STATUS={for_sale:['For Sale','blue'],pending:['Pending','orange'],sold:['Sold','red'],off_market:['Off Market','slate'],unknown:['Unknown','slate']};
 const SENTIMENT={warm:['Warm','green'],neutral:['Neutral','slate'],cold:['Cold','blue'],hostile:['Hostile','red']};
 const PROP_TYPES={single_family:'Single family',multi_family:'Multi family',townhouse:'Townhouse',condo:'Condo',land:'Land',mobile:'Mobile home',other:'Other'};
