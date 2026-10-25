@@ -222,13 +222,14 @@ const REHAB_BOOK=[
   ['rewire','Rewire','per sqft',7],['repipe','Plumbing repipe','per sqft',6],['foundation','Foundation repair allowance','each',9000],['siding','Siding repair','per house',4000],
   ['fence','Fence','per linear ft',35],['landscaping','Landscaping and cleanup','per house',2500],['permits','Permits, dumpster, misc','per house',1500]];
 function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
-function promptDeep(d,nPhotos){
+function promptDeep(d,nPhotos,marks){
   const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
   return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
 Work in this order:
 1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
-2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
+${marks?`   Inspect each photo like a home inspector and mark every clearly visible problem the investor would pay to fix (mold, water stain, rot, a door to fix or replace, cracked tile, sagging or stained ceiling, exposed wiring, broken window, peeling paint, damaged floor, missing fixture). For each, add a mark: a box around the problem given as fractions of that photo's width and height (x and y = top-left corner, w and h = size, all 0 to 1). Label it in 2 to 4 plain words, like "mold", "door to fix", "water stain". At most 6 marks per photo, only things you can actually see, no marks on things that are fine; a photo with no visible problems gets "marks":[].
+`:''}2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
 3. Rehab quantities from the investor's cost book below. Do not invent prices. For each item needed, give the cost-book key and a quantity: square feet for per-sqft items (base them on the ${d.sqft||'unknown'} sqft living area unless the photos show otherwise), a count for "each" items, and 1 for per-house items. For areas you could not see, include a sensible allowance and mark seen false.
 Cost book (key: item, price, unit):
 ${book.map(b=>`- ${b.key}: ${b.label}, ${money(b.cost)} ${b.unit}`).join('\n')}
@@ -244,7 +245,7 @@ ${(()=>{const m=marketFacts(d);return m?m+'\n':''})()}
 Rules: whole dollars only. If there are few or no comps, your ARV is a rough estimate: give a low/high range and mark confidence low. Renovated homes in a ZIP usually sell above the ZIP's median $/sqft.
 
 Reply with only JSON:
-{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]}],
+{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]${marks?',"marks":[{"label":"2-4 words, e.g. mold, water stain, door to fix, cracked tile","x":0.0,"y":0.0,"w":0.0,"h":0.0}]':''}}],
 "condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
 "notSeen":["areas with no photo, e.g. roof, HVAC, second bathroom"],
 "level":"light refresh|moderate rehab|full gut","summary":"two sentences","suggestions":["specific renovation suggestions"],

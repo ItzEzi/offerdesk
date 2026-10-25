@@ -247,9 +247,10 @@ async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
   const model=forceModel||bigModel();
-  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
+  const marks=!!(model&&/opus/.test(model)&&items.length);
+  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks),{signal,images:items,maxTokens:marks?12000:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
-  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
+  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,photoRefs:items.refs||[],model:model||secrets().model||'claude-sonnet-5-5'});
   const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';
   const fromBook=(Array.isArray(res.rehabItems)?res.rehabItems:[]).filter(x=>book[x.key]&&parseNum(x.qty)>0).map(x=>{const b=book[x.key];const q=parseNum(x.qty);return {item:b.label,detail:`${/house/.test(b.unit)?'':numFmt(q)+(short(b.unit)?' '+short(b.unit):'')+' × '+(b.cost<100&&b.cost%1?'$'+b.cost.toFixed(2):money(b.cost))+' · '}${String(x.why||'')}${x.seen===false?' (not in photos: allowance)':''}`,cost:Math.round(q*b.cost),key:x.key,qty:q,seen:x.seen!==false}});
   const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));

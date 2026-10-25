@@ -75,6 +75,7 @@ const ICONS={
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/>',
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
+  expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
   refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',

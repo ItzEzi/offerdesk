@@ -106,6 +106,9 @@ A['offer-send']=async()=>{const id=state.modal&&state.modal.id;const d=state.dea
   const ok=await sendEmailNow(id);if(ok){state.modal=null;render();toast(`Offer of ${money(P)} sent from ${sendEmail()}${d.autopilot&&state.settings.auto.enabled?'. '+negName()+' takes it from here.':''}`,4600)}};
 A['offer-mark']=()=>{const id=state.modal&&state.modal.id;if(!id)return;markSent(id,'email');state.modal=null;render();toast('Logged as sent.')};
 A['deep-all']=()=>deepAll();
+A['ph-open']=el=>openViewer(state.dealId,+el.dataset.i||0);
+A['ph-step']=el=>{const d=D();if(!d)return;const n=dealPhotos(d).length;if(!n)return;PIDX[d.id]=(((PIDX[d.id]||0)+(+el.dataset.v))%n+n)%n;render()};
+A['ph-go']=el=>{const d=D();if(!d)return;PIDX[d.id]=+el.dataset.i||0;render()};
 A['photo-del']=el=>removePhoto(state.dealId,el.dataset.pid);
 A['photo-urls']=()=>{const t=state.drafts['ph-url']||'';const urls=t.split(/[\s,]+/).filter(Boolean);const n=addPhotoUrls(state.dealId,urls);state.drafts['ph-url']='';render();toast(n?`Added ${n} photo link${n>1?'s':''}`:'Paste direct https links to images.')};
 A['sf-save']=()=>{const d=D();const c=calc(d);const s=sfCalc(d,c);d.sfSaved={price:s.v.price,downPct:s.v.downPct,payment:s.v.payment,rate:s.v.rate};saveDeal(d);toast(`Saved. ${negName()} uses these terms when she goes creative.`)};

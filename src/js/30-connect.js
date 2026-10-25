@@ -20,7 +20,7 @@ async function addPhotoBlobs(dealId,blobs,source){
   for(const f of blobs){
     if(f.type&&!/^image\//.test(f.type))continue;
     if(d.photoIds.length>=24)break;
-    try{const {blob,thumb,w,h}=await downscale(f,1568,.85,180);const id=uid('ph');
+    try{const {blob,thumb,w,h}=await downscale(f,2560,.86,180);const id=uid('ph');
       await IDB.put('photos',{id,dealId,blob,w,h,source:source||'upload',at:nowISO()});
       d.photoIds.push(id);photoObjURL[id]=URL.createObjectURL(blob);if(!d.thumb)d.thumb=thumb;n++}catch(e){}
   }
@@ -46,9 +46,10 @@ async function ensurePhotoUrls(dealId){
 }
 async function photoItemsForAI(d){
   const items=[];
-  for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob)items.push(r.blob)}catch(e){}}
-  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length)))items.push({url:u});
-  return items;
+  const refs=[];
+  for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob){let b=r.blob;if((r.w||0)>1568||(r.h||0)>1568){try{b=(await downscale(r.blob,1568,.85,8)).blob}catch(e){}}items.push(b);refs.push(id)}}catch(e){}}
+  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length))){items.push({url:u});refs.push('url:'+u)}
+  items.refs=refs;return items;
 }
 const photoCount=d=>(d.photoIds||[]).length+(d.photoUrls||[]).length;
 function thumbSrc(d){return d.thumb||d.thumbUrl||null}

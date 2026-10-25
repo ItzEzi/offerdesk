@@ -727,6 +727,46 @@ details.card>summary{cursor:pointer}
 .rc-grid{stroke:var(--line);stroke-width:1}
 @media (max-width:640px){.rc-tick{font-size:17px}}
 
+/* ---- deal photo carousel + full-screen viewer ---- */
+.hero-wrap{position:relative;border-radius:12px;overflow:hidden;background:var(--sunk)}
+.hero-btn{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in}
+.hero-wrap .hero-photo{border-radius:0}
+.hero-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;display:grid;place-items:center;cursor:pointer}
+.hero-nav:hover,.hero-nav:focus-visible{background:rgba(0,0,0,.72)}
+.hero-nav svg{width:18px;height:18px}.hero-nav.prev{left:10px}.hero-nav.next{right:10px}.hero-nav.next svg,.pv-nav.next svg{transform:scaleX(-1)}
+.hero-count{position:absolute;left:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:none}
+.hero-full{position:absolute;right:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer}
+.hero-full svg{width:14px;height:14px}.hero-full:hover{background:rgba(0,0,0,.8)}
+.hero-strip{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:thin}
+.hs{flex:0 0 auto;width:64px;height:46px;padding:0;border:2px solid transparent;border-radius:7px;overflow:hidden;background:var(--sunk);cursor:pointer;opacity:.75}
+.hs img{width:100%;height:100%;object-fit:cover;display:block}.hs.on{border-color:var(--accent);opacity:1}.hs:hover{opacity:1}
+.ph-open{display:block;width:100%;height:100%;padding:0;border:0;background:none;cursor:zoom-in}
+.pv{position:fixed;inset:0;z-index:1000;background:#0b0c0e;color:#fff;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
+.pv-top{display:flex;align-items:center;gap:6px;padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px))}
+.pv-count{font-size:13px;font-variant-numeric:tabular-nums;opacity:.85}.pv-sp{flex:1}
+.pv-b{min-width:38px;height:38px;padding:0 10px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;font-size:16px;display:inline-grid;place-items:center;cursor:pointer}
+.pv-b:hover,.pv-b:focus-visible{background:rgba(255,255,255,.16)}.pv-b svg{width:17px;height:17px}
+.pv-mk{font-size:13px}.pv-mk[aria-pressed="true"]{background:#e8473b;border-color:#e8473b}
+.pv-stage{position:relative;flex:1;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none;cursor:zoom-in}
+.pv-stage.zoomed{cursor:grab}.pv-stage.zoomed:active{cursor:grabbing}
+.pv-frame{position:relative;max-width:100%;max-height:100%;transform-origin:center center;will-change:transform}
+.pv-img{display:block;max-width:100vw;max-height:calc(100vh - 170px);max-height:calc(100dvh - 170px);object-fit:contain;pointer-events:none}
+.pv-marks{position:absolute;inset:0;pointer-events:none}
+.pv-ring{position:absolute;border:3px solid #ff4b3e;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.3)}
+.pv-ring span{position:absolute;left:50%;bottom:100%;transform:translate(-50%,-4px);white-space:nowrap;padding:2px 7px;border-radius:5px;background:#ff4b3e;color:#fff;font-size:12px;font-weight:600;line-height:1.35;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.pv-nav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;cursor:pointer;z-index:2}
+.pv-nav:hover,.pv-nav:focus-visible{background:rgba(255,255,255,.25)}.pv-nav svg{width:22px;height:22px}
+.pv-nav.prev{left:max(12px,env(safe-area-inset-left,0px))}.pv-nav.next{right:max(12px,env(safe-area-inset-right,0px))}
+.pv-foot{padding:6px max(12px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:6px;align-items:center}
+.pv-note{font-size:12px;opacity:.8;min-height:1em;text-align:center}
+.pv-strip{display:flex;gap:6px;overflow-x:auto;max-width:100%;padding-bottom:2px}
+.pv-strip button{flex:0 0 auto;width:60px;height:44px;padding:0;border:2px solid transparent;border-radius:6px;overflow:hidden;background:#222;cursor:pointer;opacity:.6}
+.pv-strip button img{width:100%;height:100%;object-fit:cover;display:block}.pv-strip button.on{border-color:#fff;opacity:1}
+@media (max-width:600px){.pv-nav{width:38px;height:38px}.hero-nav{width:34px;height:34px}.pv-b{min-width:34px;height:34px;padding:0 8px}}
+.plog-open{position:relative;width:84px;height:63px;border-radius:6px;overflow:hidden}.plog-open img{display:block}
+.plog-mk{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:4px;background:#e8473b;color:#fff;font-size:10.5px;font-weight:700}
+.pv-ring.lb span{bottom:auto;top:100%;transform:translate(-50%,4px)}
+
 </style>
 </head>
 <body>
@@ -1306,7 +1346,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261025-0331';
+const APP_V='20261025-0403';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1382,6 +1422,7 @@ const ICONS={
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/>',
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
+  expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
   refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
@@ -2014,13 +2055,14 @@ const REHAB_BOOK=[
   ['rewire','Rewire','per sqft',7],['repipe','Plumbing repipe','per sqft',6],['foundation','Foundation repair allowance','each',9000],['siding','Siding repair','per house',4000],
   ['fence','Fence','per linear ft',35],['landscaping','Landscaping and cleanup','per house',2500],['permits','Permits, dumpster, misc','per house',1500]];
 function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
-function promptDeep(d,nPhotos){
+function promptDeep(d,nPhotos,marks){
   const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
   return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
 Work in this order:
 1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
-2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
+${marks?`   Inspect each photo like a home inspector and mark every clearly visible problem the investor would pay to fix (mold, water stain, rot, a door to fix or replace, cracked tile, sagging or stained ceiling, exposed wiring, broken window, peeling paint, damaged floor, missing fixture). For each, add a mark: a box around the problem given as fractions of that photo's width and height (x and y = top-left corner, w and h = size, all 0 to 1). Label it in 2 to 4 plain words, like "mold", "door to fix", "water stain". At most 6 marks per photo, only things you can actually see, no marks on things that are fine; a photo with no visible problems gets "marks":[].
+`:''}2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
 3. Rehab quantities from the investor's cost book below. Do not invent prices. For each item needed, give the cost-book key and a quantity: square feet for per-sqft items (base them on the ${d.sqft||'unknown'} sqft living area unless the photos show otherwise), a count for "each" items, and 1 for per-house items. For areas you could not see, include a sensible allowance and mark seen false.
 Cost book (key: item, price, unit):
 ${book.map(b=>`- ${b.key}: ${b.label}, ${money(b.cost)} ${b.unit}`).join('\n')}
@@ -2036,7 +2078,7 @@ ${(()=>{const m=marketFacts(d);return m?m+'\n':''})()}
 Rules: whole dollars only. If there are few or no comps, your ARV is a rough estimate: give a low/high range and mark confidence low. Renovated homes in a ZIP usually sell above the ZIP's median $/sqft.
 
 Reply with only JSON:
-{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]}],
+{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]${marks?',"marks":[{"label":"2-4 words, e.g. mold, water stain, door to fix, cracked tile","x":0.0,"y":0.0,"w":0.0,"h":0.0}]':''}}],
 "condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
 "notSeen":["areas with no photo, e.g. roof, HVAC, second bathroom"],
 "level":"light refresh|moderate rehab|full gut","summary":"two sentences","suggestions":["specific renovation suggestions"],
@@ -2194,7 +2236,7 @@ async function addPhotoBlobs(dealId,blobs,source){
   for(const f of blobs){
     if(f.type&&!/^image\//.test(f.type))continue;
     if(d.photoIds.length>=24)break;
-    try{const {blob,thumb,w,h}=await downscale(f,1568,.85,180);const id=uid('ph');
+    try{const {blob,thumb,w,h}=await downscale(f,2560,.86,180);const id=uid('ph');
       await IDB.put('photos',{id,dealId,blob,w,h,source:source||'upload',at:nowISO()});
       d.photoIds.push(id);photoObjURL[id]=URL.createObjectURL(blob);if(!d.thumb)d.thumb=thumb;n++}catch(e){}
   }
@@ -2220,9 +2262,10 @@ async function ensurePhotoUrls(dealId){
 }
 async function photoItemsForAI(d){
   const items=[];
-  for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob)items.push(r.blob)}catch(e){}}
-  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length)))items.push({url:u});
-  return items;
+  const refs=[];
+  for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob){let b=r.blob;if((r.w||0)>1568||(r.h||0)>1568){try{b=(await downscale(r.blob,1568,.85,8)).blob}catch(e){}}items.push(b);refs.push(id)}}catch(e){}}
+  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length))){items.push({url:u});refs.push('url:'+u)}
+  items.refs=refs;return items;
 }
 const photoCount=d=>(d.photoIds||[]).length+(d.photoUrls||[]).length;
 function thumbSrc(d){return d.thumb||d.thumbUrl||null}
@@ -3043,9 +3086,10 @@ async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
   const model=forceModel||bigModel();
-  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
+  const marks=!!(model&&/opus/.test(model)&&items.length);
+  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks),{signal,images:items,maxTokens:marks?12000:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
-  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
+  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,photoRefs:items.refs||[],model:model||secrets().model||'claude-sonnet-5-5'});
   const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';
   const fromBook=(Array.isArray(res.rehabItems)?res.rehabItems:[]).filter(x=>book[x.key]&&parseNum(x.qty)>0).map(x=>{const b=book[x.key];const q=parseNum(x.qty);return {item:b.label,detail:`${/house/.test(b.unit)?'':numFmt(q)+(short(b.unit)?' '+short(b.unit):'')+' × '+(b.cost<100&&b.cost%1?'$'+b.cost.toFixed(2):money(b.cost))+' · '}${String(x.why||'')}${x.seen===false?' (not in photos: allowance)':''}`,cost:Math.round(q*b.cost),key:x.key,qty:q,seen:x.seen!==false}});
   const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));
@@ -3428,7 +3472,7 @@ function overviewCard(d,c){
   const first=(d.photoIds||[]).map(id=>photoObjURL[id]).find(Boolean)||(d.photoUrls||[])[0];
   const offer=lastOurPrice(d)??(d.draft&&d.draft.price)??(c.ready?c.opening:null);
   return `<section class="card"><div class="card-head"><span class="ci green">${ico('home')}</span><div><h2>Property overview</h2><p>Key details and where the numbers stand</p></div></div>
-  ${first?`<img class="hero-photo" src="${esc(first)}" alt="Front of ${esc(streetOf(d.address))}">`:`<button class="dropzone" data-act="goto" data-v="eyes" style="cursor:pointer;background:none">${ico('camera')}<b>Add photos</b><span class="small">${esc(negName())} looks at them and writes the inspection report and rehab estimate</span></button>`}
+  ${first?heroPhotoHTML(d)||`<img class="hero-photo" src="${esc(first)}" alt="Front of ${esc(streetOf(d.address))}">`:`<button class="dropzone" data-act="goto" data-v="eyes" style="cursor:pointer;background:none">${ico('camera')}<b>Add photos</b><span class="small">${esc(negName())} looks at them and writes the inspection report and rehab estimate</span></button>`}
   ${photoNote(d)}
   <div class="tiles"><div class="tile green"><span class="lab">${d.source==='wholesaler'?'Asking price':'List price'}</span><span class="val">${money(curList(d))}</span><span class="sub">${(d.wsClaims||{}).accept?`They’d take ${money(d.wsClaims.accept)}`:priceDropped(d)?`Down from ${money(origList(d))}`:'Current asking price'}</span></div>
   <div class="tile blue"><span class="lab">Offer amount</span><span class="val" style="color:var(--t-blue)">${money(offer)}</span><span class="sub">${lastOurPrice(d)!=null?'Your last offer':'Planned opening offer'}</span></div>
@@ -3490,7 +3534,8 @@ function numbersCard(d,c){
 function eyesCard(d,c){
   const n=esc(negName());const a=d.analysis;const cnt=photoCount(d);
   const thumbs=[...(d.photoIds||[]).map(id=>({id,src:photoObjURL[id]})),...(d.photoUrls||[]).map(u=>({id:'url:'+u,src:u}))];
-  const gallery=thumbs.length?`<div class="gallery">${thumbs.map(t=>`<div class="ph">${t.src?`<img src="${esc(t.src)}" alt="" loading="lazy">`:''}<button class="x" data-act="photo-del" data-pid="${esc(t.id)}" aria-label="Remove photo">${ico('close')}</button></div>`).join('')}</div>`:'';
+  const vidx=id=>dealPhotos(d).findIndex(p=>p.id===id);
+  const gallery=thumbs.length?`<div class="gallery">${thumbs.map(t=>`<div class="ph">${t.src?`<button class="ph-open" data-act="ph-open" data-i="${Math.max(0,vidx(t.id))}" aria-label="Open photo full screen"><img src="${esc(t.src)}" alt="" loading="lazy"></button>`:''}<button class="x" data-act="photo-del" data-pid="${esc(t.id)}" aria-label="Remove photo">${ico('close')}</button></div>`).join('')}</div>`:'';
   const lines=d.rehabLines||[];const sub=lines.reduce((s,x)=>s+(x.cost||0),0);const tot=Math.round(sub*(1+(d.rehabCont??10)/100));
   let report='';
   if(a){
@@ -3499,7 +3544,9 @@ function eyesCard(d,c){
     report=`<div class="row"><span class="pill ${lc==='green'?'green':lc==='red'?'red':'orange'}">${esc(a.level||'Report')}</span><span class="small muted">${a.photos?`From ${a.photos} photo${a.photos>1?'s':''}`:'From the listing text only'} · ${fmtWhen(a.at)}${a.model?` · ${/opus/.test(a.model)?'Opus 5.5':/haiku/.test(a.model)?'Haiku 5.5':'Sonnet 5.5'}`:''}</span></div>
     ${a.summary?`<p>${esc(a.summary)}</p>`:''}
     ${(a.notSeen||[]).length?`<div class="note amber row" style="justify-content:space-between"><span><b>Not in the photos:</b> ${a.notSeen.map(esc).join(', ')}. Those repair lines are allowances.</span><button class="btn sm" data-act="ask-photos">${ico('mail')}Ask for these photos</button></div>`:''}
-    ${(a.photoLog||[]).length?`<details id="plog"><summary>What ${n} saw in each photo (${a.photoLog.length})</summary><div class="plog">${a.photoLog.map(p=>{const tid=(d.photoIds||[])[(p.photo||1)-1];const src=tid?photoObjURL[tid]:(d.photoUrls||[])[(p.photo||1)-1-(d.photoIds||[]).length];return `<div class="plog-row">${src?`<img src="${esc(src)}" alt="" loading="lazy">`:`<span class="plog-n">${esc(p.photo)}</span>`}<div><b>${esc(String(p.area||'').replace(/^./,m=>m.toUpperCase()))}</b>${p.condition?` <span class="rate ${['good','fair','poor'].includes(p.condition)?p.condition:'unknown'}"><i></i>${esc(p.condition)}</span>`:''}<p class="small">${esc(p.sees||'')}</p>${(p.flags||[]).length?`<span class="xs muted">${p.flags.map(esc).join(' · ')}</span>`:''}</div></div>`}).join('')}</div></details>`:''}
+    ${(a.photoLog||[]).length?`<details id="plog"><summary>What ${n} saw in each photo (${a.photoLog.length})</summary><div class="plog">${a.photoLog.map(p=>{const ref=(a.photoRefs||[])[(p.photo||1)-1];const tid=ref?(ref.startsWith('url:')?null:ref):(d.photoIds||[])[(p.photo||1)-1];const src=ref?(ref.startsWith('url:')?ref.slice(4):photoObjURL[ref]):tid?photoObjURL[tid]:(d.photoUrls||[])[(p.photo||1)-1-(d.photoIds||[]).length];
+      const vi=dealPhotos(d).findIndex(x=>x.src===src);const nm=vi>=0?photoMarks(d,dealPhotos(d)[vi].id).length:0;
+      return `<div class="plog-row">${src&&vi>=0?`<button class="ph-open plog-open" data-act="ph-open" data-i="${vi}" aria-label="Open this photo full screen"><img src="${esc(src)}" alt="" loading="lazy">${nm?`<span class="plog-mk">${nm} marked</span>`:''}</button>`:src?`<img src="${esc(src)}" alt="" loading="lazy">`:`<span class="plog-n">${esc(p.photo)}</span>`}<div><b>${esc(String(p.area||'').replace(/^./,m=>m.toUpperCase()))}</b>${p.condition?` <span class="rate ${['good','fair','poor'].includes(p.condition)?p.condition:'unknown'}"><i></i>${esc(p.condition)}</span>`:''}<p class="small">${esc(p.sees||'')}</p>${(p.flags||[]).length?`<span class="xs muted">${p.flags.map(esc).join(' · ')}</span>`:''}</div></div>`}).join('')}</div></details>`:''}
     <div class="insp">${areas.map(([k,l])=>{const v=C[k]||{};const r=['good','fair','poor'].includes(v.rating)?v.rating:'unknown';return `<div class="insp-item"><div class="row" style="justify-content:space-between"><b>${l}</b><span class="rate ${r}"><i></i>${r==='unknown'?'Not visible':r}</span></div><span class="small muted">${esc(v.notes||'—')}</span></div>`}).join('')}</div>
     ${(a.suggestions||[]).length?`<div><b>Renovation suggestions</b><ul class="small" style="margin:6px 0 0;padding-left:18px">${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`:''}
     <div class="kpis">${a.arv&&a.arv.value?`<div class="kpi purple"><span class="lab">${n}’s ARV estimate</span><span class="val">${money(a.arv.value)}</span><span class="sub">${a.arv.low?moneyK(a.arv.low)+'–'+moneyK(a.arv.high)+' · ':''}${esc(a.arv.confidence||'low')} confidence${a.arv.why?' · '+esc(a.arv.why):''}</span><button class="btn sm" data-act="use-arv" data-v="${floor500(a.arv.value)}" data-src="maya" style="justify-self:start;margin-top:4px">Use as ARV</button></div>`:''}
@@ -3640,6 +3687,91 @@ function draftHTML(d,c){
     ${busyHTML('send:'+d.id,false)}
     <div class="row" style="border-top:1px solid var(--line);padding-top:10px">${act==='accept'?'<button class="btn green sm" data-act="to-contract">Move to under contract</button>':''}<button class="btn ghost sm" data-act="redraft">${ico('refresh')}Redraft</button><button class="btn ghost sm" data-act="discard-draft">${sent.email||sent.sms?'Done':'Discard'}</button></div></div>`;
 }
+
+/* ================= photos: carousel on the deal page + full-screen viewer with zoom and Maya's marks =================
+   The viewer lives outside the app's render, so zoom and pan stay put while OfferDesk refreshes in the background. */
+const PIDX={};
+function dealPhotos(d){return [...(d.photoIds||[]).map(id=>({id,src:photoObjURL[id]})).filter(x=>x.src),...(d.photoUrls||[]).map(u=>({id:'url:'+u,src:u}))]}
+/* Maya's marks for one photo (from the Opus inspection), by photo id */
+function photoMarks(d,id){
+  const a=d.analysis;if(!a||!Array.isArray(a.photoLog))return [];
+  const refs=a.photoRefs||[...(d.photoIds||[]),...(d.photoUrls||[]).map(u=>'url:'+u)];
+  const k=refs.indexOf(id);if(k<0)return [];const p=a.photoLog.find(x=>(x.photo||0)===k+1);
+  return (p&&Array.isArray(p.marks)?p.marks:[]).map(m=>({label:String(m.label||'').slice(0,40),x:+m.x,y:+m.y,w:+m.w,h:+m.h})).filter(m=>m.label&&[m.x,m.y,m.w,m.h].every(v=>isFinite(v))&&m.w>0&&m.h>0).slice(0,8)
+    .map(m=>({label:m.label,x:Math.max(0,Math.min(1,m.x)),y:Math.max(0,Math.min(1,m.y)),w:Math.min(1,m.w),h:Math.min(1,m.h)}));
+}
+function heroPhotoHTML(d){
+  const ph=dealPhotos(d);if(!ph.length)return '';const n=ph.length;const i=Math.min(PIDX[d.id]||0,n-1);const mk=photoMarks(d,ph[i].id).length;
+  return `<div class="hero-wrap"><button class="hero-btn" data-act="ph-open" data-i="${i}" aria-label="Open photo ${i+1} of ${n} full screen"><img class="hero-photo" src="${esc(ph[i].src)}" alt="Photo ${i+1} of ${n}, ${esc(streetOf(d.address))}"></button>
+    ${n>1?`<button class="hero-nav prev" data-act="ph-step" data-v="-1" aria-label="Previous photo">${ico('back')}</button><button class="hero-nav next" data-act="ph-step" data-v="1" aria-label="Next photo">${ico('back')}</button>`:''}
+    <span class="hero-count">${i+1} / ${n}${mk?` · ${mk} issue${mk>1?'s':''} marked`:''}</span><button class="hero-full" data-act="ph-open" data-i="${i}">${ico('expand')}Full screen</button></div>
+    ${n>1?`<div class="hero-strip">${ph.map((p,k)=>`<button class="hs${k===i?' on':''}" data-act="ph-go" data-i="${k}" aria-label="Photo ${k+1}"${k===i?' aria-current="true"':''}><img src="${esc(p.src)}" alt="" loading="lazy"></button>`).join('')}</div>`:''}`;
+}
+const PV={el:null,list:[],i:0,s:1,x:0,y:0,ptrs:new Map(),pinch:null,drag:null,marks:true,deal:null};
+function openViewer(dealId,i){
+  const d=state.deals[dealId];if(!d)return;const ph=dealPhotos(d);if(!ph.length)return;closeViewer();
+  Object.assign(PV,{list:ph,i:Math.max(0,Math.min(+i||0,ph.length-1)),deal:dealId,s:1,x:0,y:0,ptrs:new Map(),pinch:null,drag:null});
+  const el=document.createElement('div');el.className='pv';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','Photos of '+streetOf(d.address));
+  el.innerHTML=`<div class="pv-top"><span class="pv-count" aria-live="polite"></span><span class="pv-sp"></span>
+      <button class="pv-b pv-mk" data-pv="marks" aria-pressed="true">Marks</button>
+      <button class="pv-b" data-pv="out" aria-label="Zoom out">−</button><button class="pv-b" data-pv="reset" aria-label="Fit to screen">Fit</button><button class="pv-b" data-pv="in" aria-label="Zoom in">+</button>
+      <button class="pv-b" data-pv="fs" aria-label="Full screen">${ico('expand')}</button><button class="pv-b" data-pv="close" aria-label="Close">${ico('close')}</button></div>
+    <div class="pv-stage"><div class="pv-frame"><img class="pv-img" alt="" draggable="false"><div class="pv-marks"></div></div></div>
+    <button class="pv-nav prev" data-pv="prev" aria-label="Previous photo">${ico('back')}</button><button class="pv-nav next" data-pv="next" aria-label="Next photo">${ico('back')}</button>
+    <div class="pv-foot"><span class="pv-note"></span><div class="pv-strip">${ph.map((p,k)=>`<button data-pv="go" data-i="${k}" aria-label="Photo ${k+1}"><img src="${esc(p.src)}" alt="" loading="lazy"></button>`).join('')}</div></div>`;
+  document.body.appendChild(el);PV.el=el;PV.prevOverflow=document.body.style.overflow;document.body.style.overflow='hidden';
+  el.addEventListener('click',pvClick);
+  const st=el.querySelector('.pv-stage');
+  st.addEventListener('wheel',pvWheel,{passive:false});st.addEventListener('dblclick',pvDbl);
+  st.addEventListener('pointerdown',pvDown);st.addEventListener('pointermove',pvMove);st.addEventListener('pointerup',pvUp);st.addEventListener('pointercancel',pvUp);
+  document.addEventListener('keydown',pvKey);window.addEventListener('resize',pvApply);
+  pvShow();setTimeout(()=>{const b=el.querySelector('[data-pv="close"]');if(b)b.focus()},0);
+}
+function closeViewer(){if(!PV.el)return;document.removeEventListener('keydown',pvKey);window.removeEventListener('resize',pvApply);
+  try{if(document.fullscreenElement===PV.el)document.exitFullscreen()}catch(e){}
+  PV.el.remove();PV.el=null;document.body.style.overflow=PV.prevOverflow||'';
+  if(state.view==='deal'&&PV.deal===state.dealId){PIDX[PV.deal]=PV.i;render()}}
+function pvShow(){
+  const el=PV.el;if(!el)return;const p=PV.list[PV.i];const n=PV.list.length;const d=state.deals[PV.deal]||{};
+  PV.s=1;PV.x=0;PV.y=0;const img=el.querySelector('.pv-img');img.src=p.src;img.alt=`Photo ${PV.i+1} of ${n}`;
+  const mk=photoMarks(d,p.id);
+  el.querySelector('.pv-count').textContent=`${PV.i+1} / ${n}`;
+  el.querySelector('.pv-marks').innerHTML=mk.map(m=>`<div class="pv-ring${m.y<0.07?' lb':''}" style="left:${(m.x*100).toFixed(2)}%;top:${(m.y*100).toFixed(2)}%;width:${(m.w*100).toFixed(2)}%;height:${(m.h*100).toFixed(2)}%"><span>${esc(m.label)}</span></div>`).join('');
+  const mb=el.querySelector('.pv-mk');mb.hidden=!mk.length;mb.setAttribute('aria-pressed',String(PV.marks));el.querySelector('.pv-marks').hidden=!PV.marks;
+  el.querySelector('.pv-note').textContent=mk.length?`${negName()} marked ${mk.length} issue${mk.length>1?'s':''} in this photo (areas are approximate).`:'';
+  el.querySelectorAll('.pv-nav').forEach(b=>b.hidden=n<2);
+  el.querySelectorAll('.pv-strip button').forEach((b,k)=>{b.classList.toggle('on',k===PV.i);if(k===PV.i){b.setAttribute('aria-current','true');try{b.scrollIntoView({block:'nearest',inline:'center'})}catch(e){}}else b.removeAttribute('aria-current')});
+  pvApply();
+}
+function pvGo(k){const n=PV.list.length;PV.i=((k%n)+n)%n;pvShow()}
+function pvClamp(){const el=PV.el;if(!el)return;const st=el.querySelector('.pv-stage');const fr=el.querySelector('.pv-frame');
+  const W=st.clientWidth,H=st.clientHeight,w=fr.offsetWidth*PV.s,h=fr.offsetHeight*PV.s;const mx=Math.max(0,(w-W)/2),my=Math.max(0,(h-H)/2);
+  PV.x=Math.max(-mx,Math.min(mx,PV.x));PV.y=Math.max(-my,Math.min(my,PV.y));if(PV.s<=1){PV.s=1;PV.x=0;PV.y=0}}
+function pvApply(){const el=PV.el;if(!el)return;pvClamp();const fr=el.querySelector('.pv-frame');fr.style.transform=`translate(${PV.x}px,${PV.y}px) scale(${PV.s})`;el.querySelector('.pv-stage').classList.toggle('zoomed',PV.s>1)}
+/* zoom keeping the point under the cursor (cx, cy from the stage center) in place */
+function pvZoomTo(s2,cx,cy){s2=Math.max(1,Math.min(8,s2));const s=PV.s;PV.x=cx-(cx-PV.x)*s2/s;PV.y=cy-(cy-PV.y)*s2/s;PV.s=s2;pvApply()}
+function pvCenterOf(e){const r=PV.el.querySelector('.pv-stage').getBoundingClientRect();return [e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2]}
+function pvWheel(e){e.preventDefault();const [cx,cy]=pvCenterOf(e);pvZoomTo(PV.s*Math.exp(-e.deltaY*0.0015),cx,cy)}
+function pvDbl(e){const [cx,cy]=pvCenterOf(e);if(PV.s>1){PV.s=1;pvApply()}else pvZoomTo(3,cx,cy)}
+function pvDown(e){if(e.button>0)return;try{e.currentTarget.setPointerCapture(e.pointerId)}catch(x){}PV.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(PV.ptrs.size===2){const [a,b]=[...PV.ptrs.values()];PV.pinch={d:Math.hypot(a.x-b.x,a.y-b.y),s:PV.s,c:pvCenterOf({clientX:(a.x+b.x)/2,clientY:(a.y+b.y)/2})};PV.drag=null}
+  else PV.drag={x:e.clientX,y:e.clientY,ox:PV.x,oy:PV.y,moved:0}}
+function pvMove(e){if(!PV.ptrs.has(e.pointerId))return;PV.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(PV.pinch&&PV.ptrs.size>=2){const [a,b]=[...PV.ptrs.values()];const dd=Math.hypot(a.x-b.x,a.y-b.y);const s2=Math.max(1,Math.min(8,PV.pinch.s*dd/PV.pinch.d));const [cx,cy]=PV.pinch.c;PV.x=cx-(cx-PV.x)*s2/PV.s;PV.y=cy-(cy-PV.y)*s2/PV.s;PV.s=s2;pvApply();return}
+  const g=PV.drag;if(!g)return;const dx=e.clientX-g.x,dy=e.clientY-g.y;g.moved=Math.max(g.moved,Math.abs(dx),Math.abs(dy));
+  if(PV.s>1){PV.x=g.ox+dx;PV.y=g.oy+dy;pvApply()}}
+function pvUp(e){const g=PV.drag;PV.ptrs.delete(e.pointerId);if(PV.ptrs.size<2)PV.pinch=null;
+  if(g&&PV.s<=1&&PV.ptrs.size===0){const dx=e.clientX-g.x;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(e.clientY-g.y))pvGo(PV.i+(dx<0?1:-1))}
+  if(PV.ptrs.size===0)PV.drag=null}
+function pvKey(e){if(!PV.el)return;const k=e.key;
+  if(k==='Escape'){e.preventDefault();if(document.fullscreenElement===PV.el){try{document.exitFullscreen()}catch(x){}}else closeViewer()}
+  else if(k==='ArrowRight'){e.preventDefault();pvGo(PV.i+1)}else if(k==='ArrowLeft'){e.preventDefault();pvGo(PV.i-1)}
+  else if(k==='+'||k==='='){pvZoomTo(PV.s*1.4,0,0)}else if(k==='-'){pvZoomTo(PV.s/1.4,0,0)}else if(k==='0'){PV.s=1;pvApply()}}
+function pvClick(e){const b=e.target.closest('[data-pv]');if(!b)return;const a=b.dataset.pv;
+  if(a==='close')closeViewer();else if(a==='prev')pvGo(PV.i-1);else if(a==='next')pvGo(PV.i+1);else if(a==='go')pvGo(+b.dataset.i);
+  else if(a==='in')pvZoomTo(PV.s*1.5,0,0);else if(a==='out')pvZoomTo(PV.s/1.5,0,0);else if(a==='reset'){PV.s=1;pvApply()}
+  else if(a==='marks'){PV.marks=!PV.marks;pvShow()}
+  else if(a==='fs'){try{if(document.fullscreenElement)document.exitFullscreen();else if(PV.el.requestFullscreen)PV.el.requestFullscreen().catch(()=>{})}catch(x){}}}
 
 /* ================= deal score, comps, rental (deal page cards) ================= */
 function scoreTag(d){const S=dealScore(d);if(!S)return '';const theirs=arvTheirs(d)||rehabTheirs(d);return `<span class="tag score ${theirs?'slate':S.grade[1]}" title="Deal score at ${money(S.basis)}${theirs?', using the seller’s own ARV/repair numbers':''}">${S.score} · ${esc(STRAT_LABEL[S.best])}${theirs?' <small style="font-size:.45em;font-weight:700;opacity:.8">on their numbers</small>':''}</span>`}
@@ -6302,6 +6434,9 @@ A['offer-send']=async()=>{const id=state.modal&&state.modal.id;const d=state.dea
   const ok=await sendEmailNow(id);if(ok){state.modal=null;render();toast(`Offer of ${money(P)} sent from ${sendEmail()}${d.autopilot&&state.settings.auto.enabled?'. '+negName()+' takes it from here.':''}`,4600)}};
 A['offer-mark']=()=>{const id=state.modal&&state.modal.id;if(!id)return;markSent(id,'email');state.modal=null;render();toast('Logged as sent.')};
 A['deep-all']=()=>deepAll();
+A['ph-open']=el=>openViewer(state.dealId,+el.dataset.i||0);
+A['ph-step']=el=>{const d=D();if(!d)return;const n=dealPhotos(d).length;if(!n)return;PIDX[d.id]=(((PIDX[d.id]||0)+(+el.dataset.v))%n+n)%n;render()};
+A['ph-go']=el=>{const d=D();if(!d)return;PIDX[d.id]=+el.dataset.i||0;render()};
 A['photo-del']=el=>removePhoto(state.dealId,el.dataset.pid);
 A['photo-urls']=()=>{const t=state.drafts['ph-url']||'';const urls=t.split(/[\s,]+/).filter(Boolean);const n=addPhotoUrls(state.dealId,urls);state.drafts['ph-url']='';render();toast(n?`Added ${n} photo link${n>1?'s':''}`:'Paste direct https links to images.')};
 A['sf-save']=()=>{const d=D();const c=calc(d);const s=sfCalc(d,c);d.sfSaved={price:s.v.price,downPct:s.v.downPct,payment:s.v.payment,rate:s.v.rate};saveDeal(d);toast(`Saved. ${negName()} uses these terms when she goes creative.`)};

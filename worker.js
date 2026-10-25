@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261025-0331: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261025-0403: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261025-0331';
+const APP_V='20261025-0403';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -104,6 +104,7 @@ const ICONS={
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/>',
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
+  expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
   refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
@@ -736,13 +737,14 @@ const REHAB_BOOK=[
   ['rewire','Rewire','per sqft',7],['repipe','Plumbing repipe','per sqft',6],['foundation','Foundation repair allowance','each',9000],['siding','Siding repair','per house',4000],
   ['fence','Fence','per linear ft',35],['landscaping','Landscaping and cleanup','per house',2500],['permits','Permits, dumpster, misc','per house',1500]];
 function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
-function promptDeep(d,nPhotos){
+function promptDeep(d,nPhotos,marks){
   const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
   return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
 Work in this order:
 1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
-2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
+${marks?`   Inspect each photo like a home inspector and mark every clearly visible problem the investor would pay to fix (mold, water stain, rot, a door to fix or replace, cracked tile, sagging or stained ceiling, exposed wiring, broken window, peeling paint, damaged floor, missing fixture). For each, add a mark: a box around the problem given as fractions of that photo's width and height (x and y = top-left corner, w and h = size, all 0 to 1). Label it in 2 to 4 plain words, like "mold", "door to fix", "water stain". At most 6 marks per photo, only things you can actually see, no marks on things that are fine; a photo with no visible problems gets "marks":[].
+`:''}2. Condition by area, rated only from what you saw or what the text says. Anything not shown is "unknown" and goes in notSeen.
 3. Rehab quantities from the investor's cost book below. Do not invent prices. For each item needed, give the cost-book key and a quantity: square feet for per-sqft items (base them on the ${d.sqft||'unknown'} sqft living area unless the photos show otherwise), a count for "each" items, and 1 for per-house items. For areas you could not see, include a sensible allowance and mark seen false.
 Cost book (key: item, price, unit):
 ${book.map(b=>`- ${b.key}: ${b.label}, ${money(b.cost)} ${b.unit}`).join('\n')}
@@ -758,7 +760,7 @@ ${(()=>{const m=marketFacts(d);return m?m+'\n':''})()}
 Rules: whole dollars only. If there are few or no comps, your ARV is a rough estimate: give a low/high range and mark confidence low. Renovated homes in a ZIP usually sell above the ZIP's median $/sqft.
 
 Reply with only JSON:
-{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]}],
+{"photoLog":[{"photo":1,"area":"kitchen|bathroom|bedroom|living|exterior|roof|yard|garage|mechanical|other","sees":"what is visible","condition":"good|fair|poor","flags":["cost signals"]${marks?',"marks":[{"label":"2-4 words, e.g. mold, water stain, door to fix, cracked tile","x":0.0,"y":0.0,"w":0.0,"h":0.0}]':''}}],
 "condition":{"structure":{"rating":"good|fair|poor|unknown","notes":""},"roof":{"rating":"","notes":""},"exterior":{"rating":"","notes":""},"kitchen":{"rating":"","notes":""},"bathrooms":{"rating":"","notes":""},"living_bedrooms":{"rating":"","notes":""},"flooring":{"rating":"","notes":""},"mechanicals":{"rating":"","notes":""}},
 "notSeen":["areas with no photo, e.g. roof, HVAC, second bathroom"],
 "level":"light refresh|moderate rehab|full gut","summary":"two sentences","suggestions":["specific renovation suggestions"],
@@ -916,7 +918,7 @@ async function addPhotoBlobs(dealId,blobs,source){
   for(const f of blobs){
     if(f.type&&!/^image\//.test(f.type))continue;
     if(d.photoIds.length>=24)break;
-    try{const {blob,thumb,w,h}=await downscale(f,1568,.85,180);const id=uid('ph');
+    try{const {blob,thumb,w,h}=await downscale(f,2560,.86,180);const id=uid('ph');
       await IDB.put('photos',{id,dealId,blob,w,h,source:source||'upload',at:nowISO()});
       d.photoIds.push(id);photoObjURL[id]=URL.createObjectURL(blob);if(!d.thumb)d.thumb=thumb;n++}catch(e){}
   }
@@ -942,9 +944,10 @@ async function ensurePhotoUrls(dealId){
 }
 async function photoItemsForAI(d){
   const items=[];
-  for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob)items.push(r.blob)}catch(e){}}
-  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length)))items.push({url:u});
-  return items;
+  const refs=[];
+  for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob){let b=r.blob;if((r.w||0)>1568||(r.h||0)>1568){try{b=(await downscale(r.blob,1568,.85,8)).blob}catch(e){}}items.push(b);refs.push(id)}}catch(e){}}
+  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length))){items.push({url:u});refs.push('url:'+u)}
+  items.refs=refs;return items;
 }
 const photoCount=d=>(d.photoIds||[]).length+(d.photoUrls||[]).length;
 function thumbSrc(d){return d.thumb||d.thumbUrl||null}
@@ -1765,9 +1768,10 @@ async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
   const items=await photoItemsForAI(d);
   const model=forceModel||bigModel();
-  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length),{signal,images:items,maxTokens:8000,model}),quiet);
+  const marks=!!(model&&/opus/.test(model)&&items.length);
+  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks),{signal,images:items,maxTokens:marks?12000:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
-  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,model:model||secrets().model||'claude-sonnet-5-5'});
+  dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,photoRefs:items.refs||[],model:model||secrets().model||'claude-sonnet-5-5'});
   const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';
   const fromBook=(Array.isArray(res.rehabItems)?res.rehabItems:[]).filter(x=>book[x.key]&&parseNum(x.qty)>0).map(x=>{const b=book[x.key];const q=parseNum(x.qty);return {item:b.label,detail:`${/house/.test(b.unit)?'':numFmt(q)+(short(b.unit)?' '+short(b.unit):'')+' × '+(b.cost<100&&b.cost%1?'$'+b.cost.toFixed(2):money(b.cost))+' · '}${String(x.why||'')}${x.seen===false?' (not in photos: allowance)':''}`,cost:Math.round(q*b.cost),key:x.key,qty:q,seen:x.seen!==false}});
   const custom=(Array.isArray(res.customLines)?res.customLines:[]).filter(x=>parseNum(x.cost)).map(x=>({item:String(x.item||''),detail:String(x.detail||''),cost:parseNum(x.cost)}));
