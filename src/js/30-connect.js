@@ -63,7 +63,46 @@ function pdfJpegs(u8,max){
   }
   return out;
 }
-async function pdfPhotos(u8){const keep=[];for(const b of pdfJpegs(u8,30)){if(keep.length>=16)break;try{const bm=await createImageBitmap(b);if(Math.min(bm.width,bm.height)>=300)keep.push(b);bm.close&&bm.close()}catch(e){}}return keep}
+/* every photo inside a PDF, however it's stored: plain JPEG, JPEG wrapped in ASCII85, or compressed raw pixels (Flate, with or without PNG row filters).
+   Masks and logos are skipped. */
+function a85(src){const out=new Uint8Array(Math.ceil(src.length*4/5)+8);let o=0,t=0,n=0;
+  for(let i=0;i<src.length;i++){const c=src[i];if(c===0x7e)break;if(c<=0x20)continue;if(c===0x7a&&n===0){out[o++]=0;out[o++]=0;out[o++]=0;out[o++]=0;continue}if(c<0x21||c>0x75)continue;
+    t=t*85+(c-33);if(++n===5){out[o++]=(t>>>24)&255;out[o++]=(t>>>16)&255;out[o++]=(t>>>8)&255;out[o++]=t&255;t=0;n=0}}
+  if(n>0){for(let k=n;k<5;k++)t=t*85+84;const b=[(t>>>24)&255,(t>>>16)&255,(t>>>8)&255,t&255];for(let k=0;k<n-1;k++)out[o++]=b[k]}
+  return out.subarray(0,o)}
+async function inflate(u8){const s=new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate'));return new Uint8Array(await new Response(s).arrayBuffer())}
+function unPng(data,cols,colors,w,h){const bpp=colors,row=cols*colors,out=new Uint8Array(row*h);let p=0;
+  for(let y=0;y<h;y++){const f=data[p++];const o=y*row,u=o-row;
+    for(let x=0;x<row;x++){const raw=data[p++]||0;const a=x>=bpp?out[o+x-bpp]:0,b=y?out[u+x]:0,c=(y&&x>=bpp)?out[u+x-bpp]:0;
+      let v=raw;if(f===1)v=raw+a;else if(f===2)v=raw+b;else if(f===3)v=raw+((a+b)>>1);else if(f===4){const pa=Math.abs(b-c),pb=Math.abs(a-c),pc=Math.abs(a+b-2*c);v=raw+(pa<=pb&&pa<=pc?a:pb<=pc?b:c)}
+      out[o+x]=v&255}}
+  return out}
+async function pixelsToJpeg(px,w,h){const n=px.length/(w*h);if(![1,3,4].includes(n))return null;const rgba=new Uint8ClampedArray(w*h*4);
+  for(let i=0,j=0;i<w*h;i++,j+=n){if(n===1){rgba[i*4]=rgba[i*4+1]=rgba[i*4+2]=px[j]}else if(n===3){rgba[i*4]=px[j];rgba[i*4+1]=px[j+1];rgba[i*4+2]=px[j+2]}else{const k=px[j+3];rgba[i*4]=255-Math.min(255,px[j]+k);rgba[i*4+1]=255-Math.min(255,px[j+1]+k);rgba[i*4+2]=255-Math.min(255,px[j+2]+k)}rgba[i*4+3]=255}
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').putImageData(new ImageData(rgba,w,h),0,0);
+  return await new Promise(r=>cv.toBlob(r,'image/jpeg',.9))}
+async function pdfImages(u8,max){
+  const s=latin1(u8);const masks=new Set();for(const m of s.matchAll(/\/(?:SMask|Mask)\s+(\d+)\s+\d+\s+R/g))masks.add(m[1]);
+  const out=[];let pos=0;
+  while(out.length<(max||16)){
+    const idx=s.indexOf('stream',pos);if(idx<0)break;pos=idx+6;if(s.slice(idx-3,idx)==='end')continue;
+    const op=s.lastIndexOf('obj',idx);if(op<0)continue;const hd=s.slice(Math.max(0,op-24),op+3).match(/(\d+)\s+\d+\s+obj$/);const num=hd?hd[1]:'';
+    const dict=s.slice(op+3,idx);if(!/\/Subtype\s*\/Image/.test(dict)||/\/ImageMask\s+true/.test(dict)||masks.has(num))continue;
+    let start=idx+6;if(s[start]==='\r')start++;if(s[start]==='\n')start++;
+    const lm=dict.match(/\/Length\s+(\d+)(\s+\d+\s+R)?/);let end=lm&&!lm[2]?start+(+lm[1]):s.indexOf('endstream',start);if(end<start)continue;pos=end;
+    const w=+((dict.match(/\/Width\s+(\d+)/)||[])[1]||0),h=+((dict.match(/\/Height\s+(\d+)/)||[])[1]||0);if(Math.min(w,h)<300)continue;
+    const fm=dict.match(/\/Filter\s*(\[[^\]]*\]|\/[A-Za-z0-9]+)/);const filters=fm?(fm[1].match(/\/[A-Za-z0-9]+/g)||[]).map(x=>x.slice(1)):[];
+    try{let data=u8.subarray(start,end),blob=null,ok=true;
+      for(const f of filters){if(f==='ASCII85Decode'||f==='A85')data=a85(data);else if(f==='FlateDecode'||f==='Fl')data=await inflate(data);else if(f==='DCTDecode'||f==='DCT'){blob=new Blob([data],{type:'image/jpeg'});break}else{ok=false;break}}
+      if(!ok)continue;
+      if(!blob){if(+((dict.match(/\/BitsPerComponent\s+(\d+)/)||[])[1]||8)!==8)continue;const pr=+((dict.match(/\/Predictor\s+(\d+)/)||[])[1]||1);
+        if(pr>=10){const colors=+((dict.match(/\/Colors\s+(\d+)/)||[])[1]||0)||Math.round((data.length/h-1)/w)||3;data=unPng(data,+((dict.match(/\/Columns\s+(\d+)/)||[])[1]||w),colors,w,h)}
+        blob=await pixelsToJpeg(data.subarray(0,Math.floor(data.length/(w*h))*w*h),w,h)}
+      if(blob&&blob.size>=8000)out.push(blob)}catch(e){}
+  }
+  if(!out.length)for(const b of pdfJpegs(u8,max||16))out.push(b);
+  return out}
+async function pdfPhotos(u8){const keep=[];for(const b of await pdfImages(u8,24)){if(keep.length>=16)break;try{const bm=await createImageBitmap(b);if(Math.min(bm.width,bm.height)>=300)keep.push(b);bm.close&&bm.close()}catch(e){}}return keep}
 async function fetchPdfs(mid,acct){
   const files=[],skipped=[];let start=0,guard=0;
   while(start!=null&&guard++<4){const r=await bridge('attachments',{id:mid,kind:'pdf',max:1,start},acct);
@@ -160,12 +199,22 @@ function buildQuery(defaultOnly){
   parts.push('from:(realestatebees.com OR housecashin.com OR investorlift.com OR davebuyshousesindiana.com)');
   /* plain one-off pitches with no subject or deal words ("the address is 435 N Oxford… comps are… my asking was 100, open to offers") */
   parts.push('(("off market" OR "off-market" OR comps OR "sq ft" OR sqft) (asking OR "open to offers" OR "best offer" OR "make an offer"))');
+  parts.push('(("off market" OR "off-market" OR "investment opportunity" OR "investor opportunity" OR "investment property" OR wholesale OR "buy box" OR "purchase price" OR "starting price") (property OR properties OR home OR homes OR house OR houses))');
   return 'newer_than:30d -from:me -in:sent -from:txt.voice.google.com ('+parts.join(' OR ')+')';
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
 const byUpdated=(a,b)=>String(b.updated).localeCompare(String(a.updated));
+/* an email that names a street address and talks about a house, a price or a deal */
+const ADDR_RE=/\b\d{2,6}\s+(?:[NSEW]\.?\s+)?(?:[A-Za-z0-9.'-]+\s+){0,3}(?:St|Street|Ave|Avenue|Av|Rd|Road|Dr|Drive|Ln|Lane|Ct|Court|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Pkwy|Parkway|Hwy|Highway|Trl|Trail)\b\.?/;
+function looksLikeDeal(m){const t=(m.subject||'')+'\n'+(m.body||'');if(!ADDR_RE.test(t))return false;
+  return /\b(property|properties|house|home|deal|off[- ]market|asking|price|offer|arv|rehab|investor|investment|wholesale|assignment|buy box|bed|bath|sq\.? ?ft)\b|\$\s?\d/i.test(t)}
+async function wideSearch(acct){
+  const k='wide_'+acct.id;const last=+(state.mail[k]||0);if(Date.now()-last<15*60e3)return [];state.mail[k]=Date.now();
+  try{const r=await bridge('search',{query:'newer_than:7d in:inbox -from:me -in:sent -category:promotions -category:social -category:forums -from:txt.voice.google.com',max:25},acct.id);return (r.messages||[]).filter(looksLikeDeal)}catch(e){return []}
+}
 async function syncWholesalerEmails(acct){
   const r=await bridge('search',{query:buildQuery(),max:30},acct.id);let n=0;
+  {const more=await wideSearch(acct);if(more.length){const have=new Set((r.messages||[]).map(m=>m.id));r.messages=[...(r.messages||[]),...more.filter(m=>!have.has(m.id))]}}
   if((r.messages||[]).some(m=>m.docs!=null)&&bridgeV(acct.id)<7&&state.conn.accounts&&state.conn.accounts[acct.id]){state.conn.accounts[acct.id].version=7;saveConn()}
   const seen=new Set(Object.values(state.deals).flatMap(d=>d.seenMsgIds||[]));
   const agentEmails=new Set(Object.values(state.deals).filter(d=>d.source!=='wholesaler').map(d=>((d.agent&&d.agent.email)||'').trim().toLowerCase()).filter(Boolean));

@@ -122,7 +122,7 @@ function eyesCard(d,c){
   }
   return `<section class="card" id="eyes"><div class="card-head"><span class="ci grad">${ico('eye')}</span><div><h2>${n}’s eyes · AI inspection report</h2><p>Drop listing photos; ${n} reads each room and prices the rehab</p></div><div class="ch-r"><button class="btn primary" data-act="deep" data-id="${d.id}">${ico('spark')}${a?'Re-run':'Run'} inspection${cnt?` (${cnt} photo${cnt>1?'s':''})`:''}</button></div></div>
   ${busyHTML('deep:'+d.id)}
-  ${gallery}
+  ${!a&&d.deepErr?`<div class="note amber small">${n}’s repair inspection didn’t finish (${esc(d.deepErr.msg)}). Press In-depth analysis to try again.</div>`:''}${gallery}
   <div class="dropzone" id="dropzone" data-drop="${d.id}">${ico('upload')}<span><b>Drop photos here</b>, paste them (Ctrl+V), or <label for="ph-file" style="color:var(--brand-ink);font-weight:700;cursor:pointer">browse</label></span><input type="file" id="ph-file" data-photos="${d.id}" accept="image/*" multiple hidden><span class="xs">Up to 24 photos. Saved on this computer.</span>
   <div class="row" style="width:100%;max-width:560px"><input class="input" id="ph-url" data-draft value="${esc(state.drafts['ph-url']||'')}" placeholder="Or paste photo links (one per line or comma-separated)" style="flex:1"><button class="btn sm" data-act="photo-urls">Add links</button></div></div>
   ${report}

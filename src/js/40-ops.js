@@ -183,7 +183,14 @@ function migratePdfs(){const mg=state.settings.migr=state.settings.migr||{};if(m
     if(!ds.length||ds.some(d=>curList(d)==null||(d.arv==null&&(d.wsClaims||{}).arv==null)||!(d.docs||[]).length)){m.docRead=false;m.pdfTries=0}}
   saveMail()}
 /* emails whose PDF Maya hasn't read yet (24/7 read the text only, or it came in before the Gmail script could send PDFs) */
+async function finishPdfDeals(){if(WORKER.on||!IDB.db)return;let k=0;
+  for(const d of Object.values(state.deals)){if(k>=3)break;if(d.example||!(d.docs||[]).length||['dead','closed'].includes(d.stage))continue;
+    if(!photoCount(d)&&!d.pdfLift){d.pdfLift=nowISO();saveDeal(d,true);for(const x of d.docs){try{const r=await IDB.get('photos',x.id);if(!r||!r.blob)continue;const keep=await pdfPhotos(new Uint8Array(await r.blob.arrayBuffer()));if(keep.length){const n=await addPhotoBlobs(d.id,keep,'pdf');if(n)logActivity(d.id,'info',`${negName()} pulled ${n} photo${n>1?'s':''} out of the PDF on ${streetOf(d.address)}.`)}}catch(e){}}}
+    const dd=state.deals[d.id];if(!dd||!aiOn())continue;
+    if(dd.research&&!dd.analysis&&!overBox(dd)&&!state.busy['deep:'+dd.id]&&(!dd.deepTry||Date.now()-new Date(dd.deepTry).getTime()>864e5)){dd.deepTry=nowISO();saveDeal(dd,true);k++;try{await aiDeep(dd.id,true,secrets().model||'claude-sonnet-5-5')}catch(e){}}}
+  render()}
 async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn())return;
+  try{await finishPdfDeals()}catch(e){}
   for(const d of Object.values(state.deals))for(const s of (d.docSkipped||[]))if(s.why==='too_big'&&(s.mb||0)<=25&&s.msg){const m=state.mail.emails[s.msg];if(m&&m.docRead===true&&!m.bigTried&&bridgeV(m.acct)>=8){m.bigTried=true;m.docRead=false;m.pdfTries=0;d.docSkipped=d.docSkipped.filter(x=>x!==s);saveDeal(d,true);saveMail()}}
   const due=Object.values(state.mail.emails).filter(m=>(m.docs||0)>0&&!m.docRead&&['imported','nodeal','new','reply'].includes(m.status)&&Date.now()-new Date(m.date).getTime()<45*864e5&&(m.pdfTries||0)<2).sort(byDate).reverse().slice(0,4);
   for(const m of due){if(state.busy['mail:'+m.id])continue;m.pdfTries=(m.pdfTries||0)+1;saveMail();try{await importEmail(m.id,true)}catch(e){}}
@@ -344,13 +351,19 @@ function mergeInto(d,x,meta,fresh){
 }
 function theirComps(x){return (Array.isArray(x&&x.theirComps)?x.theirComps:[]).filter(c=>c&&c.addr).slice(0,6).map(c=>({addr:String(c.addr).slice(0,80),price:parseNum(c.price),sqft:parseNum(c.sqft),when:c.when?String(c.when).slice(0,40):'',dist:c.dist?String(c.dist).slice(0,30):''}))}
 const compClaimText=c=>`${c.addr}${c.price?`, sold ${money(c.price)}`:''}${c.when?` (${c.when})`:''}${c.sqft?`, ${numFmt(c.sqft)} sqft`:''}${c.dist?`, ${c.dist}`:''}`;
+async function aiDeepNoDocs(id,quiet,model,why){const d=state.deals[id];if(!d)return;
+  d.deepNoDocs=true;try{return await aiDeep(id,quiet,model)}finally{const dd=state.deals[id];if(dd){delete dd.deepNoDocs;if(!dd.analysis&&why){dd.deepErr={at:nowISO(),msg:String(why).slice(0,200)};saveDeal(dd,true)}}}}
 async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
-  const items=await photoItemsForAI(d);const docs=items.length?[]:await docItemsForAI(d);
+  const items=await photoItemsForAI(d);const docs=items.length||d.deepNoDocs?[]:await docItemsForAI(d);
   const model=forceModel||bigModel();
   const marks=!!(model&&/opus/.test(model)&&items.length);
   const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks,docs.length),{signal,images:items,docs,maxTokens:marks?12000:8000,model}),quiet);
-  if(!res)return;const dd=state.deals[id];if(!dd)return;
+  if(!res){const dd=state.deals[id];const err=(state.aiErrs||{})['deep:'+id]||'';
+    /* the PDF itself may be what the model couldn't take: price the repairs from the description instead of leaving nothing */
+    if(dd&&docs.length&&!/cancel|already/i.test(err)&&!dd.deepRetry){dd.deepRetry=true;saveDeal(dd,true);return aiDeepNoDocs(id,quiet,model,err)}
+    if(dd&&err&&!/cancel|already/i.test(err)){dd.deepErr={at:nowISO(),msg:String(err).slice(0,200)};saveDeal(dd,true)}return}
+  const dd=state.deals[id];if(!dd)return;delete dd.deepErr;delete dd.deepRetry;
   dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,photoRefs:items.refs||[],model:model||secrets().model||'claude-sonnet-5-5'});
   const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';
   const fromBook=(Array.isArray(res.rehabItems)?res.rehabItems:[]).filter(x=>book[x.key]&&parseNum(x.qty)>0).map(x=>{const b=book[x.key];const q=parseNum(x.qty);return {item:b.label,detail:`${/house/.test(b.unit)?'':numFmt(q)+(short(b.unit)?' '+short(b.unit):'')+' × '+(b.cost<100&&b.cost%1?'$'+b.cost.toFixed(2):money(b.cost))+' · '}${String(x.why||'')}${x.seen===false?' (not in photos: allowance)':''}`,cost:Math.round(q*b.cost),key:x.key,qty:q,seen:x.seen!==false}});
