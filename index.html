@@ -1378,7 +1378,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261026-1631';
+const APP_V='20261026-1640';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -4411,7 +4411,7 @@ const ROBOT_PAGE=/just a moment|attention required|verify you are human|are you 
    shared with you or with anyone who has the link), pulls the photos, and fills in what the email left out from the page. */
 function hasStreet(d){const s=streetOf(d&&d.address);return /^\d+[a-z]?(-\d+)?\s+\S/i.test(s)&&!/unknown/i.test(s)}
 const missingInfo=d=>!hasStreet(d)||curList(d)==null||!/^\d{5}/.test(String(d.zip||''))||d.beds==null||d.sqft==null||d.arv==null;
-const P_LINKPAGE=(d,pages)=>`A wholesaler or deal-alert email linked to these pages about a property. Fill in what the email left out, using only what the pages actually say. Use null for anything not on the pages. Numbers are plain numbers in dollars or square feet. If a page shows several properties, use only the one that matches the email (same city, ZIP, price or details); if none clearly matches, set "samePropertyAsEmail" to false.
+const P_LINKPAGE=(d,pages)=>`A wholesaler or deal-alert email linked to these pages about a property. Fill in what the email left out, using only what the pages actually say. Use null for anything not on the pages. Numbers are plain numbers in dollars or square feet. If the page gives repairs as a range ("$100,000-$110,000"), use the high end; if it gives ARV as a range, use the low end. If a page shows several properties, use only the one that matches the email (same city, ZIP, price or details); if none clearly matches, set "samePropertyAsEmail" to false.
 
 What the email gave: ${JSON.stringify({address:d.address,city:d.city,state:d.state,zip:d.zip,asking:curList(d),arv:d.arv,rehab:d.rehab,beds:d.beds,baths:d.baths,sqft:d.sqft,year:d.year})}
 
