@@ -189,7 +189,9 @@ async function finishPdfDeals(){if(WORKER.on||!IDB.db)return;let k=0;
     const dd=state.deals[d.id];if(!dd||!aiOn())continue;
     if(dd.research&&!dd.analysis&&!overBox(dd)&&!state.busy['deep:'+dd.id]&&(!dd.deepTry||Date.now()-new Date(dd.deepTry).getTime()>864e5)){dd.deepTry=nowISO();saveDeal(dd,true);k++;try{await aiDeep(dd.id,true,secrets().model||'claude-sonnet-5-5')}catch(e){}}}
   render()}
-async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn())return;
+const PQ={running:false};
+async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn()||PQ.running)return;PQ.running=true;try{await resumePdfsRun()}finally{PQ.running=false}}
+async function resumePdfsRun(){
   try{await finishPdfDeals()}catch(e){}
   for(const d of Object.values(state.deals))for(const s of (d.docSkipped||[]))if(s.why==='too_big'&&(s.mb||0)<=25&&s.msg){const m=state.mail.emails[s.msg];if(m&&m.docRead===true&&!m.bigTried&&bridgeV(m.acct)>=8){m.bigTried=true;m.docRead=false;m.pdfTries=0;d.docSkipped=d.docSkipped.filter(x=>x!==s);saveDeal(d,true);saveMail()}}
   const due=Object.values(state.mail.emails).filter(m=>(m.docs||0)>0&&!m.docRead&&['imported','nodeal','new','reply'].includes(m.status)&&Date.now()-new Date(m.date).getTime()<45*864e5&&(m.pdfTries||0)<2).sort(byDate).reverse().slice(0,4);
@@ -355,11 +357,13 @@ async function aiDeepNoDocs(id,quiet,model,why){const d=state.deals[id];if(!d)re
   d.deepNoDocs=true;try{return await aiDeep(id,quiet,model)}finally{const dd=state.deals[id];if(dd){delete dd.deepNoDocs;if(!dd.analysis&&why){dd.deepErr={at:nowISO(),msg:String(why).slice(0,200)};saveDeal(dd,true)}}}}
 async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
-  const items=await photoItemsForAI(d);const docs=items.length||d.deepNoDocs?[]:await docItemsForAI(d);
+  let items=await photoItemsForAI(d);if(d.deepNoUrls){const refs=items.refs.filter((r,i)=>!(items[i]&&items[i].url));items=items.filter(x=>!(x&&x.url));items.refs=refs}
+  const docs=items.length||d.deepNoDocs?[]:await docItemsForAI(d);
   const model=forceModel||bigModel();
   const marks=!!(model&&/opus/.test(model)&&items.length);
   const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks,docs.length),{signal,images:items,docs,maxTokens:marks?12000:8000,model}),quiet);
   if(!res){const dd=state.deals[id];const err=(state.aiErrs||{})['deep:'+id]||'';
+    if(dd&&items.some(x=>x&&x.url)&&/download|url|fetch|image/i.test(err)&&!dd.deepNoUrls){dd.deepNoUrls=true;try{return await aiDeep(id,quiet,model)}finally{const d3=state.deals[id];if(d3)delete d3.deepNoUrls}}
     /* the PDF itself may be what the model couldn't take: price the repairs from the description instead of leaving nothing */
     if(dd&&docs.length&&!/cancel|already/i.test(err)&&!dd.deepRetry){dd.deepRetry=true;saveDeal(dd,true);return aiDeepNoDocs(id,quiet,model,err)}
     if(dd&&err&&!/cancel|already/i.test(err)){dd.deepErr={at:nowISO(),msg:String(err).slice(0,200)};saveDeal(dd,true)}return}

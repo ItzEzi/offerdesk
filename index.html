@@ -1378,7 +1378,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261026-1640';
+const APP_V='20261026-1644';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -2281,9 +2281,10 @@ async function addPhotoBlobs(dealId,blobs,source){
   }
   saveDeal(d);return n;
 }
+function goodHost(u){try{const h=new URL(u).hostname;return /^[a-z0-9.-]+\.[a-z]{2,12}$/i.test(h)&&!/\.\./.test(h)}catch(e){return false}}
 function addPhotoUrls(dealId,urls){
   const d=state.deals[dealId];if(!d)return 0;d.photoUrls=d.photoUrls||[];let n=0;
-  for(const u of urls){const s=String(u||'').trim();if(!/^https:\/\/\S+$/i.test(s)||d.photoUrls.includes(s))continue;if(d.photoUrls.length>=24)break;d.photoUrls.push(s);n++}
+  for(const u of urls){const s=String(u||'').trim();if(!/^https:\/\/\S+$/i.test(s)||!goodHost(s)||d.photoUrls.includes(s))continue;if(d.photoUrls.length>=24)break;d.photoUrls.push(s);n++}
   if(n&&!d.thumb&&!(d.photoIds||[]).length)d.thumbUrl=d.photoUrls[0];
   saveDeal(d);return n;
 }
@@ -2391,7 +2392,9 @@ async function photoItemsForAI(d){
   const items=[];
   const refs=[];
   for(const id of (d.photoIds||[]).slice(0,12)){try{const r=await IDB.get('photos',id);if(r&&r.blob){let b=r.blob;if((r.w||0)>1568||(r.h||0)>1568){try{b=(await downscale(r.blob,1568,.85,8)).blob}catch(e){}}items.push(b);refs.push(id)}}catch(e){}}
-  for(const u of (d.photoUrls||[]).slice(0,Math.max(0,12-items.length))){items.push({url:u});refs.push('url:'+u)}
+  for(const u of (d.photoUrls||[]).filter(goodHost).slice(0,Math.max(0,12-items.length))){
+    let b=null;try{const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),8000);const r=await fetch(u,{signal:ctl.signal});clearTimeout(tm);if(r.ok&&/^image\//.test(r.headers.get('content-type')||'')){b=await r.blob();const bm=await createImageBitmap(b);const big=Math.max(bm.width,bm.height)>1568;bm.close&&bm.close();if(big||b.size>4e6||!/jpe?g|png|webp|gif/.test(b.type))b=(await downscale(b,1568,.85,8)).blob}}catch(e){b=null}
+    items.push(b||{url:u});refs.push('url:'+u)}
   items.refs=refs;return items;
 }
 const photoCount=d=>(d.photoIds||[]).length+(d.photoUrls||[]).length;
@@ -2421,8 +2424,10 @@ const smsOn=()=>textMode()==='twilio'&&gmailOn()&&!!sendInfo().twilio;
 const gvOn=()=>textMode()==='gvoice'&&gmailOn();
 async function bridge(action,payload,acctId){
   const a=acctId?acctList().find(x=>x.id===acctId):sendAcct();if(!a||!a.url)throw {code:'no_bridge'};
-  let res;try{res=await fetch(a.url,{method:'POST',body:JSON.stringify(Object.assign({key:bridgeKey(),action},payload||{}))})}catch(e){throw {code:'bridge_net'}}
-  const t=await res.text();let j;try{j=JSON.parse(t)}catch(e){throw {code:'bridge_bad',message:t.slice(0,160)}}
+  const ctl=typeof AbortController!=='undefined'?new AbortController():null;const ms=/^(attachments|pdf_part|photo_put|photo_get|cloud_)/.test(action)?240e3:120e3;
+  const timer=ctl?setTimeout(()=>ctl.abort(),ms):null;
+  let res,t;try{res=await fetch(a.url,ctl?{method:'POST',body:JSON.stringify(Object.assign({key:bridgeKey(),action},payload||{})),signal:ctl.signal}:{method:'POST',body:JSON.stringify(Object.assign({key:bridgeKey(),action},payload||{}))});t=await res.text()}
+  catch(e){throw {code:e&&e.name==='AbortError'?'bridge_timeout':'bridge_net'}}finally{if(timer)clearTimeout(timer)}let j;try{j=JSON.parse(t)}catch(e){throw {code:'bridge_bad',message:t.slice(0,160)}}
   if(!j.ok)throw {code:'bridge_err',message:j.error||'error'};
   return j;
 }
@@ -2444,7 +2449,8 @@ function e164(s){const d=String(s||'').replace(/\D/g,'');if(d.length===10)return
 function stripQuoted(t){let s=String(t||'');for(const re of [/\n\s*On [^\n]{0,200}wrote:\s*\n/i,/\n-{2,}\s*Original Message\s*-{2,}/i,/\n\s*From: [^\n]+\n\s*(Sent|Date): /i,/\n>/]){const i=s.search(re);if(i>20)s=s.slice(0,i)}return s.trim().slice(0,4000)}
 function buildQuery(defaultOnly){
   const c=state.settings.conn;if(!defaultOnly&&c.gmailQuery&&c.gmailQuery.trim())return c.gmailQuery.trim();
-  const emails=(state.settings.wholesalers||[]).map(w=>(w.email||'').trim()).filter(Boolean).slice(0,40);
+  const recent=Object.values(state.deals).filter(d=>d.source==='wholesaler'&&!d.example).sort((a,b)=>String(b.receivedAt||b.created||'').localeCompare(String(a.receivedAt||a.created||''))).map(d=>((d.agent||{}).email||'').trim());
+  const emails=[...new Set([...recent,...(state.settings.wholesalers||[]).map(w=>(w.email||'').trim()).reverse()].map(x=>x.toLowerCase()).filter(x=>/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(x)))].slice(0,40);
   const parts=['label:wholesalers'];if(emails.length)parts.push('from:('+emails.join(' OR ')+')');
   parts.push('((ARV OR "after repair value" OR "after-repair value") (assignment OR "off market" OR "off-market" OR wholesale OR "cash buyers" OR asking OR rehab OR repairs OR "contract price" OR "buyers list"))');
   parts.push('("assignment fee" OR "investor special" OR "off market deal" OR "off-market deal" OR "cash buyers only")');
@@ -2459,9 +2465,17 @@ function buildQuery(defaultOnly){
 }
 const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
 const byUpdated=(a,b)=>String(b.updated).localeCompare(String(a.updated));
+/* new emails are read one by one in the background, so a slow read (a big PDF, a busy model) never stops OfferDesk from checking Gmail */
+const IQ={running:false,left:0};
+async function drainImports(){if(IQ.running||WORKER.on)return;IQ.running=true;
+  try{for(let k=0;k<25;k++){const now=Date.now();const all=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)).sort(byDate).reverse();
+      IQ.left=all.length;if(!all.length||!aiOn())break;const m=all[0];m.tries=(m.tries||0)+1;m.lastTry=nowISO();saveMail();render();try{await importEmail(m.id,true)}catch(e){}}}
+  finally{IQ.running=false;IQ.left=0;render()}
+  resumePdfs().catch(()=>{})}
 /* an email that names a street address and talks about a house, a price or a deal */
 const ADDR_RE=/\b\d{2,6}\s+(?:[NSEW]\.?\s+)?(?:[A-Za-z0-9.'-]+\s+){0,3}(?:St|Street|Ave|Avenue|Av|Rd|Road|Dr|Drive|Ln|Lane|Ct|Court|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Pkwy|Parkway|Hwy|Highway|Trl|Trail)\b\.?/;
-function looksLikeDeal(m){const t=(m.subject||'')+'\n'+(m.body||'');if(!ADDR_RE.test(t))return false;
+const SLUG_RE=/[\/-]\d{2,6}-(?:[a-z0-9]+-){0,4}?(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|blvd|way|pl|place|cir|circle|ter|pkwy|hwy|trl)(?:-|\/|$)/i;
+function looksLikeDeal(m){const t=(m.subject||'')+'\n'+(m.body||'');if(!ADDR_RE.test(t)&&!SLUG_RE.test(t))return false;
   return /\b(property|properties|house|home|deal|off[- ]market|asking|price|offer|arv|rehab|investor|investment|wholesale|assignment|buy box|bed|bath|sq\.? ?ft)\b|\$\s?\d/i.test(t)}
 async function wideSearch(acct){
   const k='wide_'+acct.id;const last=+(state.mail[k]||0);if(Date.now()-last<15*60e3)return [];state.mail[k]=Date.now();
@@ -2483,8 +2497,9 @@ async function syncWholesalerEmails(acct){
   /* new emails, plus ones Maya couldn't read before (no credits, a hiccup): retried up to 3 times, an hour apart */
   if(state.settings.conn.autoImport&&aiOn()){const now=Date.now();
     const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)&&!(WORKER.on&&(x.docs||0)>0)).sort(byDate).reverse().slice(0,8);
-    for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
-  if(!WORKER.on)resumePdfs().catch(()=>{});
+    if(WORKER.on){for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
+    else drainImports()}
+  else if(!WORKER.on)resumePdfs().catch(()=>{});
   return n;
 }
 function replyTarget(m){
@@ -2584,7 +2599,8 @@ async function syncTexts(){
 }
 async function syncAll(manual){
   if(!gmailOn()){if(manual)toast('Connect Gmail first (Connect → Gmail).');return}
-  if(state.syncing)return;state.syncing=true;render();
+  if(state.syncing&&Date.now()-(+state.syncing||0)<5*60e3){if(manual)toast(`${negName()} is already checking Gmail. Give her a moment.`,3500);return}
+  state.syncing=Date.now();render();
   try{
     let e=0,r=0;const fails=[];
     for(const a of connectedAccts()){try{e+=await syncWholesalerEmails(a);r+=await syncReplies(a)}catch(err){fails.push(acctInfo(a.id).email+': '+bridgeErr(err))}}
@@ -2593,7 +2609,7 @@ async function syncAll(manual){
     const t=(smsOn()||gvOn())?await syncTexts():0;
     try{await draftReplies()}catch(e){}
     state.mail.lastSync=nowISO();saveMail();persist('deals');
-    if(manual||r||t){const head=`Checked Gmail: ${e?`${e} new wholesaler email${e===1?'':'s'}`:'no new wholesaler emails since the last check'}, ${r} new repl${r===1?'y':'ies'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}.`;
+    if(manual||r||t){const head=`Checked Gmail: ${e?`${e} new wholesaler email${e===1?'':'s'}`:'no new wholesaler emails since the last check'}, ${r} new repl${r===1?'y':'ies'}${smsOn()||gvOn()?`, ${t} new text${t===1?'':'s'}`:''}.${IQ.running?` ${negName()} is reading the new ones now; they show up in Inbox Leads as she finishes.`:''}`;
       toast(manual?head+' '+mailRecap():head,manual?9000:3800)}
   }catch(err){if(manual)toast(bridgeErr(err),5200);else logActivity(null,'warn','Gmail check failed: '+bridgeErr(err))}
   finally{state.syncing=false;render()}
@@ -3177,7 +3193,9 @@ async function finishPdfDeals(){if(WORKER.on||!IDB.db)return;let k=0;
     const dd=state.deals[d.id];if(!dd||!aiOn())continue;
     if(dd.research&&!dd.analysis&&!overBox(dd)&&!state.busy['deep:'+dd.id]&&(!dd.deepTry||Date.now()-new Date(dd.deepTry).getTime()>864e5)){dd.deepTry=nowISO();saveDeal(dd,true);k++;try{await aiDeep(dd.id,true,secrets().model||'claude-sonnet-5-5')}catch(e){}}}
   render()}
-async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn())return;
+const PQ={running:false};
+async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn()||PQ.running)return;PQ.running=true;try{await resumePdfsRun()}finally{PQ.running=false}}
+async function resumePdfsRun(){
   try{await finishPdfDeals()}catch(e){}
   for(const d of Object.values(state.deals))for(const s of (d.docSkipped||[]))if(s.why==='too_big'&&(s.mb||0)<=25&&s.msg){const m=state.mail.emails[s.msg];if(m&&m.docRead===true&&!m.bigTried&&bridgeV(m.acct)>=8){m.bigTried=true;m.docRead=false;m.pdfTries=0;d.docSkipped=d.docSkipped.filter(x=>x!==s);saveDeal(d,true);saveMail()}}
   const due=Object.values(state.mail.emails).filter(m=>(m.docs||0)>0&&!m.docRead&&['imported','nodeal','new','reply'].includes(m.status)&&Date.now()-new Date(m.date).getTime()<45*864e5&&(m.pdfTries||0)<2).sort(byDate).reverse().slice(0,4);
@@ -3343,11 +3361,13 @@ async function aiDeepNoDocs(id,quiet,model,why){const d=state.deals[id];if(!d)re
   d.deepNoDocs=true;try{return await aiDeep(id,quiet,model)}finally{const dd=state.deals[id];if(dd){delete dd.deepNoDocs;if(!dd.analysis&&why){dd.deepErr={at:nowISO(),msg:String(why).slice(0,200)};saveDeal(dd,true)}}}}
 async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
-  const items=await photoItemsForAI(d);const docs=items.length||d.deepNoDocs?[]:await docItemsForAI(d);
+  let items=await photoItemsForAI(d);if(d.deepNoUrls){const refs=items.refs.filter((r,i)=>!(items[i]&&items[i].url));items=items.filter(x=>!(x&&x.url));items.refs=refs}
+  const docs=items.length||d.deepNoDocs?[]:await docItemsForAI(d);
   const model=forceModel||bigModel();
   const marks=!!(model&&/opus/.test(model)&&items.length);
   const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks,docs.length),{signal,images:items,docs,maxTokens:marks?12000:8000,model}),quiet);
   if(!res){const dd=state.deals[id];const err=(state.aiErrs||{})['deep:'+id]||'';
+    if(dd&&items.some(x=>x&&x.url)&&/download|url|fetch|image/i.test(err)&&!dd.deepNoUrls){dd.deepNoUrls=true;try{return await aiDeep(id,quiet,model)}finally{const d3=state.deals[id];if(d3)delete d3.deepNoUrls}}
     /* the PDF itself may be what the model couldn't take: price the repairs from the description instead of leaving nothing */
     if(dd&&docs.length&&!/cancel|already/i.test(err)&&!dd.deepRetry){dd.deepRetry=true;saveDeal(dd,true);return aiDeepNoDocs(id,quiet,model,err)}
     if(dd&&err&&!/cancel|already/i.test(err)){dd.deepErr={at:nowISO(),msg:String(err).slice(0,200)};saveDeal(dd,true)}return}
