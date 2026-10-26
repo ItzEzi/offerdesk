@@ -1378,7 +1378,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261026-1620';
+const APP_V='20261026-1631';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -4398,8 +4398,8 @@ async function openLinks(id,links,opts){
       if(state.deals[id])state.deals[id].driveSeen=[...seen].slice(-200);
       if(blobs.length)photos+=await addPhotoBlobs(id,blobs,'link');continue}
     if(r.kind==='image'){photos+=addPhotoUrls(id,[u]);continue}
-    if(r.kind==='page'){if(r.text)pages.push({url:u,title:r.title||'',text:r.text});
-      const imgs=(r.images||[]).filter(x=>!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis/i.test(x));
+    if(r.kind==='page'){const imgs=(r.images||[]).map(x=>String(x&&x.src||x)).filter(x=>/^https:\/\//i.test(x)&&!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis|-\d{2,3}x\d{2,3}\.(jpe?g|png|webp)/i.test(x));
+      if(r.text)pages.push({url:u,title:r.title||'',text:r.text,images:[...new Set(imgs)].slice(0,40)});
       if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
   }
   return {pages,blocked,photos,noAccess,why};
@@ -4415,9 +4415,11 @@ const P_LINKPAGE=(d,pages)=>`A wholesaler or deal-alert email linked to these pa
 
 What the email gave: ${JSON.stringify({address:d.address,city:d.city,state:d.state,zip:d.zip,asking:curList(d),arv:d.arv,rehab:d.rehab,beds:d.beds,baths:d.baths,sqft:d.sqft,year:d.year})}
 
-Reply with only JSON: {"samePropertyAsEmail":true|false,"address":"street address with the house number, or null","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"occupancy":"vacant|occupied|unknown","description":"one or two sentences on condition and the pitch, or null","photoLinks":["direct image URLs of this house, at most 12"]}
+${pages.some(p=>(p.images||[]).length)?`"photoLinks": pick from the image addresses listed under each page only the photos of THIS house (outside and inside), in page order. Skip logos, people, maps and photos of other listings shown on the page. At most 12. If you can't tell which are this house, return [].
 
-${pages.map(p=>`Page: ${p.url}\nTitle: ${p.title}\n"""${String(p.text||'').slice(0,14000)}"""`).join('\n\n')}`;
+`:''}Reply with only JSON: {"samePropertyAsEmail":true|false,"address":"street address with the house number, or null","city":"","state":"","zip":"","asking":number|null,"arv":number|null,"rehab":number|null,"beds":number|null,"baths":number|null,"sqft":number|null,"lotSqft":number|null,"year":number|null,"rent":number|null,"occupancy":"vacant|occupied|unknown","description":"one or two sentences on condition and the pitch, or null","photoLinks":["direct image URLs of this house, at most 12"]}
+
+${pages.map(p=>`Page: ${p.url}\nTitle: ${p.title}\n"""${String(p.text||'').slice(0,14000)}"""${(p.images||[]).length?`\nImages on this page, in order:\n${p.images.map(u=>'- '+u.slice(0,220)).join('\n')}`:''}`).join('\n\n')}`;
 function applyLinkPage(d,j,src){
   const filled=[];const num=k=>parseNum(j[k]);
   const street=String(j.address||'').trim();
@@ -4454,7 +4456,8 @@ async function fillFromLinks(id,quiet,fresh){
   const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
   if(!useful.length&&got.pages.some(p=>!p.redirectOnly&&String(p.text||'').length>=120))other=true;
   const sig=(s=>{let x=0;for(let i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))|0;return x.toString(36)})(useful.map(p=>p.url+':'+p.text).join('|'));const prevSig=(dd.linkFill||{}).sig;
-  if(useful.length&&missingInfo(dd)&&aiOn()&&sig!==prevSig){
+  const needPh=!photoCount(dd)&&!dd.linkPhotosTried&&useful.some(p=>(p.images||[]).length);if(needPh){dd.linkPhotosTried=nowISO()}
+  if(useful.length&&aiOn()&&((missingInfo(dd)&&sig!==prevSig)||needPh)){
     const res=await runAI('links:'+id,`${negName()} is reading the property page…`,(ai,signal)=>ai.json(P_LINKPAGE(dd,useful),{signal,modelTier:'quick',maxTokens:2000}),true);
     dd=state.deals[id];if(!dd)return null;
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
@@ -4539,7 +4542,7 @@ function resumeLinks(){
   const reread=[];
   for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!['new','sent'].includes(d.stage||'new')||overBox(d)){if(d.checking){delete d.checking;saveDeal(d,true)}continue}
     const lf=d.linkFill;const links=dealLinks(d).length;
-    const due=lf&&lf.at&&(lf.tries||1)<3&&Date.now()-new Date(lf.at).getTime()>12*3600*1000&&(!hasStreet(d)||(lf.noAccess||[]).length);
+    const due=(lf&&lf.at&&(lf.tries||1)<3&&Date.now()-new Date(lf.at).getTime()>12*3600*1000&&(!hasStreet(d)||(lf.noAccess||[]).length))||(lf&&lf.at&&(lf.opened||0)>0&&hasStreet(d)&&!photoCount(d)&&!d.linkPhotosTried&&!lf.pending);
     if(links&&((lf&&lf.pending)||d.checking||(!lf&&!hasStreet(d))||due)){if(!LQ.list.includes(d.id))LQ.list.push(d.id)}
     else{if(d.checking){delete d.checking;saveDeal(d,true)}
       if(!hasStreet(d)&&(!links||(lf&&lf.at)))for(const mid of d.seenMsgIds||[]){const m=state.mail.emails[mid];if(m&&m.body&&!m[relinkKey(m)]&&!reread.includes(mid))reread.push(mid)}}}
