@@ -23,9 +23,15 @@ function photoNote(d){
   return out.length?`<div class="note amber small">${ico('camera')} ${out.join(' ')}</div>`:'';
 }
 function docNote(d){
-  const docs=d.docs||[];const big=(d.docSkipped||[]).filter(x=>x.why==='too_big');if(!docs.length&&!big.length)return '';
+  const docs=d.docs||[];const big=(d.docSkipped||[]).filter(x=>x.why==='too_big');
+  const mails=(d.seenMsgIds||[]).map(id=>state.mail.emails[id]).filter(m=>m&&(m.docs||0)>0);
+  const waiting=mails.filter(m=>!m.docRead),failed=mails.filter(m=>m.docRead==='failed');const n=esc(negName());
+  const reading=waiting.some(m=>state.busy['mail:'+m.id]);
+  const wait=waiting.length?`<div class="note ${reading?'purple':'amber'} small row" style="gap:8px">${reading?'<span class="spin"></span>':ico('pdf')}<span>${reading?`${n} is reading the PDF that came with this deal…`:`This deal came with a PDF. ${n} reads it the next time OfferDesk checks Gmail (every few minutes while it’s open).`}</span></div>`:'';
+  const bad=failed.length?`<div class="note amber small">${ico('pdf')} ${n} couldn’t open the PDF (it may be locked or damaged), so she read the email only. Open it in Gmail.</div>`:'';
+  if(!docs.length&&!big.length)return wait+bad;
   return `<div class="docs">${docs.map(x=>`<a class="doc-chip" ${docObjURL[x.id]?`href="${esc(docObjURL[x.id])}" target="_blank" rel="noopener"`:'aria-disabled="true"'}>${ico('pdf')}<span class="dn">${esc(x.name)}</span><span class="xs muted">${x.pages?x.pages+' page'+(x.pages>1?'s':'')+' · ':''}${x.pages>60?'too long for '+esc(negName())+' to read':esc(negName())+' read it'}</span></a>`).join('')}
-    ${big.map(x=>`<span class="small muted">${ico('pdf')} ${esc(x.name||'A PDF')}${x.mb?` (${x.mb} MB)`:''} is too big to pull from Gmail. Open it there.</span>`).join('')}</div>`;
+    ${big.map(x=>`<span class="small muted">${ico('pdf')} ${esc(x.name||'A PDF')}${x.mb?` (${x.mb} MB)`:''} ${bridgeV()<8&&(x.mb||0)<=25?`is too big for your Gmail script. <a href="#settings/connections">Update it</a> and ${esc(negName())} reads it on the next check.`:'is too big to pull from Gmail (over 25 MB). Open it there.'}</span>`).join('')}</div>${wait}${bad}`;
 }
 function overviewCard(d,c){
   const first=(d.photoIds||[]).map(id=>photoObjURL[id]).find(Boolean)||(d.photoUrls||[])[0];

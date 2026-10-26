@@ -226,7 +226,7 @@ const REHAB_BOOK=[
 function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
 function promptDeep(d,nPhotos,marks,nDocs){
   const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
-  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:nDocs?`The wholesaler's PDF deal sheet is attached. Study every photo and page in it before you conclude anything; number the photos in your photoLog in the order they appear in the PDF. Their repair estimate in the PDF is a claim to check against what the photos show.`:'No photos were provided; rely on the text and say what needs a site visit.'}
+  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:nDocs?`The wholesaler's PDF deal sheet is attached. If it covers several properties, use only the pages about ${streetOf(d.address)||'this property'}. Study every photo and page about it before you conclude anything; number the photos in your photoLog in the order they appear in the PDF. Their repair estimate in the PDF is a claim to check against what the photos show.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
 Work in this order:
 1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
@@ -261,6 +261,7 @@ const P_WHOLESALE=(t,nDocs)=>`${nDocs?`The PDF${nDocs>1?'s':''} attached above c
 
 `:''}Extract the property deal or deals from this wholesaler or seller email or text. Read every line, including the bottom of the email and any quoted text: a price cut or "we'd take less" is often in the last sentence. Use null for anything not stated; never guess a number. Numbers are plain numbers in dollars or square feet.
 Sellers and small wholesalers often write casually: no subject, no $ signs, prices in thousands ("sold for 207", "my asking was 100", "if I get 95 I'm happy" mean $207,000, $100,000 and $95,000 when they are house prices), lowercase street names, everything in one paragraph. It is still a deal if it names a property and a price.
+Ranges: if they give repairs as a range ("$5,000-$15,000"), put the HIGH end in "rehab"; if they give ARV as a range, put the LOW end in "arv". Say the full range in notes.
 
 "asking" is the CURRENT price: if they say the price was reduced, use the new one and put the old one in "previousAsking". Keep their ARV and repair numbers exactly as they say them; they are claims to be checked, not facts. If their ARV or repairs look off for the house (for example ARV more than 2.5 times the asking, or "light rehab" on a house that needs a roof), say so in "redFlags".
 

@@ -13,7 +13,7 @@
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 7 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 8 });
 }
 
 function doPost(e) {
@@ -37,7 +37,7 @@ function doPost(e) {
 function handle_(req) {
   try {
     switch (req.action) {
-      case 'ping': return { ok: true, version: 7, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'ping': return { ok: true, version: 8, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
       case 'cloud_meta': return cloudMeta_();
       case 'cloud_get': return cloudGet_(req.names || []);
       case 'cloud_put': return cloudPut_(req.parts || {});
@@ -52,6 +52,7 @@ function handle_(req) {
       case 'brief_test': return morningBrief();
       case 'worker_setup': return workerSetup_(req);
       case 'worker_status': return workerStatus_();
+      case 'pdf_part': return pdfPart_(String(req.id || ''), Number(req.idx) || 0, Number(req.part) || 0);
       case 'attachments': return attachments_(String(req.id || ''), Number(req.max) || 6, Number(req.start) || 0, String(req.kind || ''));
       case 'search': return { ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) };
       case 'message': return message_(String(req.id || ''));
@@ -185,6 +186,15 @@ function smsInbox_(since) {
 
 /* photos attached to an email, a batch at a time (phone photos are big): skips tiny logos, converts iPhone HEIC when Google can,
    and says which ones it had to skip and why */
+var PDF_CHUNK = 12 * 1024 * 1024;
+function pdfPart_(id, idx, part) {
+  var m = GmailApp.getMessageById(id);
+  if (!m) return { ok: false, error: 'not_found' };
+  var p = m.getAttachments().filter(isPdf_)[idx];
+  if (!p) return { ok: false, error: 'not_found' };
+  var b = p.copyBlob().getBytes(), s = part * PDF_CHUNK;
+  return { ok: true, data: Utilities.base64Encode(b.slice(s, s + PDF_CHUNK)), last: s + PDF_CHUNK >= b.length };
+}
 function pdfCount_(m) { try { return m.getAttachments().filter(isPdf_).length; } catch (e) { return 0; } }
 function isPdf_(a) { return /pdf/i.test(a.getContentType() || '') || /\.pdf$/i.test(a.getName() || ''); }
 function attachments_(id, max, start, kind) {
@@ -195,8 +205,10 @@ function attachments_(id, max, start, kind) {
     var pdfs = m.getAttachments().filter(isPdf_), outP = [], skippedP = [], k = start || 0;
     for (; k < pdfs.length; k++) {
       if (outP.length >= Math.max(1, Math.min(max, 2))) break;
-      var p = pdfs[k];
-      if (p.getSize() > 15 * 1024 * 1024) { skippedP.push({ name: p.getName(), why: 'too_big', mb: Math.round(p.getSize() / 1048576) }); continue; }
+      var p = pdfs[k], size = p.getSize();
+      if (size > 25 * 1024 * 1024) { skippedP.push({ name: p.getName(), why: 'too_big', mb: Math.round(size / 1048576) }); continue; }
+      /* big PDFs come in pieces (pdf_part) so no single answer gets too large */
+      if (size > PDF_CHUNK) { outP.push({ name: p.getName(), type: 'application/pdf', size: size, parts: Math.ceil(size / PDF_CHUNK), idx: k }); continue; }
       outP.push({ name: p.getName(), type: 'application/pdf', data: Utilities.base64Encode(p.copyBlob().getBytes()) });
     }
     return { ok: true, files: outP, skipped: skippedP, next: k < pdfs.length ? k : null };
