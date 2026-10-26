@@ -399,6 +399,7 @@ async function boot(){
   if(cloudOn()){if(linked)toast('Linked. Pulling your desk from the cloud…',4000);cloudSync().then(ok=>{if(linked)toast(ok?'Your desk is here. This device now stays in sync.':'Couldn’t reach the cloud yet. It will keep trying.',4600)})}
   setTimeout(()=>tick(false),2500);
   setTimeout(()=>{try{resumeLinks()}catch(e){}},6000);
+  try{migratePdfs()}catch(e){}
   setTimeout(()=>{resumeAttachments().catch(()=>{})},9000);
   setTimeout(()=>{resumePdfs().catch(()=>{})},12000);
   setInterval(()=>tick(false),3*60*1000);

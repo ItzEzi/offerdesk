@@ -63,10 +63,14 @@ function pdfJpegs(u8,max){
   }
   return out;
 }
+async function pdfPhotos(u8){const keep=[];for(const b of pdfJpegs(u8,30)){if(keep.length>=16)break;try{const bm=await createImageBitmap(b);if(Math.min(bm.width,bm.height)>=300)keep.push(b);bm.close&&bm.close()}catch(e){}}return keep}
 async function fetchPdfs(mid,acct){
   const files=[],skipped=[];let start=0,guard=0;
   while(start!=null&&guard++<4){const r=await bridge('attachments',{id:mid,kind:'pdf',max:1,start},acct);
-    for(const x of r.files||[]){const blob=b64ToBlob(x.data,'application/pdf');const u8=new Uint8Array(await blob.arrayBuffer());files.push({name:String(x.name||'deal sheet.pdf'),blob,u8,pages:pdfPages(u8)})}
+    for(const x of r.files||[]){let blob;
+      if(x.parts){const parts=[];for(let i=0;i<Math.min(+x.parts||0,4);i++){const p=await bridge('pdf_part',{id:mid,idx:x.idx,part:i},acct);if(!p||!p.data)break;parts.push(b64ToBlob(p.data,'application/octet-stream'))}
+        blob=new Blob(parts,{type:'application/pdf'});if(blob.size!==+x.size){skipped.push({name:String(x.name||''),why:'too_big',mb:Math.round((+x.size||0)/1048576)});continue}}
+      else blob=b64ToBlob(x.data,'application/pdf');const u8=new Uint8Array(await blob.arrayBuffer());if(u8[0]!==0x25||u8[1]!==0x50||u8[2]!==0x44||u8[3]!==0x46)continue;files.push({name:String(x.name||'deal sheet.pdf'),blob,u8,pages:pdfPages(u8)})}
     for(const x of r.skipped||[])skipped.push({name:String(x.name||''),why:String(x.why||''),mb:x.mb||null});start=r.next==null?null:r.next}
   return {files,skipped};
 }
@@ -75,12 +79,11 @@ const aiPdf=f=>f.pages<=60&&f.blob.size<=20*1024*1024;
 async function attachPdfs(dealId,got,mid,withPhotos){
   const d=state.deals[dealId];if(!d||!IDB.db)return 0;d.docs=d.docs||[];let photos=0;
   for(const f of got.files||[]){
-    if(d.docs.some(x=>x.msg===mid&&x.name===f.name&&x.size===f.blob.size))continue;
+    const have=d.docs.find(x=>x.msg===mid&&x.name===f.name&&x.size===f.blob.size);
+    if(have){if(withPhotos&&!photoCount(d)){const keep=await pdfPhotos(f.u8);if(keep.length)photos+=await addPhotoBlobs(dealId,keep,'pdf')}continue}
     const id=uid('doc');try{await IDB.put('photos',{id,dealId,blob:f.blob,kind:'pdf',name:f.name,source:'email',at:nowISO()})}catch(e){continue}
     d.docs.push({id,name:f.name,pages:f.pages,size:f.blob.size,msg:mid||null,at:nowISO()});
-    if(withPhotos){const imgs=pdfJpegs(f.u8,30);const keep=[];
-      for(const b of imgs){if(keep.length>=16)break;try{const bm=await createImageBitmap(b);if(Math.min(bm.width,bm.height)>=300)keep.push(b);bm.close&&bm.close()}catch(e){}}
-      if(keep.length)photos+=await addPhotoBlobs(dealId,keep,'pdf')}
+    if(withPhotos){const keep=await pdfPhotos(f.u8);if(keep.length)photos+=await addPhotoBlobs(dealId,keep,'pdf')}
   }
   const dd=state.deals[dealId];if(!dd)return photos;
   for(const s of got.skipped||[])if(!(dd.docSkipped||[]).some(x=>x.name===s.name))dd.docSkipped=(dd.docSkipped||[]).concat(Object.assign({msg:mid},s)).slice(-10);
@@ -163,6 +166,7 @@ const byDate=(a,b)=>String(a.date||a.at).localeCompare(String(b.date||b.at));
 const byUpdated=(a,b)=>String(b.updated).localeCompare(String(a.updated));
 async function syncWholesalerEmails(acct){
   const r=await bridge('search',{query:buildQuery(),max:30},acct.id);let n=0;
+  if((r.messages||[]).some(m=>m.docs!=null)&&bridgeV(acct.id)<7&&state.conn.accounts&&state.conn.accounts[acct.id]){state.conn.accounts[acct.id].version=7;saveConn()}
   const seen=new Set(Object.values(state.deals).flatMap(d=>d.seenMsgIds||[]));
   const agentEmails=new Set(Object.values(state.deals).filter(d=>d.source!=='wholesaler').map(d=>((d.agent&&d.agent.email)||'').trim().toLowerCase()).filter(Boolean));
   const replied=[];
@@ -174,7 +178,7 @@ async function syncWholesalerEmails(acct){
   for(const [id,m] of replied)if((m.atts||0)>0){try{await pullDealAttachments(id,true,[m.id])}catch(e){}}
   /* new emails, plus ones Maya couldn't read before (no credits, a hiccup): retried up to 3 times, an hour apart */
   if(state.settings.conn.autoImport&&aiOn()){const now=Date.now();
-    const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)).sort(byDate).reverse().slice(0,8);
+    const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)&&!(WORKER.on&&(x.docs||0)>0)).sort(byDate).reverse().slice(0,8);
     for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
   if(!WORKER.on)resumePdfs().catch(()=>{});
   return n;
@@ -222,6 +226,11 @@ function receive(d,msg){
     if(!(d.autopilot&&state.settings.auto.enabled))pingOwner(d,'reply',`${((d.agent&&d.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} replied by ${msg.channel==='sms'?'text':'email'}${msg.price?` with ${money(msg.price)}`:''}: "${String(msg.text||'').replace(/\s+/g,' ').slice(0,180)}"`,msg.gmailId||msg.at)}
   d.needsYou=null;
 }
+/* wholesalers send each house as its own email: a message in a different thread that isn't a "Re:", or one that already made its own deal, is not a reply to this deal */
+function notReplyTo(d,m){
+  const other=((state.mail.emails[m.id]||{}).dealIds||[]).some(x=>x!==d.id&&state.deals[x]);if(other)return true;
+  return !!(d.gmailThreadId&&m.threadId&&m.threadId!==d.gmailThreadId&&!/^\s*re\s*:/i.test(m.subject||''));
+}
 async function syncReplies(acct){
   const live=Object.values(state.deals).filter(d=>['sent','negotiating','contract'].includes(d.stage)&&!d.optedOut&&!d.example&&d.agent&&replyable(d.agent.email)&&(outs(d).length||d.convo));
   if(!live.length)return 0;
@@ -231,12 +240,13 @@ async function syncReplies(acct){
     const r=await bridge('search',{query:'newer_than:30d -from:me from:('+chunk.join(' OR ')+')',max:40},acct.id);
     for(const m of (r.messages||[]).sort(byDate)){
       const em=parseFrom(m.from).email;
-      const cands=live.filter(d=>d.agent.email.trim().toLowerCase()===em&&!(d.seenMsgIds||[]).includes(m.id));
+      const cands=live.filter(d=>d.agent.email.trim().toLowerCase()===em&&!(d.seenMsgIds||[]).includes(m.id)&&!notReplyTo(d,m));
       const d=chooseDeal(cands,m);if(!d)continue;
       d.seenMsgIds=(d.seenMsgIds||[]).concat(m.id).slice(-200);
       const o0=outs(d)[0];if(o0&&String(m.date)<String(o0.at)){saveDeal(d,true);continue}
       receive(d,{dir:'in',channel:'email',subject:m.subject||'',text:stripQuoted(m.body),at:m.date,gmailId:m.id,atts:m.atts||0,inbox:acctInfo(acct.id).email});
       if((m.atts||0)>0){try{await pullDealAttachments(d.id,true,[m.id])}catch(e){}}
+      if((m.docs||0)>0&&!state.mail.emails[m.id]){state.mail.emails[m.id]=Object.assign({},m,{status:'reply',acct:acct.id,dealIds:[d.id]});saveMail()}
       if(!d.gmailThreadId||(d.gmailAccount!==sendAcct().id&&acct.id===sendAcct().id)){d.gmailThreadId=m.threadId;d.gmailAccount=acct.id}
       saveDeal(d,true);n++;
     }
@@ -390,7 +400,8 @@ async function autopilotRun(manual){
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
-  if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease()))return}
+  try{resumeCapped()}catch(e){}
+  if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease())){resumePdfs().catch(()=>{});return}}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);
   if(state.settings.auto.enabled)await autopilotRun(false);
   if(cpList().some(c=>c.status==='running'))try{await campaignTick()}catch(e){logActivity(null,'warn','Campaign queue: '+(e&&e.message||e))}

@@ -66,33 +66,31 @@ function shrinkLinks(t){const map={};let n=0;
 const dealKey=d=>(String(streetOf(d.address)||'').toLowerCase().replace(/[^a-z0-9]/g,'')+'|'+String(d.zip||'').slice(0,5));
 async function extractDeals(text,meta,busyKey,quiet){
   meta=meta||{};const sl=shrinkLinks(text);
-  const res=await runAI(busyKey,`${negName()} is reading that message…`,async(ai,signal)=>{const docs=meta.docs||[];const r=await apiText(P_WHOLESALE(sl.text,docs.length),{signal,modelTier:'quick',maxTokens:8000,docs});try{return parseLoose(r.text)}catch(e){const s=salvageDeals(r.text);if(s)return s;throw e}},quiet);
+  const res=await runAI(busyKey,`${negName()} is reading that message…`,async(ai,signal)=>{const docs=meta.docs||[];let r;try{r=await apiText(P_WHOLESALE(sl.text,docs.length),{signal,modelTier:'quick',maxTokens:8000,docs})}catch(e){if(!docs.length||!e||!(e.status===400||e.code==='pdf_rejected'))throw e;meta.pdfFailed=true;r=await apiText(P_WHOLESALE(sl.text,0),{signal,modelTier:'quick',maxTokens:8000})}try{return parseLoose(r.text)}catch(e){const s=salvageDeals(r.text);if(s)return s;throw e}},quiet);
   if(!res)return null;
   const list=Array.isArray(res.deals)?res.deals:res.address?[res]:[];
   const w=Object.assign({},res.wholesaler||{});
   if(meta.fromEmail&&!w.email)w.email=meta.fromEmail;if(meta.fromName&&!w.name)w.name=meta.fromName;if(meta.phone&&!w.phone)w.phone=meta.phone;
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
-  const made=[],relinked=[],touched=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
-  const same=meta.sameDeal&&state.deals[meta.sameDeal];
-  if(same&&list.length===1){const x=list[0];x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back);mergeInto(same,x,meta);saveDeal(same,true);return {deals:[],relinked:[same.id],touched:[same.id],updated:1,over:0,linking:0,w,merged:true}}
+  const made=[],relinked=[],touched=[];let updated=0;const byKey={};const claimed=new Set();
+  const fromMail=meta.msgId?Object.values(state.deals).filter(o=>o.source==='wholesaler'&&!o.example&&((o.seenMsgIds||[]).includes(meta.msgId)||(meta.prior||[]).includes(o.id))):[];for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
-    /* the same house in tomorrow's alert: update it instead of adding a copy */
-    /* reading an email again: a house already pulled from this same email (same ZIP and price) is that deal, never a copy */
+    /* reading an email again (with its PDF, or after an update): a house already pulled from this same email is that deal, never a copy */
     const xs=hasStreet({address:String(x.address||'')});
-    const twin=meta.msgId?Object.values(state.deals).find(o=>o.source==='wholesaler'&&!o.example&&!made.includes(o.id)&&(o.seenMsgIds||[]).includes(meta.msgId)&&String(o.zip||'').slice(0,5)===String(x.zip||'').slice(0,5)&&curList(o)===(asking??null)&&(!xs||!hasStreet(o)||dealKey(o)===dealKey({address:String(x.address),zip:String(x.zip||'')}))):null;
-    if(twin&&hasStreet(twin)){updated++;touched.push(twin.id);continue}
-    if(twin){if(xs)twin.address=String(x.address);
-      const nl=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].filter(u=>/^https?:/i.test(u));
-      if(nl.length){twin.links=nl.slice(0,8);twin.linksOnly=list.length>1}
-      for(const k of ['beds','baths','sqft','year']){const v=parseNum(x[k]);if(twin[k]==null&&v!=null)twin[k]=v}
-      if(parseNum(x.acceptPrice))twin.wsClaims=Object.assign({},twin.wsClaims,{accept:parseNum(x.acceptPrice)});
-      delete twin.linkFill;saveDeal(twin,true);relinked.push(twin.id);touched.push(twin.id);updated++;continue}
-    const old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;
+    const twin=pickTwin(fromMail.filter(o=>!made.includes(o.id)&&!claimed.has(o.id)),x,asking,list.length);
+    if(twin){claimed.add(twin.id);const hadStreet=hasStreet(twin);
+      let newLinks=false;if(!hadStreet){const nl=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].filter(u=>/^https?:/i.test(u));
+        if(nl.length&&JSON.stringify(nl.slice(0,8))!==JSON.stringify(twin.links||[])){twin.links=nl.slice(0,8);twin.linksOnly=list.length>1;delete twin.linkFill;newLinks=true}}
+      const ch=mergeInto(twin,x,meta,(meta.docs||[]).length>0);saveDeal(twin,true);touched.push(twin.id);updated++;
+      if((!hadStreet&&hasStreet(twin))||newLinks||(ch&&(meta.docs||[]).length))relinked.push(twin.id);continue}
+    let old=hasStreet({address:String(x.address||'')})?byKey[dealKey({address:String(x.address),zip:String(x.zip||'')})]:null;if(old&&claimed.has(old.id))old=null;
     if(old&&parseNum(x.acceptPrice))old.wsClaims=Object.assign({},old.wsClaims,{accept:parseNum(x.acceptPrice)});
-    if(old){if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
+    if(!old){const kin=sameHouse(x,w,meta,list.length);if(kin&&!made.includes(kin.id)&&!claimed.has(kin.id)){claimed.add(kin.id);mergeInto(kin,x,meta,(meta.docs||[]).length>0);
+      if(!kin.gmailThreadId&&meta.threadId){kin.gmailThreadId=meta.threadId;kin.gmailAccount=meta.acct||null}saveDeal(kin,true);touched.push(kin.id);relinked.push(kin.id);updated++;continue}}
+    if(old){mergeInto(old,x,meta,(meta.docs||[]).length>0);if(asking&&asking!==curList(old)){old.listPrice=asking;old.priceHistory=(old.priceHistory||[]).concat({date:meta.at||nowISO(),price:asking})}if(meta.msgId&&!(old.seenMsgIds||[]).includes(meta.msgId))old.seenMsgIds=(old.seenMsgIds||[]).concat(meta.msgId).slice(-200);saveDeal(old,true);updated++;touched.push(old.id);continue}
     const d=newDeal({source:'wholesaler',mlsStatus:'off_market',address:String(x.address||'Unknown address'),city:x.city||'',state:String(x.state||'').trim().toUpperCase().slice(0,2)||zipState(x.zip)||homeState()||'',zip:String(x.zip||''),listPrice:asking,arv:parseNum(x.arv),arvSource:parseNum(x.arv)?'wholesaler':null,rehab:parseNum(x.rehab),rehabSource:parseNum(x.rehab)?'wholesaler':null,convo:/^\s*re\s*:/i.test(String(meta.subject||'')),beds:parseNum(x.beds),baths:parseNum(x.baths),sqft:parseNum(x.sqft),lotSqft:parseNum(x.lotSqft),year:parseNum(x.year),rent:parseNum(x.rent),propertyType:PROP_TYPES[x.propertyType]?x.propertyType:'single_family',description:String(x.description||''),
       wholesalerName:w.name||w.company||'',agent:{name:w.name||'',email:w.email||'',phone:w.phone||'',brokerage:w.company||''},
       wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||'',comps:theirComps(x)},
@@ -102,12 +100,12 @@ async function extractDeals(text,meta,busyKey,quiet){
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
     state.deals[d.id]=d;saveDeal(d,true);made.push(d.id);
-    logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}.`);
+    logActivity(d.id,'deal',`New wholesaler deal: ${streetOf(d.address)} from ${w.name||w.company||'a wholesaler'}${asking?' at '+money(asking):''}${overBox(d)?` (over your ${moneyK(boxCap())} price cap, so it’s under “Over ${moneyK(boxCap())}” in Inbox Leads)`:''}.`);
   }
   render();
   /* open each deal's links first (address, numbers, Drive photos), then research the ones at or under his buy box */
   const linking=made.filter(id=>{const d=state.deals[id];return d&&!overBox(d)&&dealLinks(d).length&&missingInfo(d)}).length;
-  made.forEach(afterNewDeal);relinked.forEach(afterNewDeal);
+  if(!meta.deferAfter){made.forEach(afterNewDeal);relinked.forEach(afterNewDeal)}
   return {deals:made,relinked,touched:[...new Set([...made,...touched])],updated,over:made.filter(id=>overBox(state.deals[id])).length,linking,w};
 }
 /* what Maya did with the last 30 days of wholesaler emails, so "0 new" never looks like nothing happened */
@@ -152,9 +150,42 @@ async function pullDealAttachments(id,quiet,only){
   render();return added;
 }
 /* on open: deals whose email photos haven't come in yet (24/7 brought them in, or they arrived before this version) */
+/* after a PDF lands on a deal Maya already researched: price the repairs from its photos (or the PDF) if that hasn't happened */
+function afterPdf(id){const d=state.deals[id];if(!d||!aiOn()||WORKER.on)return;
+  if(!d.research){afterNewDeal(id);return}
+  const capR=boxCap();const p=curList(d);if(capR&&p!=null&&p>capR)return;
+  if(!d.analysis&&(photoCount(d)||docCount(d))&&!state.busy['deep:'+id])aiDeep(id,true,secrets().model||'claude-sonnet-5-5').catch(()=>{})}
+/* PDFs read before Oct 26 evening could land nowhere (the deal already existed from the email text): read those emails once more */
+function migratePdfs(){const mg=state.settings.migr=state.settings.migr||{};if(mg.pdf1026b)return;mg.pdf1026=mg.pdf1026||nowISO();mg.pdf1026b=nowISO();saveSettings();
+  const emails=(state.mail||{}).emails||{};
+  /* 1) a wholesaler's other deal emails were filed as "replies" on one deal: take them back out */
+  for(const d of Object.values(state.deals)){if(d.example||!(d.thread||[]).length)continue;let cut=0;
+    d.thread=d.thread.filter(t=>{if(t.dir!=='in'||!t.gmailId)return true;const m=emails[t.gmailId];if(!m)return true;
+      const other=(m.dealIds||[]).some(x=>x!==d.id&&state.deals[x]);const sameThread=d.gmailThreadId&&m.threadId===d.gmailThreadId;
+      if(other&&!sameThread&&!/^\s*re\s*:/i.test(m.subject||'')){d.seenMsgIds=(d.seenMsgIds||[]).filter(x=>x!==t.gmailId);cut++;return false}return true});
+    if(cut){if(d.draft&&draftOpen(d)){d.draft=null;d.needsYou=null}delete d.draftedFor;saveDeal(d,true)}}
+  /* 2) the same house twice from one wholesaler, one copy empty: fold the empty one into the full one */
+  const groups={};for(const d of Object.values(state.deals)){if(d.example||d.source!=='wholesaler'||!hasStreet(d)||['dead','closed'].includes(d.stage))continue;
+    const sc=streetCore(d.address);if(!sc.num||!sc.name)continue;const k=((d.agent||{}).email||'').toLowerCase()+'|'+sc.num+'|'+sc.name.split(' ')[0];(groups[k]=groups[k]||[]).push(d)}
+  const score=d=>(curList(d)!=null?8:0)+((d.docs||[]).length?4:0)+(photoCount(d)?2:0)+(d.arv!=null?1:0);
+  for(const g of Object.values(groups)){if(g.length<2)continue;g.sort((a,b)=>score(b)-score(a)||String(a.created).localeCompare(String(b.created)));const keep=g[0];
+    for(const o of g.slice(1)){if(curList(o)!=null||(o.docs||[]).length||photoCount(o))continue;
+      const have=new Set((keep.thread||[]).map(t=>t.gmailId||t.id));keep.thread=[...(keep.thread||[]),...(o.thread||[]).filter(t=>!have.has(t.gmailId||t.id))].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+      keep.seenMsgIds=[...new Set([...(keep.seenMsgIds||[]),...(o.seenMsgIds||[])])].slice(-200);keep.offers=[...(keep.offers||[]),...(o.offers||[])];keep.mayaChat=[...(keep.mayaChat||[]),...(o.mayaChat||[])];
+      if(o.convo)keep.convo=true;if(!keep.gmailThreadId&&o.gmailThreadId){keep.gmailThreadId=o.gmailThreadId;keep.gmailAccount=o.gmailAccount}
+      if(keep.stage==='new'&&['sent','negotiating','contract'].includes(o.stage))keep.stage=o.stage;
+      for(const m of Object.values(emails))if((m.dealIds||[]).includes(o.id))m.dealIds=[...new Set(m.dealIds.map(x=>x===o.id?keep.id:x))];
+      saveDeal(keep,true);delete state.deals[o.id];persist('deals')}}
+  /* 3) read this week's PDF emails once more: the first pass kept "attachment not included" notes and left ranged repair numbers blank */
+  for(const m of Object.values(emails)){if(!((m.docs||0)>0)||m.docRead==='failed')continue;
+    if(Date.now()-new Date(m.date).getTime()<7*864e5){m.docRead=false;m.pdfTries=0;continue}
+    const ds=Object.values(state.deals).filter(d=>(d.seenMsgIds||[]).includes(m.id)||(m.dealIds||[]).includes(d.id));
+    if(!ds.length||ds.some(d=>curList(d)==null||(d.arv==null&&(d.wsClaims||{}).arv==null)||!(d.docs||[]).length)){m.docRead=false;m.pdfTries=0}}
+  saveMail()}
 /* emails whose PDF Maya hasn't read yet (24/7 read the text only, or it came in before the Gmail script could send PDFs) */
 async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn())return;
-  const due=Object.values(state.mail.emails).filter(m=>(m.docs||0)>0&&!m.docRead&&['imported','nodeal','new'].includes(m.status)&&bridgeV(m.acct)>=7&&Date.now()-new Date(m.date).getTime()<45*864e5&&(m.pdfTries||0)<2).sort(byDate).reverse().slice(0,4);
+  for(const d of Object.values(state.deals))for(const s of (d.docSkipped||[]))if(s.why==='too_big'&&(s.mb||0)<=25&&s.msg){const m=state.mail.emails[s.msg];if(m&&m.docRead===true&&!m.bigTried&&bridgeV(m.acct)>=8){m.bigTried=true;m.docRead=false;m.pdfTries=0;d.docSkipped=d.docSkipped.filter(x=>x!==s);saveDeal(d,true);saveMail()}}
+  const due=Object.values(state.mail.emails).filter(m=>(m.docs||0)>0&&!m.docRead&&['imported','nodeal','new','reply'].includes(m.status)&&Date.now()-new Date(m.date).getTime()<45*864e5&&(m.pdfTries||0)<2).sort(byDate).reverse().slice(0,4);
   for(const m of due){if(state.busy['mail:'+m.id])continue;m.pdfTries=(m.pdfTries||0)+1;saveMail();try{await importEmail(m.id,true)}catch(e){}}
   if(due.length)render();
 }
@@ -178,13 +209,15 @@ function pullSummary(rs){
 }
 async function importEmail(id,quiet){
   const m=state.mail.emails[id];if(!m)return;const f=parseFrom(m.from);
-  let pdf=null;if((m.docs||0)>0&&!WORKER.on&&IDB.db&&bridgeV(m.acct)>=7){try{pdf=await fetchPdfs(m.id,m.acct)}catch(e){pdf=null}}
+  let pdf=null;if((m.docs||0)>0&&!WORKER.on&&IDB.db){try{pdf=await fetchPdfs(m.id,m.acct)}catch(e){pdf=null}}
   const prior=(m.dealIds||[]).filter(x=>state.deals[x]);
-  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email',subject:m.subject||'',docs:pdf?pdf.files.filter(aiPdf).map(x=>x.blob):[],sameDeal:pdf&&prior.length===1?prior[0]:null},'mail:'+id,quiet);
-  if(r&&pdf){const mm=state.mail.emails[id];if(mm){mm.docRead=true;saveMail()}
+  if(pdf&&!pdf.files.length&&prior.length&&['imported','reply'].includes(m.status)){for(const did of prior){try{await attachPdfs(did,pdf,m.id,false)}catch(e){}}const mm=state.mail.emails[id];if(mm){mm.docRead=true;saveMail()}render();return {deals:[],updated:0,touched:prior,w:{}}}
+  const meta={fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email',subject:m.subject||'',docs:pdf?pdf.files.filter(aiPdf).map(x=>x.blob):[],prior,deferAfter:!!(pdf&&pdf.files.length)};
+  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,meta,'mail:'+id,quiet);
+  if(r&&pdf){const mm=state.mail.emails[id];if(mm){mm.docRead=meta.pdfFailed?'failed':true;saveMail()}
     const ids=[...new Set(r.touched||[])];for(const did of ids){try{await attachPdfs(did,pdf,m.id,ids.length===1)}catch(e){}}
-    if(r.merged)ids.forEach(afterNewDeal)}
-  if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated||(mm.dealIds||[]).length?'imported':'nodeal';mm.dealIds=[...new Set([...(mm.dealIds||[]),...r.deals,...(r.relinked||[])])]}saveMail();
+    for(const did of ids)afterPdf(did)}
+  if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=mm.status==='reply'?'reply':r.deals.length||r.updated||(mm.dealIds||[]).length?'imported':'nodeal';mm.dealIds=[...new Set([...(mm.dealIds||[]),...r.deals,...(r.relinked||[])])]}saveMail();
   if((m.atts||0)>0&&(r.touched||[]).length===1)await pullDealAttachments(r.touched[0],true,[m.id]);
   render();if(!quiet)toast(pullSummary([r]),6000);
   return r;
@@ -257,22 +290,57 @@ async function quickAction(id,qa){
   const dd=state.deals[id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:`Draft ready below${dd.draft.price?' at '+money(dd.draft.price):''}. ${dd.draft.why||''}`.trim(),at:nowISO()});saveDeal(dd)}
 }
 /* a deal already made from this email, read again with its PDF: fill gaps, never overwrite what's there */
-function mergeInto(d,x,meta){
-  if(!hasStreet(d)&&hasStreet({address:String(x.address||'')}))d.address=String(x.address);
+const streetKey=a=>String(streetOf(a)||'').toLowerCase().replace(/\b(street|st|avenue|ave|av|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|place|pl|circle|cir|terrace|ter|parkway|pkwy|way|trail|trl)\b/g,'').replace(/\b(south|north|east|west)\b/g,m=>m[0]).replace(/[^a-z0-9]/g,'');
+/* the same house already here from another email of the same wholesaler (their "Re:" came in first, a ZIP was missing): fill that deal */
+function sameHouse(x,w,meta,n){
+  if(n!==1)return null;const live=Object.values(state.deals).filter(o=>o.source==='wholesaler'&&!o.example&&!o.linksOnly&&!['dead','closed'].includes(o.stage));
+  const xs=hasStreet({address:String(x.address||'')});const k=xs?streetKey(String(x.address)):'';const em=String(w.email||meta.fromEmail||'').toLowerCase();
+  if(meta.threadId){const t=live.find(o=>o.gmailThreadId===meta.threadId&&(!xs||!hasStreet(o)||sameStreet(o.address,String(x.address))));if(t)return t}
+  if(!xs||!em)return null;
+  return live.find(o=>hasStreet(o)&&sameStreet(o.address,String(x.address))&&(!o.zip||!x.zip||String(o.zip).slice(0,5)===String(x.zip).slice(0,5))&&((o.agent||{}).email||'').toLowerCase()===em)||null;
+}
+/* "2603 Kendall" and "2603 S. Kendall Drive" are the same street address */
+const STREET_FILLER=/^(n|s|e|w|ne|nw|se|sw|north|south|east|west|street|st|avenue|ave|av|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|place|pl|circle|cir|terrace|ter|parkway|pkwy|way|trail|trl)$/;
+function streetCore(a){const t=String(streetOf(a)||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(Boolean);const num=/^\d+[a-z]?$/.test(t[0]||'')?t.shift():'';return {num,name:t.filter(w=>!STREET_FILLER.test(w)).join(' ')}}
+function sameStreet(a,b){const x=streetCore(a),y=streetCore(b);return !!x.num&&x.num===y.num&&!!x.name&&!!y.name&&(x.name===y.name||(' '+x.name+' ').includes(' '+y.name+' ')||(' '+y.name+' ').includes(' '+x.name+' '))}
+function pickTwin(cand,x,asking,nList){
+  if(!cand.length)return null;const xs=hasStreet({address:String(x.address||'')});
+  if(xs){const hit=cand.find(o=>hasStreet(o)&&sameStreet(o.address,String(x.address)));if(hit)return hit;
+    if(cand.every(o=>hasStreet(o)))return null}
+  const z=String(x.zip||'').slice(0,5),c=String(x.city||'').toLowerCase();
+  const fits=o=>(!o.zip||!z||String(o.zip).slice(0,5)===z)&&(!o.city||!c||String(o.city).toLowerCase()===c)&&(curList(o)==null||asking==null||curList(o)===asking);
+  /* no street in this read: the house from the same email with the same ZIP and price, even if its links already gave it a street */
+  const loose=cand.filter(o=>(xs?!hasStreet(o):true)&&fits(o));
+  if(loose.length===1)return loose[0];
+  if(!xs&&loose.length>1){const exact=loose.filter(o=>asking!=null&&curList(o)===asking&&(!z||String(o.zip||'').slice(0,5)===z));if(exact.length===1)return exact[0]}
+  if(cand.length===1&&nList===1&&(!xs||!hasStreet(cand[0])))return cand[0];
+  return null;
+}
+/* a deal already made from this email (or the same house in another email): fill gaps, never overwrite what's there */
+function mergeInto(d,x,meta,fresh){
+  const before=JSON.stringify([d.address,d.city,d.state,d.zip,d.beds,d.baths,d.sqft,d.lotSqft,d.year,d.rent,curList(d),d.arv,d.rehab,d.description,d.propertyType,d.wsClaims,d.links]);
+  const hadStreet=hasStreet(d);
+  if(!hadStreet&&hasStreet({address:String(x.address||'')}))d.address=String(x.address);
+  else if(fresh&&hasStreet({address:String(x.address||'')})&&sameStreet(d.address,String(x.address))&&String(x.address).length>String(streetOf(d.address)).length)d.address=String(x.address);
   for(const k of ['city','zip'])if(!d[k]&&x[k])d[k]=String(x[k]);if(!d.state&&x.state)d.state=String(x.state).trim().toUpperCase().slice(0,2);
   for(const k of ['beds','baths','sqft','lotSqft','year','rent']){const v=parseNum(x[k]);if(d[k]==null&&v!=null)d[k]=v}
   const asking=parseNum(x.asking);if(curList(d)==null&&asking){d.listPrice=asking;d.priceHistory=[{date:meta.at||nowISO(),price:asking}]}
   const arv=parseNum(x.arv),reh=parseNum(x.rehab);if(d.arv==null&&arv){d.arv=arv;d.arvSource='wholesaler'}if(d.rehab==null&&reh){d.rehab=reh;d.rehabSource='wholesaler'}
-  if(!d.description&&x.description)d.description=String(x.description);
+  if(x.description&&(fresh||!d.description))d.description=String(x.description);
   if(PROP_TYPES[x.propertyType]&&(!d.propertyType||d.propertyType==='single_family'))d.propertyType=x.propertyType;
   const ws=Object.assign({},d.wsClaims);
   const fill=(k,v)=>{if(v!=null&&v!==''&&(ws[k]==null||ws[k]===''))ws[k]=v};
   fill('asking',asking);fill('arv',arv);fill('rehab',reh);fill('rent',parseNum(x.rent));fill('terms',x.terms||'');fill('deadline',x.deadline||'');fill('access',x.access||'');fill('occupancy',x.occupancy||'');
   const acc=parseNum(x.acceptPrice);if(acc&&(ws.accept==null||acc<ws.accept))ws.accept=acc;
-  ws.redFlags=[...new Set([...(ws.redFlags||[]),...(x.redFlags||[]).map(String)])].slice(0,12);ws.notes=[...new Set([...(ws.notes||[]),...(Array.isArray(x.notes)?x.notes:[]).map(String)])].slice(0,16);
-  const tc=theirComps(x);if(tc.length&&!(ws.comps||[]).length)ws.comps=tc;d.wsClaims=ws;
+  const xf=(x.redFlags||[]).map(String),xn=(Array.isArray(x.notes)?x.notes:[]).map(String);
+  if(fresh){ws.redFlags=[...new Set(xf)].slice(0,12);ws.notes=[...new Set(xn)].slice(0,16)}
+  else{ws.redFlags=[...new Set([...(ws.redFlags||[]),...xf])].slice(0,12);ws.notes=[...new Set([...(ws.notes||[]),...xn])].slice(0,16)}
+  const tc=theirComps(x);if(tc.length&&(fresh||!(ws.comps||[]).length))ws.comps=tc;d.wsClaims=ws;
+  if(meta.msgId&&!(d.seenMsgIds||[]).includes(meta.msgId))d.seenMsgIds=(d.seenMsgIds||[]).concat(meta.msgId).slice(-200);
   const nl=(Array.isArray(x.links)?x.links:[]).filter(u=>/^https?:/i.test(u));if(nl.length)d.links=[...new Set([...(d.links||[]),...nl])].slice(0,8);
-  delete d.linkFill;
+  if(!hadStreet&&hasStreet(d)){delete d.linkFill;delete d.researchSkip}
+  if(d.researchSkip==='address'&&hasStreet(d))delete d.researchSkip;
+  return JSON.stringify([d.address,d.city,d.state,d.zip,d.beds,d.baths,d.sqft,d.lotSqft,d.year,d.rent,curList(d),d.arv,d.rehab,d.description,d.propertyType,d.wsClaims,d.links])!==before;
 }
 function theirComps(x){return (Array.isArray(x&&x.theirComps)?x.theirComps:[]).filter(c=>c&&c.addr).slice(0,6).map(c=>({addr:String(c.addr).slice(0,80),price:parseNum(c.price),sqft:parseNum(c.sqft),when:c.when?String(c.when).slice(0,40):'',dist:c.dist?String(c.dist).slice(0,30):''}))}
 const compClaimText=c=>`${c.addr}${c.price?`, sold ${money(c.price)}`:''}${c.when?` (${c.when})`:''}${c.sqft?`, ${numFmt(c.sqft)} sqft`:''}${c.dist?`, ${c.dist}`:''}`;
