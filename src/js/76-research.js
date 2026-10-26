@@ -86,7 +86,7 @@ function promptResearch(d,ctx){
   return `You are ${negName()}, an acquisitions analyst for a real estate investor (flips, BRRRR, wholesale). Research this property so the investor knows everything that matters before making an offer. Use web search, and open the links below with web fetch when useful. Use only what you actually find, and name the source for each fact. If a site blocks you, say so and use search instead. Do not guess.
 
 Property: ${where||'unknown address'}
-${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
+${isWs?`A wholesaler sent this deal. Their claims: asking ${money(ws.asking??curList(d))}, ARV ${money(ws.arv)}, repairs ${money(ws.rehab)}, rent ${money(ws.rent)}${ws.terms?', terms: '+ws.terms:''}.${(ws.notes||[]).length?` Other details they gave${docCount(d)?' (email and PDF deal sheet)':''}: ${ws.notes.slice(0,10).join('; ')}.`:''}`:`Listed at ${money(curList(d))}.`} Beds/baths/sqft/year on file: ${d.beds??'?'} / ${d.baths??'?'} / ${d.sqft??'?'} / ${d.year??'?'}.
 ${(ws.comps||[]).length?`The wholesaler cited these sales as comps. Check each one (did it sell, when, for how much, its size, and whether it is really comparable: new construction, fully renovated, much bigger or smaller, a different kind of street) and report it in claimsCheck:\n${ws.comps.map(c=>'- '+compClaimText(c)).join('\n')}\n`:''}${(d.description||'').slice(0,1200)}
 ${ins(d).length?`What they wrote to us (newest last):\n${ins(d).slice(-4).map(t=>'--- '+String(t.text||'').slice(0,1500)).join('\n')}`:''}
 ${ctx.links.length?`Links that came with the deal (open the ones that help):\n${ctx.links.map(u=>'- '+u).join('\n')}`:''}
@@ -288,8 +288,8 @@ async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
-  if(!auto&&!opts.noDeep&&photoCount(d2)&&(fresh||!d2.analysis))await aiDeep(id,true);
-  if(auto&&photoCount(d2)&&!d2.analysis)await aiDeep(id,true,secrets().model||'claude-sonnet-5-5');
+  if(!auto&&!opts.noDeep&&(photoCount(d2)||docCount(d2))&&(fresh||!d2.analysis))await aiDeep(id,true);
+  if(auto&&(photoCount(d2)||docCount(d2))&&!d2.analysis)await aiDeep(id,true,secrets().model||'claude-sonnet-5-5');
   if(!quiet&&!opts.noDeep)toast(`Research done${got.photos?` · ${got.photos} photos pulled from the links`:''}.`,4200);
 }
 function applyResearch(d,j,res,got){

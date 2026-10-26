@@ -66,7 +66,7 @@ function shrinkLinks(t){const map={};let n=0;
 const dealKey=d=>(String(streetOf(d.address)||'').toLowerCase().replace(/[^a-z0-9]/g,'')+'|'+String(d.zip||'').slice(0,5));
 async function extractDeals(text,meta,busyKey,quiet){
   meta=meta||{};const sl=shrinkLinks(text);
-  const res=await runAI(busyKey,`${negName()} is reading that message…`,async(ai,signal)=>{const r=await apiText(P_WHOLESALE(sl.text),{signal,modelTier:'quick',maxTokens:8000});try{return parseLoose(r.text)}catch(e){const s=salvageDeals(r.text);if(s)return s;throw e}},quiet);
+  const res=await runAI(busyKey,`${negName()} is reading that message…`,async(ai,signal)=>{const docs=meta.docs||[];const r=await apiText(P_WHOLESALE(sl.text,docs.length),{signal,modelTier:'quick',maxTokens:8000,docs});try{return parseLoose(r.text)}catch(e){const s=salvageDeals(r.text);if(s)return s;throw e}},quiet);
   if(!res)return null;
   const list=Array.isArray(res.deals)?res.deals:res.address?[res]:[];
   const w=Object.assign({},res.wholesaler||{});
@@ -74,6 +74,8 @@ async function extractDeals(text,meta,busyKey,quiet){
   if(!list.length)return {deals:[],w};
   ensureWholesaler(w);
   const made=[],relinked=[],touched=[];let updated=0;const byKey={};for(const o of Object.values(state.deals))if(o.source==='wholesaler'&&!o.example&&hasStreet(o))byKey[dealKey(o)]=o;
+  const same=meta.sameDeal&&state.deals[meta.sameDeal];
+  if(same&&list.length===1){const x=list[0];x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back);mergeInto(same,x,meta);saveDeal(same,true);return {deals:[],relinked:[same.id],touched:[same.id],updated:1,over:0,linking:0,w,merged:true}}
   for(const x of list){
     x.links=(Array.isArray(x.links)?x.links:[]).map(sl.back).filter(u=>/^https?:/i.test(u));x.photoLinks=(Array.isArray(x.photoLinks)?x.photoLinks:[]).map(sl.back).filter(u=>/^https?:/i.test(u));
     const asking=parseNum(x.asking);
@@ -150,6 +152,12 @@ async function pullDealAttachments(id,quiet,only){
   render();return added;
 }
 /* on open: deals whose email photos haven't come in yet (24/7 brought them in, or they arrived before this version) */
+/* emails whose PDF Maya hasn't read yet (24/7 read the text only, or it came in before the Gmail script could send PDFs) */
+async function resumePdfs(){if(WORKER.on||!gmailOn()||!IDB.db||!aiOn())return;
+  const due=Object.values(state.mail.emails).filter(m=>(m.docs||0)>0&&!m.docRead&&['imported','nodeal','new'].includes(m.status)&&bridgeV(m.acct)>=7&&Date.now()-new Date(m.date).getTime()<45*864e5&&(m.pdfTries||0)<2).sort(byDate).reverse().slice(0,4);
+  for(const m of due){if(state.busy['mail:'+m.id])continue;m.pdfTries=(m.pdfTries||0)+1;saveMail();try{await importEmail(m.id,true)}catch(e){}}
+  if(due.length)render();
+}
 async function resumeAttachments(){if(WORKER.on||!gmailOn()||!IDB.db)return;
   if(bridgeV()>=6)for(const d of Object.values(state.deals)){const old=(d.attSkipped||[]).filter(x=>x.why==='old_script').map(x=>x.msg);if(!old.length)continue;
     d.attDone=(d.attDone||[]).filter(m=>!old.includes(m));d.attSkipped=(d.attSkipped||[]).filter(x=>x.why!=='old_script');saveDeal(d,true)}
@@ -170,7 +178,12 @@ function pullSummary(rs){
 }
 async function importEmail(id,quiet){
   const m=state.mail.emails[id];if(!m)return;const f=parseFrom(m.from);
-  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email',subject:m.subject||''},'mail:'+id,quiet);
+  let pdf=null;if((m.docs||0)>0&&!WORKER.on&&IDB.db&&bridgeV(m.acct)>=7){try{pdf=await fetchPdfs(m.id,m.acct)}catch(e){pdf=null}}
+  const prior=(m.dealIds||[]).filter(x=>state.deals[x]);
+  const r=await extractDeals(`From: ${m.from}\nSubject: ${m.subject||''}\n\n${m.body||''}`,{fromEmail:f.email,fromName:f.name,threadId:m.threadId,acct:m.acct,msgId:m.id,at:m.date,channel:'email',subject:m.subject||'',docs:pdf?pdf.files.filter(aiPdf).map(x=>x.blob):[],sameDeal:pdf&&prior.length===1?prior[0]:null},'mail:'+id,quiet);
+  if(r&&pdf){const mm=state.mail.emails[id];if(mm){mm.docRead=true;saveMail()}
+    const ids=[...new Set(r.touched||[])];for(const did of ids){try{await attachPdfs(did,pdf,m.id,ids.length===1)}catch(e){}}
+    if(r.merged)ids.forEach(afterNewDeal)}
   if(!r)return {err:(state.aiErrs||{})['mail:'+id]||'Maya couldn’t read that email.'};const mm=state.mail.emails[id];if(mm){mm.status=r.deals.length||r.updated||(mm.dealIds||[]).length?'imported':'nodeal';mm.dealIds=[...new Set([...(mm.dealIds||[]),...r.deals,...(r.relinked||[])])]}saveMail();
   if((m.atts||0)>0&&(r.touched||[]).length===1)await pullDealAttachments(r.touched[0],true,[m.id]);
   render();if(!quiet)toast(pullSummary([r]),6000);
@@ -243,14 +256,32 @@ async function quickAction(id,qa){
   await aiReply(id,q.ins,false,`${negName()}: ${q.label.toLowerCase()}…`);
   const dd=state.deals[id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:`Draft ready below${dd.draft.price?' at '+money(dd.draft.price):''}. ${dd.draft.why||''}`.trim(),at:nowISO()});saveDeal(dd)}
 }
+/* a deal already made from this email, read again with its PDF: fill gaps, never overwrite what's there */
+function mergeInto(d,x,meta){
+  if(!hasStreet(d)&&hasStreet({address:String(x.address||'')}))d.address=String(x.address);
+  for(const k of ['city','zip'])if(!d[k]&&x[k])d[k]=String(x[k]);if(!d.state&&x.state)d.state=String(x.state).trim().toUpperCase().slice(0,2);
+  for(const k of ['beds','baths','sqft','lotSqft','year','rent']){const v=parseNum(x[k]);if(d[k]==null&&v!=null)d[k]=v}
+  const asking=parseNum(x.asking);if(curList(d)==null&&asking){d.listPrice=asking;d.priceHistory=[{date:meta.at||nowISO(),price:asking}]}
+  const arv=parseNum(x.arv),reh=parseNum(x.rehab);if(d.arv==null&&arv){d.arv=arv;d.arvSource='wholesaler'}if(d.rehab==null&&reh){d.rehab=reh;d.rehabSource='wholesaler'}
+  if(!d.description&&x.description)d.description=String(x.description);
+  if(PROP_TYPES[x.propertyType]&&(!d.propertyType||d.propertyType==='single_family'))d.propertyType=x.propertyType;
+  const ws=Object.assign({},d.wsClaims);
+  const fill=(k,v)=>{if(v!=null&&v!==''&&(ws[k]==null||ws[k]===''))ws[k]=v};
+  fill('asking',asking);fill('arv',arv);fill('rehab',reh);fill('rent',parseNum(x.rent));fill('terms',x.terms||'');fill('deadline',x.deadline||'');fill('access',x.access||'');fill('occupancy',x.occupancy||'');
+  const acc=parseNum(x.acceptPrice);if(acc&&(ws.accept==null||acc<ws.accept))ws.accept=acc;
+  ws.redFlags=[...new Set([...(ws.redFlags||[]),...(x.redFlags||[]).map(String)])].slice(0,12);ws.notes=[...new Set([...(ws.notes||[]),...(Array.isArray(x.notes)?x.notes:[]).map(String)])].slice(0,16);
+  const tc=theirComps(x);if(tc.length&&!(ws.comps||[]).length)ws.comps=tc;d.wsClaims=ws;
+  const nl=(Array.isArray(x.links)?x.links:[]).filter(u=>/^https?:/i.test(u));if(nl.length)d.links=[...new Set([...(d.links||[]),...nl])].slice(0,8);
+  delete d.linkFill;
+}
 function theirComps(x){return (Array.isArray(x&&x.theirComps)?x.theirComps:[]).filter(c=>c&&c.addr).slice(0,6).map(c=>({addr:String(c.addr).slice(0,80),price:parseNum(c.price),sqft:parseNum(c.sqft),when:c.when?String(c.when).slice(0,40):'',dist:c.dist?String(c.dist).slice(0,30):''}))}
 const compClaimText=c=>`${c.addr}${c.price?`, sold ${money(c.price)}`:''}${c.when?` (${c.when})`:''}${c.sqft?`, ${numFmt(c.sqft)} sqft`:''}${c.dist?`, ${c.dist}`:''}`;
 async function aiDeep(id,quiet,forceModel){
   const d=state.deals[id];if(!d)return;
-  const items=await photoItemsForAI(d);
+  const items=await photoItemsForAI(d);const docs=items.length?[]:await docItemsForAI(d);
   const model=forceModel||bigModel();
   const marks=!!(model&&/opus/.test(model)&&items.length);
-  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks),{signal,images:items,maxTokens:marks?12000:8000,model}),quiet);
+  const res=await runAI('deep:'+id,`${negName()} is studying ${items.length?items.length+' photo'+(items.length>1?'s':''):'the listing'}${model&&/opus/.test(model)?' with Opus':''}…`,(ai,signal)=>ai.json(promptDeep(d,items.length,marks,docs.length),{signal,images:items,docs,maxTokens:marks?12000:8000,model}),quiet);
   if(!res)return;const dd=state.deals[id];if(!dd)return;
   dd.analysis=Object.assign({},res,{at:nowISO(),photos:items.length,photoRefs:items.refs||[],model:model||secrets().model||'claude-sonnet-5-5'});
   const book=Object.fromEntries(rehabBook().map(b=>[b.key,b]));const short=u=>/sqft/.test(u)?'sqft':/linear/.test(u)?'ft':/house/.test(u)?'':'';

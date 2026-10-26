@@ -17,7 +17,9 @@ async function apiText(input,opts){
   const msgs=typeof input==='string'?[{role:'user',content:input}]:input.map(m=>({role:m.role,content:m.content}));
   const merged=[];for(const m of msgs){const l=merged[merged.length-1];if(l&&l.role===m.role)l.content+='\n\n'+m.content;else merged.push(Object.assign({},m))}
   if(merged[0]&&merged[0].role!=='user')merged.unshift({role:'user',content:'(start)'});
-  if(opts.images&&opts.images.length){const last=merged[merged.length-1];const blocks=[];for(const f of opts.images)blocks.push(await imageBlock(f));last.content=[...blocks,{type:'text',text:last.content}]}
+  if((opts.images&&opts.images.length)||(opts.docs&&opts.docs.length)){const last=merged[merged.length-1];const blocks=[];
+    for(const f of opts.docs||[])blocks.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:await blobToB64(f)}});
+    for(const f of opts.images||[])blocks.push(await imageBlock(f));last.content=[...blocks,{type:'text',text:last.content}]}
   const model=opts.model||(opts.modelTier==='quick'?'claude-haiku-5-5':(sec.model||'claude-sonnet-5-5'));
   let res;
   try{res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:opts.signal,headers:{'content-type':'application/json','x-api-key':sec.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:opts.maxTokens||3000,messages:merged})})}
@@ -28,7 +30,7 @@ async function apiText(input,opts){
   return {text,truncated:j.stop_reason==='max_tokens'};
 }
 async function apiFail(res){let j={};try{j=await res.json()}catch(e){}const m=(j.error&&j.error.message)||res.statusText||'';const st=res.status;
-  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':res.status>=500?'upstream_error':'api_error',message:m,status:st}}
+  return {code:res.status===401||res.status===403?'bad_key':res.status===429?'rate_limited':/credit|billing|balance/i.test(m)?'no_credit':res.status===404?'bad_model':/image/i.test(m)?'image_rejected':/pdf|document/i.test(m)?'pdf_rejected':res.status>=500?'upstream_error':'api_error',message:m,status:st}}
 /* a call where Claude may search the web and open pages (server tools); continues paused turns */
 const WEB_TOOLS=(n)=>[{type:'web_search_20250305',name:'web_search',max_uses:n||6},{type:'web_fetch_20250910',name:'web_fetch',max_uses:n||6,max_content_tokens:12000}];
 async function apiTools(prompt,opts){
@@ -222,9 +224,9 @@ const REHAB_BOOK=[
   ['rewire','Rewire','per sqft',7],['repipe','Plumbing repipe','per sqft',6],['foundation','Foundation repair allowance','each',9000],['siding','Siding repair','per house',4000],
   ['fence','Fence','per linear ft',35],['landscaping','Landscaping and cleanup','per house',2500],['permits','Permits, dumpster, misc','per house',1500]];
 function rehabBook(){const o=(state.settings.rehab&&state.settings.rehab.costs)||{};return REHAB_BOOK.map(([key,label,unit,cost])=>({key,label,unit,cost:o[key]!=null&&isFinite(o[key])?o[key]:cost,def:cost}))}
-function promptDeep(d,nPhotos,marks){
+function promptDeep(d,nPhotos,marks,nDocs){
   const R=state.settings.rehab||{};const book=rehabBook();const where=[d.city,d.state].filter(Boolean).join(', ')||'the property’s area';
-  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:'No photos were provided; rely on the text and say what needs a site visit.'}
+  return `You are ${negName()}, an acquisitions analyst for a fix-and-flip, BRRRR and wholesale investor. ${nPhotos?`${nPhotos} listing photo(s) are attached, numbered 1 to ${nPhotos} in the order given. Study every one closely before you conclude anything.`:nDocs?`The wholesaler's PDF deal sheet is attached. Study every photo and page in it before you conclude anything; number the photos in your photoLog in the order they appear in the PDF. Their repair estimate in the PDF is a claim to check against what the photos show.`:'No photos were provided; rely on the text and say what needs a site visit.'}
 
 Work in this order:
 1. Photo log. For each photo: which room or area it shows, and what you can actually see: materials and their era (for example "oak cabinets, laminate counters, about 1995"), condition, damage, and anything that drives cost. Do not describe what is not visible.
@@ -255,7 +257,9 @@ Reply with only JSON:
 "audience":"home buyer|investor|mixed","audienceConfidence":"low|medium|high","motivation":"distressed property|motivated seller|stale listing|estate or probate|tired landlord|retail listing",
 "redFlags":["..."],"verify":["things to check on site"],"rooms":{"bedrooms":number|null,"bathrooms":number|null},"photoNotes":"what the photos showed and did not show"}`;
 }
-const P_WHOLESALE=t=>`Extract the property deal or deals from this wholesaler or seller email or text. Read every line, including the bottom of the email and any quoted text: a price cut or "we'd take less" is often in the last sentence. Use null for anything not stated; never guess a number. Numbers are plain numbers in dollars or square feet.
+const P_WHOLESALE=(t,nDocs)=>`${nDocs?`The PDF${nDocs>1?'s':''} attached above came with this email (a deal sheet or property package). Read every page: address, price, what they'd take, ARV, repair estimate and its breakdown, beds, baths, sqft, year, lot, occupancy, rent, comps, access and terms, and what the photos inside it show about condition. Use the PDF and the email together; if they disagree, use the newer or more specific number and say so in notes.
+
+`:''}Extract the property deal or deals from this wholesaler or seller email or text. Read every line, including the bottom of the email and any quoted text: a price cut or "we'd take less" is often in the last sentence. Use null for anything not stated; never guess a number. Numbers are plain numbers in dollars or square feet.
 Sellers and small wholesalers often write casually: no subject, no $ signs, prices in thousands ("sold for 207", "my asking was 100", "if I get 95 I'm happy" mean $207,000, $100,000 and $95,000 when they are house prices), lowercase street names, everything in one paragraph. It is still a deal if it names a property and a price.
 
 "asking" is the CURRENT price: if they say the price was reduced, use the new one and put the old one in "previousAsking". Keep their ARV and repair numbers exactly as they say them; they are claims to be checked, not facts. If their ARV or repairs look off for the house (for example ARV more than 2.5 times the asking, or "light rehab" on a house that needs a roof), say so in "redFlags".

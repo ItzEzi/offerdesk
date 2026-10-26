@@ -13,7 +13,7 @@
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 6 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 7 });
 }
 
 function doPost(e) {
@@ -37,7 +37,7 @@ function doPost(e) {
 function handle_(req) {
   try {
     switch (req.action) {
-      case 'ping': return { ok: true, version: 6, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'ping': return { ok: true, version: 7, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
       case 'cloud_meta': return cloudMeta_();
       case 'cloud_get': return cloudGet_(req.names || []);
       case 'cloud_put': return cloudPut_(req.parts || {});
@@ -52,7 +52,7 @@ function handle_(req) {
       case 'brief_test': return morningBrief();
       case 'worker_setup': return workerSetup_(req);
       case 'worker_status': return workerStatus_();
-      case 'attachments': return attachments_(String(req.id || ''), Number(req.max) || 6, Number(req.start) || 0);
+      case 'attachments': return attachments_(String(req.id || ''), Number(req.max) || 6, Number(req.start) || 0, String(req.kind || ''));
       case 'search': return { ok: true, messages: search_(String(req.query || ''), Number(req.max) || 30) };
       case 'message': return message_(String(req.id || ''));
       case 'send': return send_(req);
@@ -88,7 +88,7 @@ function mailText_(m) {
 }
 /* one message again, read the same way (for emails pulled before this version) */
 function message_(id) {
-  try { var m = GmailApp.getMessageById(id); if (!m) return { ok: false, error: 'not_found' }; return { ok: true, id: id, body: mailText_(m) }; }
+  try { var m = GmailApp.getMessageById(id); if (!m) return { ok: false, error: 'not_found' }; return { ok: true, id: id, body: mailText_(m), docs: pdfCount_(m) }; }
   catch (e) { return { ok: false, error: 'not_found' }; }
 }
 function me_() { return Session.getEffectiveUser().getEmail().toLowerCase(); }
@@ -104,7 +104,8 @@ function search_(query, max) {
         id: m.getId(), threadId: t.getId(), from: m.getFrom(), to: m.getTo(),
         subject: m.getSubject(), date: m.getDate().toISOString(),
         body: mailText_(m),
-        atts: m.getAttachments({ includeInlineImages: true }).filter(function (a) { return (a.getContentType() || '').indexOf('image/') === 0; }).length
+        atts: m.getAttachments({ includeInlineImages: true }).filter(function (a) { return (a.getContentType() || '').indexOf('image/') === 0; }).length,
+        docs: pdfCount_(m)
       });
     });
   });
@@ -184,9 +185,22 @@ function smsInbox_(since) {
 
 /* photos attached to an email, a batch at a time (phone photos are big): skips tiny logos, converts iPhone HEIC when Google can,
    and says which ones it had to skip and why */
-function attachments_(id, max, start) {
+function pdfCount_(m) { try { return m.getAttachments().filter(isPdf_).length; } catch (e) { return 0; } }
+function isPdf_(a) { return /pdf/i.test(a.getContentType() || '') || /\.pdf$/i.test(a.getName() || ''); }
+function attachments_(id, max, start, kind) {
   var m = GmailApp.getMessageById(id);
   if (!m) return { ok: true, files: [], skipped: [], next: null };
+  if (kind === 'pdf') {
+    /* PDF deal sheets, one per call (they can be big) */
+    var pdfs = m.getAttachments().filter(isPdf_), outP = [], skippedP = [], k = start || 0;
+    for (; k < pdfs.length; k++) {
+      if (outP.length >= Math.max(1, Math.min(max, 2))) break;
+      var p = pdfs[k];
+      if (p.getSize() > 15 * 1024 * 1024) { skippedP.push({ name: p.getName(), why: 'too_big', mb: Math.round(p.getSize() / 1048576) }); continue; }
+      outP.push({ name: p.getName(), type: 'application/pdf', data: Utilities.base64Encode(p.copyBlob().getBytes()) });
+    }
+    return { ok: true, files: outP, skipped: skippedP, next: k < pdfs.length ? k : null };
+  }
   var imgs = m.getAttachments({ includeInlineImages: true }).filter(function (a) { return (a.getContentType() || '').indexOf('image/') === 0 && a.getSize() >= 15000; });
   var out = [], skipped = [], bytes = 0, i = start || 0;
   for (; i < imgs.length; i++) {
@@ -334,7 +348,8 @@ function photoPut_(req) {
   if (!/^[a-z0-9]+$/i.test(id) || !req.data) return { ok: false, error: 'bad_photo' };
   var folder = photoFolder_();
   if (photoFile_(folder, id)) return { ok: true, exists: true };
-  var blob = Utilities.newBlob(Utilities.base64Decode(String(req.data)), String(req.type || 'image/jpeg'), id + '.jpg');
+  var type = String(req.type || 'image/jpeg');
+  var blob = Utilities.newBlob(Utilities.base64Decode(String(req.data)), type, id + (/pdf/i.test(type) ? '.pdf' : '.jpg'));
   folder.createFile(blob).setDescription(JSON.stringify(req.meta || {}).slice(0, 900));
   return { ok: true };
 }

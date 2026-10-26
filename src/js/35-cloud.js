@@ -187,7 +187,7 @@ function blobB64(b){return new Promise((res,rej)=>{const fr=new FileReader();fr.
 async function photoSync(){
   if(!cloudOn()||!IDB.db||PS.busy)return;PS.busy=true;let got=0;
   try{
-    const ref=new Map();for(const d of Object.values(state.deals))for(const id of d.photoIds||[])ref.set(id,d.id);
+    const ref=new Map();for(const d of Object.values(state.deals))for(const id of [...(d.photoIds||[]),...(d.docs||[]).map(x=>x.id)])ref.set(id,d.id);
     const local=new Set(await IDB.tx('photos','readonly',s=>s.getAllKeys()));CM.up=CM.up||{};
     const needUp=[...ref.keys()].some(id=>local.has(id)&&!CM.up[id]);
     const needDown=[...ref.keys()].some(id=>!local.has(id)&&!(PS.miss[id]>Date.now()-5*60e3));

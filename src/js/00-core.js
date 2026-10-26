@@ -75,6 +75,7 @@ const ICONS={
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/>',
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
+  pdf:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
   expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
@@ -180,7 +181,7 @@ async function readKey(key){
   try{return JSON.parse(lsGet('od2.'+key)||'null')}catch(e){return null}
 }
 function saveDeal(d,quiet){d.updated=nowISO();state.deals[d.id]=d;persist('deals');if(!quiet)render()}
-function removeDeal(id){const d=state.deals[id];if(d&&IDB.db)(d.photoIds||[]).forEach(pid=>IDB.del('photos',pid).catch(()=>{}));delete state.deals[id];persist('deals');if(state.dealId===id)go('listings');render()}
+function removeDeal(id){const d=state.deals[id];if(d&&IDB.db)[...(d.photoIds||[]),...(d.docs||[]).map(x=>x.id)].forEach(pid=>IDB.del('photos',pid).catch(()=>{}));delete state.deals[id];persist('deals');if(state.dealId===id)go('listings');render()}
 function saveSettings(){persist('settings');render()}
 function savePractice(p){p.updated=nowISO();state.practice[p.id]=p;persist('practice');render()}
 function saveMail(){const em=Object.values(state.mail.emails).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,300);state.mail.emails=Object.fromEntries(em.map(e=>[e.id,e]));state.mail.texts=(state.mail.texts||[]).slice(-150);persist('mail')}
@@ -200,7 +201,7 @@ function route(){
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
   {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
-  if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
+  if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureDocUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
   const anchor=state.view==='deal'||state.view==='settings'?sub:id;
   if(anchor){setTimeout(()=>{const el=document.getElementById(anchor);if(el)el.scrollIntoView({block:'start'})},80)}

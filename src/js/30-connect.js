@@ -44,6 +44,52 @@ async function ensurePhotoUrls(dealId){
   for(const id of d.photoIds||[]){if(photoObjURL[id])continue;try{const r=await IDB.get('photos',id);if(r&&r.blob){photoObjURL[id]=URL.createObjectURL(r.blob);changed=true}}catch(e){}}
   if(changed)render();
 }
+/* ---------- PDF deal sheets ---------- */
+const docObjURL={};
+const docCount=d=>(d.docs||[]).length;
+function latin1(u8){let s='';for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return s}
+function pdfPages(u8){const m=latin1(u8).match(/\/Type\s*\/Page(?![a-z])/g);return m?m.length:0}
+/* photos inside a PDF: most are stored as plain JPEG streams, which can be lifted out as they are */
+function pdfJpegs(u8,max){
+  const out=[];const n=u8.length;const end=[0x65,0x6e,0x64,0x73,0x74,0x72,0x65,0x61,0x6d];
+  for(let i=0;i<n-12&&out.length<(max||40);i++){
+    if(u8[i]!==0x73||u8[i+1]!==0x74||u8[i+2]!==0x72||u8[i+3]!==0x65||u8[i+4]!==0x61||u8[i+5]!==0x6d)continue;
+    if(i>=3&&u8[i-3]===0x65&&u8[i-2]===0x6e&&u8[i-1]===0x64)continue;
+    let j=i+6;if(u8[j]===0x0d)j++;if(u8[j]===0x0a)j++;
+    if(u8[j]!==0xff||u8[j+1]!==0xd8||u8[j+2]!==0xff)continue;
+    let k=-1;for(let p=j+3;p<n-9;p++){if(u8[p]===0x65&&u8[p+1]===0x6e&&u8[p+2]===0x64){let ok=true;for(let q=3;q<9;q++)if(u8[p+q]!==end[q]){ok=false;break}if(ok){k=p;break}}}
+    if(k<0)break;let e=k;while(e>j&&(u8[e-1]===0x0a||u8[e-1]===0x0d||u8[e-1]===0x20))e--;
+    if(e-j>=20000)out.push(new Blob([u8.subarray(j,e)],{type:'image/jpeg'}));i=k+9;
+  }
+  return out;
+}
+async function fetchPdfs(mid,acct){
+  const files=[],skipped=[];let start=0,guard=0;
+  while(start!=null&&guard++<4){const r=await bridge('attachments',{id:mid,kind:'pdf',max:1,start},acct);
+    for(const x of r.files||[]){const blob=b64ToBlob(x.data,'application/pdf');const u8=new Uint8Array(await blob.arrayBuffer());files.push({name:String(x.name||'deal sheet.pdf'),blob,u8,pages:pdfPages(u8)})}
+    for(const x of r.skipped||[])skipped.push({name:String(x.name||''),why:String(x.why||''),mb:x.mb||null});start=r.next==null?null:r.next}
+  return {files,skipped};
+}
+const aiPdf=f=>f.pages<=60&&f.blob.size<=20*1024*1024;
+/* keep the PDF on the deal, and lift its photos into the deal's photos */
+async function attachPdfs(dealId,got,mid,withPhotos){
+  const d=state.deals[dealId];if(!d||!IDB.db)return 0;d.docs=d.docs||[];let photos=0;
+  for(const f of got.files||[]){
+    if(d.docs.some(x=>x.msg===mid&&x.name===f.name&&x.size===f.blob.size))continue;
+    const id=uid('doc');try{await IDB.put('photos',{id,dealId,blob:f.blob,kind:'pdf',name:f.name,source:'email',at:nowISO()})}catch(e){continue}
+    d.docs.push({id,name:f.name,pages:f.pages,size:f.blob.size,msg:mid||null,at:nowISO()});
+    if(withPhotos){const imgs=pdfJpegs(f.u8,30);const keep=[];
+      for(const b of imgs){if(keep.length>=16)break;try{const bm=await createImageBitmap(b);if(Math.min(bm.width,bm.height)>=300)keep.push(b);bm.close&&bm.close()}catch(e){}}
+      if(keep.length)photos+=await addPhotoBlobs(dealId,keep,'pdf')}
+  }
+  const dd=state.deals[dealId];if(!dd)return photos;
+  for(const s of got.skipped||[])if(!(dd.docSkipped||[]).some(x=>x.name===s.name))dd.docSkipped=(dd.docSkipped||[]).concat(Object.assign({msg:mid},s)).slice(-10);
+  saveDeal(dd,true);if((got.files||[]).length)logActivity(dealId,'info',`${negName()} read the PDF${got.files.length>1?'s':''} on ${streetOf(dd.address)}${photos?` and pulled out ${photos} photo${photos>1?'s':''}`:''}.`);
+  return photos;
+}
+async function docItemsForAI(d){const out=[];for(const x of (d.docs||[]).slice(-2)){if((x.pages||0)>60)continue;try{const r=await IDB.get('photos',x.id);if(r&&r.blob&&r.blob.size<=20*1024*1024)out.push(r.blob)}catch(e){}}return out}
+async function ensureDocUrls(dealId){const d=state.deals[dealId];if(!d||!IDB.db)return;let changed=false;
+  for(const x of d.docs||[]){if(docObjURL[x.id])continue;try{const r=await IDB.get('photos',x.id);if(r&&r.blob){docObjURL[x.id]=URL.createObjectURL(r.blob);changed=true}}catch(e){}}if(changed)render()}
 async function photoItemsForAI(d){
   const items=[];
   const refs=[];
@@ -120,7 +166,8 @@ async function syncWholesalerEmails(acct){
   const seen=new Set(Object.values(state.deals).flatMap(d=>d.seenMsgIds||[]));
   const agentEmails=new Set(Object.values(state.deals).filter(d=>d.source!=='wholesaler').map(d=>((d.agent&&d.agent.email)||'').trim().toLowerCase()).filter(Boolean));
   const replied=[];
-  for(const m of r.messages||[]){if(state.mail.emails[m.id]||seen.has(m.id))continue;if(agentEmails.has(parseFrom(m.from).email))continue;if(connectedAccts().some(a=>(acctInfo(a.id).email||'').toLowerCase()===parseFrom(m.from).email))continue;
+  for(const m of r.messages||[]){const known=state.mail.emails[m.id];if(known&&m.docs!=null&&known.docs==null)known.docs=+m.docs||0;
+    if(known||seen.has(m.id))continue;if(agentEmails.has(parseFrom(m.from).email))continue;if(connectedAccts().some(a=>(acctInfo(a.id).email||'').toLowerCase()===parseFrom(m.from).email))continue;
     const tgt=replyTarget(m);if(tgt){takeReply(tgt,m,acct);replied.push([tgt.id,m]);continue}
     state.mail.emails[m.id]=Object.assign({},m,{status:'new',acct:acct.id});n++}
   saveMail();
@@ -129,6 +176,7 @@ async function syncWholesalerEmails(acct){
   if(state.settings.conn.autoImport&&aiOn()){const now=Date.now();
     const due=Object.values(state.mail.emails).filter(x=>x.status==='new'&&(x.tries||0)<3&&(!x.lastTry||now-new Date(x.lastTry).getTime()>3600e3)).sort(byDate).reverse().slice(0,8);
     for(const m of due){if(timeUp())break;m.tries=(m.tries||0)+1;m.lastTry=nowISO();await importEmail(m.id,true)}if(due.length)saveMail()}
+  if(!WORKER.on)resumePdfs().catch(()=>{});
   return n;
 }
 function replyTarget(m){

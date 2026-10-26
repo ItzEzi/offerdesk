@@ -22,12 +22,17 @@ function photoNote(d){
   if(cnt('heic'))out.push(`${cnt('heic')} iPhone photo${cnt('heic')>1?'s':''} (HEIC) couldn’t be converted. Ask them to send JPGs.`);
   return out.length?`<div class="note amber small">${ico('camera')} ${out.join(' ')}</div>`:'';
 }
+function docNote(d){
+  const docs=d.docs||[];const big=(d.docSkipped||[]).filter(x=>x.why==='too_big');if(!docs.length&&!big.length)return '';
+  return `<div class="docs">${docs.map(x=>`<a class="doc-chip" ${docObjURL[x.id]?`href="${esc(docObjURL[x.id])}" target="_blank" rel="noopener"`:'aria-disabled="true"'}>${ico('pdf')}<span class="dn">${esc(x.name)}</span><span class="xs muted">${x.pages?x.pages+' page'+(x.pages>1?'s':'')+' · ':''}${x.pages>60?'too long for '+esc(negName())+' to read':esc(negName())+' read it'}</span></a>`).join('')}
+    ${big.map(x=>`<span class="small muted">${ico('pdf')} ${esc(x.name||'A PDF')}${x.mb?` (${x.mb} MB)`:''} is too big to pull from Gmail. Open it there.</span>`).join('')}</div>`;
+}
 function overviewCard(d,c){
   const first=(d.photoIds||[]).map(id=>photoObjURL[id]).find(Boolean)||(d.photoUrls||[])[0];
   const offer=lastOurPrice(d)??(d.draft&&d.draft.price)??(c.ready?c.opening:null);
   return `<section class="card"><div class="card-head"><span class="ci green">${ico('home')}</span><div><h2>Property overview</h2><p>Key details and where the numbers stand</p></div></div>
   ${first?heroPhotoHTML(d)||`<img class="hero-photo" src="${esc(first)}" alt="Front of ${esc(streetOf(d.address))}">`:`<button class="dropzone" data-act="goto" data-v="eyes" style="cursor:pointer;background:none">${ico('camera')}<b>Add photos</b><span class="small">${esc(negName())} looks at them and writes the inspection report and rehab estimate</span></button>`}
-  ${photoNote(d)}
+  ${photoNote(d)}${docNote(d)}
   <div class="tiles"><div class="tile green"><span class="lab">${d.source==='wholesaler'?'Asking price':'List price'}</span><span class="val">${money(curList(d))}</span><span class="sub">${(d.wsClaims||{}).accept?`They’d take ${money(d.wsClaims.accept)}`:priceDropped(d)?`Down from ${money(origList(d))}`:'Current asking price'}</span></div>
   <div class="tile blue"><span class="lab">Offer amount</span><span class="val" style="color:var(--t-blue)">${money(offer)}</span><span class="sub">${lastOurPrice(d)!=null?'Your last offer':'Planned opening offer'}</span></div>
   <div class="tile orange"><span class="lab">Est. rehab cost</span><span class="val" style="color:var(--t-orange)">${money(d.rehab)}</span><span class="sub">${d.rehabSource==='maya'?esc(negName())+'’s estimate':rehabTheirs(d)?'Wholesaler’s claim, not checked':'Your estimate'}</span></div>

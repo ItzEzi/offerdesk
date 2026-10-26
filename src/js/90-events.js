@@ -400,6 +400,7 @@ async function boot(){
   setTimeout(()=>tick(false),2500);
   setTimeout(()=>{try{resumeLinks()}catch(e){}},6000);
   setTimeout(()=>{resumeAttachments().catch(()=>{})},9000);
+  setTimeout(()=>{resumePdfs().catch(()=>{})},12000);
   setInterval(()=>tick(false),3*60*1000);
   setInterval(()=>{if(document.visibilityState==='visible'&&cloudOn())cloudSync()},60*1000);
   checkUpdate();setInterval(checkUpdate,5*60*1000);
