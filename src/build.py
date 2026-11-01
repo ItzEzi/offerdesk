@@ -28,7 +28,7 @@ html=f'''<!doctype html>
 <div id="alertbar"></div>
 <main id="main"></main>
 <div id="modal-root"></div>
-<div id="toast" class="toast" role="status" hidden></div>
+<div id="toasts" class="toasts" aria-live="polite"><div id="toast" class="toast" role="status" hidden></div></div>
 <script type="text/plain" id="bridge-src">
 {gs}</script>
 <script>

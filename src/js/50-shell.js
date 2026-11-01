@@ -8,10 +8,11 @@ function doRender(){
   const scrolls={};document.querySelectorAll('[data-keep-scroll]').forEach(el=>{if(el.id)scrolls[el.id]=[el.scrollTop,el.scrollLeft]});
   const opens={};document.querySelectorAll('details[id]').forEach(el=>{opens[el.id]=el.open});
   const y=window.scrollY;
-  $('#topbar').innerHTML=topbarHTML();
-  $('#alertbar').innerHTML=alertHTML();
-  $('#main').innerHTML=state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`;
-  $('#modal-root').innerHTML=modalHTML();
+  /* each region on its own: a problem in one never stops the others (a dialog that never opens looks like a dead button) */
+  const part=(sel,f)=>{try{$(sel).innerHTML=f()}catch(e){try{console.warn('OfferDesk render:',sel,e)}catch(x){}if(sel==='#main')$(sel).innerHTML=`<div class="wrap page"><section class="card"><p>Something on this page couldn’t load (${esc(String(e&&e.message||e).slice(0,140))}). Go back and try again; the rest of OfferDesk works.</p></section></div>`}};
+  part('#topbar',topbarHTML);part('#alertbar',alertHTML);
+  part('#main',()=>state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`);
+  part('#modal-root',modalHTML);document.body.classList.toggle('has-modal',!!state.modal);
   try{dictDecorate()}catch(e){console.warn(e)}
   for(const [id,[t,l]] of Object.entries(scrolls)){const el=document.getElementById(id);if(el){el.scrollTop=t;el.scrollLeft=l}}
   for(const [id,o] of Object.entries(opens)){const el=document.getElementById(id);if(el)el.open=o}

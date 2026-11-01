@@ -13,7 +13,7 @@
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 8 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 9 });
 }
 
 function doPost(e) {
@@ -37,7 +37,7 @@ function doPost(e) {
 function handle_(req) {
   try {
     switch (req.action) {
-      case 'ping': return { ok: true, version: 8, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'ping': return { ok: true, version: 9, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
       case 'cloud_meta': return cloudMeta_();
       case 'cloud_get': return cloudGet_(req.names || []);
       case 'cloud_put': return cloudPut_(req.parts || {});
@@ -49,7 +49,7 @@ function handle_(req) {
       case 'fetch_url': return fetchUrl_(String(req.url || ''));
       case 'drive_image': return driveImage_(String(req.id || ''));
       case 'brief_setup': return briefSetup_(req);
-      case 'brief_test': return morningBrief();
+      case 'brief_test': return morningBrief({ force: true });
       case 'worker_setup': return workerSetup_(req);
       case 'worker_status': return workerStatus_();
       case 'pdf_part': return pdfPart_(String(req.id || ''), Number(req.idx) || 0, Number(req.part) || 0);
@@ -440,19 +440,33 @@ function driveImage_(id) {
 }
 
 /* ---------- Maya's morning brief ---------- */
+/* one schedule only: two devices setting it up at the same moment used to leave two daily triggers (two briefs a day) */
 function briefSetup_(req) {
-  var props = PropertiesService.getScriptProperties();
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'morningBrief') ScriptApp.deleteTrigger(t); });
-  if (!req.on) { props.setProperty('BRIEF_ON', 'no'); return { ok: true, on: false }; }
-  if (!req.email) return { ok: false, error: 'no_email' };
-  var hour = Math.max(0, Math.min(23, Number(req.hour) || 8)); var tz = String(req.tz || Session.getScriptTimeZone());
-  props.setProperties({ BRIEF_ON: 'yes', BRIEF_TO: String(req.email), BRIEF_HOUR: String(hour), BRIEF_TZ: tz });
-  ScriptApp.newTrigger('morningBrief').timeBased().everyDays(1).atHour(hour).nearMinute(0).inTimezone(tz).create();
-  return { ok: true, on: true, hour: hour, tz: tz };
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'morningBrief') ScriptApp.deleteTrigger(t); });
+    if (!req.on) { props.setProperty('BRIEF_ON', 'no'); return { ok: true, on: false }; }
+    if (!req.email) return { ok: false, error: 'no_email' };
+    var hour = Math.max(0, Math.min(23, Number(req.hour) || 8)); var tz = String(req.tz || Session.getScriptTimeZone());
+    props.setProperties({ BRIEF_ON: 'yes', BRIEF_TO: String(req.email), BRIEF_HOUR: String(hour), BRIEF_TZ: tz });
+    ScriptApp.newTrigger('morningBrief').timeBased().everyDays(1).atHour(hour).nearMinute(0).inTimezone(tz).create();
+    var mine = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'morningBrief'; });
+    for (var i = 1; i < mine.length; i++) ScriptApp.deleteTrigger(mine[i]);
+    return { ok: true, on: true, hour: hour, tz: tz, triggers: 1 };
+  } finally { lock.releaseLock(); }
 }
 function readPart_(name) { var f = partFile_(name); if (!f) return null; try { return JSON.parse(f.getBlob().getDataAsString('UTF-8')); } catch (e) { return null; } }
-function morningBrief() {
+function morningBrief(e) {
+  var force = !!(e && e.force);
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(30000)) return { ok: false, error: 'busy' };
+  try { return morningBriefRun_(force); } finally { lock.releaseLock(); }
+}
+/* at most one brief a day, even if an old schedule is still around */
+function morningBriefRun_(force) {
   var to = prop_('BRIEF_TO'); if (!to) return { ok: false, error: 'no_email' };
+  var today = Utilities.formatDate(new Date(), prop_('BRIEF_TZ') || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (!force && prop_('BRIEF_LAST') === today) return { ok: true, skipped: 'already_sent_today' };
   var part = readPart_('brief'); var b = part && part.v; if (!b) return { ok: false, error: 'no_brief' };
   var overnight = [];
   try {
@@ -466,6 +480,7 @@ function morningBrief() {
   var day = Utilities.formatDate(new Date(), prop_('BRIEF_TZ') || Session.getScriptTimeZone(), 'EEE, MMM d');
   var subject = 'Morning brief · ' + day + ' · ' + (b.needs || []).length + ' need you' + (overnight.length ? ' · ' + overnight.length + ' new repl' + (overnight.length === 1 ? 'y' : 'ies') : '');
   GmailApp.sendEmail(to, subject, html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 5000), { htmlBody: html, name: name });
+  if (!force) PropertiesService.getScriptProperties().setProperty('BRIEF_LAST', today);
   return { ok: true, sent: true, subject: subject };
 }
 function briefAI_(key, b, overnight) {

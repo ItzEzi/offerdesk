@@ -11,7 +11,7 @@ document.addEventListener('click',e=>{
 const D=()=>(state.modal&&state.modal.id&&state.deals[state.modal.id])||cur();
 A.bell=()=>{state.bellOpen=!state.bellOpen;if(state.bellOpen){state.conn.seenAt=nowISO();saveConn()}render()};
 A['stop-ai']=el=>{const b=state.busy[el.dataset.key];if(b&&b.ctl)b.ctl.abort()};
-A.open=el=>{const d=state.deals[el.dataset.id];if(!d)return;state.bellOpen=false;state.logKind='in';if(d.source==='wholesaler'&&!d.reviewed){d.reviewed=true;saveDeal(d,true)}go('deal',d.id)};
+A.open=el=>{const d=state.deals[el.dataset.id];if(!d)return;state.bellOpen=false;state.logKind='in';go('deal',d.id)};
 A['open-chat']=el=>{state.mayaTab='chat';A.open(el)};
 A.star=el=>{const d=state.deals[el.dataset.id||state.dealId];if(!d)return;d.starred=!d.starred;saveDeal(d)};
 A.fav=el=>{const d=state.deals[el.dataset.id];if(!d)return;d.favorite=!d.favorite;saveDeal(d)};
@@ -77,7 +77,13 @@ A.deep=el=>aiDeep(el.dataset.id||state.dealId);
 A.research=()=>{const d=D();if(d)researchDeal(d.id)};
 A['in-depth']=()=>{const d=D();if(d){inDepth(d.id);setTimeout(()=>{const el=document.getElementById('research');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},50)}};
 A['fill-links']=()=>{const d=D();if(d)fillFromLinks(d.id)};
+A['link-add']=()=>{const d=D();const el=document.getElementById('lk-new');if(!d||!el)return;const u=el.value.trim();
+  if(!/^https?:\/\/\S+\.\S+/i.test(u)){toast('Paste a full link that starts with https://');return}
+  d.links=[u,...(d.links||[]).filter(x=>x!==u)].slice(0,10);if(d.linksOnly)d.linksOnly=false;delete d.linkFill;delete d.linkPhotosTried;acted(d);saveDeal(d);el.value='';
+  if(gmailOn()&&aiOn())fillFromLinks(d.id);else toast('Link added. Connect Gmail so '+negName()+' can open it.')};
 A['ask-photos']=()=>{const d=D();if(d)askPhotosDraft(d.id)};
+A['ask-for-photos']=()=>{const d=D();if(!d)return;d.mayaChat=d.mayaChat||[];d.mayaChat.push({role:'user',content:'Ask them for photos',at:nowISO()});saveDeal(d,true);
+  aiReply(d.id,'Ask them for clear photos of the whole house: every room inside, the kitchen, bathrooms, roof, furnace and water heater, the basement and the outside. Ask how to get access for a walkthrough. Short and friendly. No price.',false,`${negName()} is drafting a request for photos…`).then(()=>{const dd=state.deals[d.id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:'Draft ready below: asking them for photos.',at:nowISO()});saveDeal(dd)}})};
 A['hist-add-toggle']=()=>{state.histAdd=!state.histAdd;state.histPaste=false;render()};
 A['hist-paste-toggle']=()=>{state.histPaste=!state.histPaste;state.histAdd=false;render()};
 A['hist-save']=()=>{const d=D();const dt=state.drafts['he-date'];if(!dt){toast('Pick the date.');return}const ev=state.drafts['he-ev']||'listed';d.history=d.history||[];d.history.push({date:dt,event:HEV[ev]?ev:'other',price:parseNum(state.drafts['he-price']),src:'you'});state.drafts['he-price']='';state.histAdd=false;saveDeal(d)};
@@ -172,9 +178,12 @@ A['text-ignore']=el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.dataset.
 A['lead-over']=()=>{state.leads.showOver=!state.leads.showOver;render()};
 A['lead-tag']=el=>{state.leads.tag=state.leads.tag===el.dataset.v?null:el.dataset.v;render()};
 A['lead-fav']=()=>{state.leads.fav=!state.leads.fav;render()};
-A['lead-passed']=()=>{state.leads.showPassed=!state.leads.showPassed;render()};
-A['clear-leads']=()=>{state.leads={q:'',tag:null,fav:false,type:'all',showPassed:false};render()};
-A['ws-pass']=el=>{const d=state.deals[el.dataset.id];d.stage='dead';d.reviewed=true;d.autopilot=false;saveDeal(d);toast('Passed. It’s under Show passed.')};
+A['lead-passed']=()=>{state.leads.sect='dead';render()};
+A['toast-x']=el=>toastClose(el);
+A['toast-all']=()=>toastClear();
+A['lead-sect']=el=>{state.leads.sect=el.dataset.v;state.leads.tag=null;render()};
+A['clear-leads']=()=>{state.leads={q:'',tag:null,fav:false,type:'all',sect:state.leads.sect||'new'};render()};
+A['ws-pass']=el=>{const d=state.deals[el.dataset.id];d.stage='dead';d.deadReason='passed';d.deadAt=nowISO();acted(d);d.autopilot=false;saveDeal(d);toast('Passed. It’s under Dead in Inbox Leads.')};
 A['inbox-extract']=async()=>{const t=(state.drafts['inbox-paste']||'').trim();if(!t){toast('Paste a wholesaler email first.');return}
   const r=await extractDeals(t,{channel:'email'},'inbox');if(!r)return;
   if(!r.deals.length){toast('No property found in that message.');return}
@@ -318,14 +327,14 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const t=e.target;
-  if(t.id==='deal-stage'){const d=cur();d.stage=t.value;if(['contract','closed','dead'].includes(t.value))d.autopilot=false;saveDeal(d);return}
+  if(t.id==='deal-stage'){const d=cur();d.stage=t.value;if(['contract','closed','dead'].includes(t.value))d.autopilot=false;if(t.value==='dead'){d.deadReason=d.deadReason||'dropped';d.deadAt=nowISO()}else delete d.deadReason;acted(d);saveDeal(d);return}
   if(t.dataset.lf){state.lf[t.dataset.lf]=t.value;state.page=1;render();return}
   if(t.id==='leads-type'){state.leads.type=t.value;render();return}
   if(t.hasAttribute('data-draft')){state.drafts[t.id]=t.value;return}
   if(t.dataset.mfBool&&state.modal){state.modal.form[t.dataset.mfBool]=t.checked;return}
-  if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();saveDeal(d,true)}return}
+  if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();acted(d);saveDeal(d,true)}return}
   if(t.dataset.compsCsv&&t.files&&t.files[0]){const id=t.dataset.compsCsv;const fr=new FileReader();fr.onload=()=>importCompsCSV(id,String(fr.result||''));fr.readAsText(t.files[0]);t.value='';return}
-  if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
+  if(t.dataset.photos){const files=[...t.files];t.value='';acted(state.deals[t.dataset.photos]);addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
   if(t.dataset.sec){const v=t.value.trim().replace(/\s+/g,'');setSecret(t.dataset.sec,t.dataset.sec==='apiKey'?v:t.value.trim());if(t.dataset.sec==='apiKey'){delete state.conn.aiCheck;saveConn();render();if(v)testKey()}else if(t.dataset.sec==='model'){delete state.conn.aiCheck;saveConn();render()}else render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpCsv&&t.files&&t.files[0]){const c=state.campaigns[t.dataset.cpCsv];const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));if(!items.length){toast('That file has no addresses. Use Redfin’s Download All.',5200);return}const n=await cpAddItems(c,items);toast(`Added ${n} listing${n===1?'':'s'}${n<items.length?` (${items.length-n} were already here)`:''}.`)};fr.readAsText(t.files[0]);t.value='';return}
@@ -345,7 +354,7 @@ document.addEventListener('change',e=>{
     if(p==='listedDate')d.domAtAdd=null;
     if(p==='arv')d.arvSource='you';if(p==='rehab')d.rehabSource='you';
     if(p==='address'&&hasStreet(d)){d.linkFill=Object.assign({},d.linkFill,{robot:[]});setTimeout(()=>maybeResearch(d.id),0)}
-    saveDeal(d);return;
+    if(p!=='instructions')acted(d);saveDeal(d);return;
   }
   if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();if(/^(brief\.|notify\.email)/.test(t.dataset.fs))briefSync();return}
 });

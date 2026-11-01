@@ -29,8 +29,8 @@ function briefTo(){return ((state.settings.notify||{}).email||state.settings.pro
 async function briefSync(){
   const B=state.settings.brief||{};if(!cloudOn())return;
   const want=JSON.stringify({on:!!B.on,hour:B.hour??8,tz:B.tz||Intl.DateTimeFormat().resolvedOptions().timeZone,email:briefTo()});
-  if(cm().briefSetup===want)return;
-  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
+  const v=bridgeV(cm().acct);if(cm().briefSetup===want&&(v<9||cm().briefV===9))return;
+  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;if(v>=9)cm().briefV=9;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
 }
 function briefCardHTML(){
   const b=buildBrief();const n=esc(negName());const B=state.settings.brief||{};

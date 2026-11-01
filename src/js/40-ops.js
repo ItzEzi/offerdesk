@@ -96,7 +96,7 @@ async function extractDeals(text,meta,busyKey,quiet){
       wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||'',comps:theirComps(x)},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
-    pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
+    pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO(),gmailId:meta.channel==='email'||!meta.channel?meta.msgId||null:null,inbox:meta.acct?acctInfo(meta.acct).email||null:null,subject:meta.subject||''});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
     state.deals[d.id]=d;saveDeal(d,true);made.push(d.id);
@@ -290,7 +290,7 @@ async function aiChat(id,msg){
 async function quickAction(id,qa){
   const d=state.deals[id];if(!d)return;
   if(qa==='pause'){d.autopilot=false;saveDeal(d);logActivity(id,'info',`Autopilot paused on ${streetOf(d.address)}.`);toast('Autopilot paused for this deal');return}
-  if(qa==='drop'){state.modal={type:'confirm',title:'Drop this deal?',text:`It moves to Archived and autopilot stops. ${negName()} can draft a polite step-back message for you to send.`,yes:'Drop it',yes2:'Drop and draft a goodbye',run:()=>{const dd=state.deals[id];dd.stage='dead';dd.autopilot=false;dd.draft=null;saveDeal(dd)},run2:()=>{const dd=state.deals[id];dd.stage='dead';dd.autopilot=false;saveDeal(dd);if(ourCount(dd))aiReply(id,'Step back politely: thank them, say the numbers do not work for us right now, and leave the door open if anything changes. No new price.')}};render();return}
+  if(qa==='drop'){state.modal={type:'confirm',title:'Drop this deal?',text:`It moves to Dead in Inbox Leads and autopilot stops. ${negName()} can draft a polite step-back message for you to send.`,yes:'Drop it',yes2:'Drop and draft a goodbye',run:()=>{const dd=state.deals[id];dd.stage='dead';dd.deadReason='dropped';dd.deadAt=nowISO();dd.autopilot=false;dd.draft=null;dd.needsYou=null;acted(dd);saveDeal(dd);logActivity(id,'info',`You dropped ${streetOf(dd.address)}.`);toast('Dropped. It’s under Dead in Inbox Leads; change the stage to bring it back.')},run2:()=>{const dd=state.deals[id];dd.stage='dead';dd.deadReason='dropped';dd.deadAt=nowISO();dd.autopilot=false;dd.needsYou=null;acted(dd);saveDeal(dd);logActivity(id,'info',`You dropped ${streetOf(dd.address)}.`);toast('Dropped. Maya is drafting a goodbye for you to send.');if(ourCount(dd))aiReply(id,'Step back politely: thank them, say the numbers do not work for us right now, and leave the door open if anything changes. No new price.')}};render();return}
   const q=QUICK.find(x=>x.id===qa);if(!q)return;
   const c=calc(d);if(!c.ready){toast('Add an ARV first so '+negName()+' knows your ceiling.');return}
   if(!ourCount(d)&&qa!=='creative'){toast('Send the opening offer first.');return}
@@ -390,6 +390,18 @@ async function deepAll(){
 }
 
 /* ---------- sending / logging ---------- */
+/* something real happened on a deal (sent, changed, dropped): it leaves "Needs you" */
+function acted(d){if(!d)return;d.reviewed=true;d.actedAt=nowISO()}
+/* no answer after 3 follow-ups (and a few more days): the deal is dead */
+function autoDead(){let n=0;
+  for(const d of Object.values(state.deals)){if(d.example||!['sent','negotiating'].includes(d.stage)||replyWaiting(d)||draftOpen(d))continue;
+    if(followUpsSent(d)<MAX_FOLLOWUPS)continue;const lo=lastAt(outs(d));if(!lo||Date.now()-new Date(lo).getTime()<DEAD_AFTER_DAYS*DAY)continue;
+    d.stage='dead';d.deadReason='no_response';d.deadAt=nowISO();d.autopilot=false;saveDeal(d,true);n++;
+    logActivity(d.id,'info',`${streetOf(d.address)} moved to Dead: no answer after ${MAX_FOLLOWUPS} follow-ups.`)}
+  return n}
+/* their message says the deal is off (sold to someone else, seller backed out) */
+const SELLER_OUT=/\b(no longer available|is no longer for sale|(we|seller|owner)('s| is| are|'re)? not selling|not selling (it|anymore)|seller (backed|pulled) out|seller changed (his|her|their) mind|decided not to sell|(took|taken) (it|the property|the house) off the market|accepted (another|a different|an other) offer|went with (another|a different) buyer|(it|the property|the house) (has |already )*(been )?sold|already (been )?sold|deal (is dead|fell through)|(it'?s|it is) (gone|off the table))\b/i;
+function sellerOut(text){return SELLER_OUT.test(String(text||''))}
 function markSent(id,ch){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return;
   const at=nowISO();dr.sent=dr.sent||{};
@@ -404,7 +416,9 @@ function markSent(id,ch){
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
     if(dr.action==='withdraw')d.follow={base:at,step:(state.settings.followDays||[]).length};
     if(dr.action==='accept')d.stage='negotiating';
+    if(dr.action==='withdraw'||dr.action==='walk'){d.stage='dead';d.deadReason=dr.action==='withdraw'?'withdrew':'walked';d.deadAt=at;d.autopilot=false;logActivity(id,'info',`${streetOf(d.address)} moved to Dead: ${DEAD_WHY[d.deadReason].toLowerCase()}.`)}
   }
+  acted(d);
   dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;
   const other=ch==='email'?'sms':'email';const otherLeft=!dr.sent[other]&&(other==='sms'?(!!dr.sms&&canText(d)):(!!(dr.email&&dr.email.body)&&canEmail(d)));
   if(!otherLeft)d.draft=null;

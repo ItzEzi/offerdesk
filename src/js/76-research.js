@@ -116,7 +116,7 @@ Finish with only this JSON (no text after it):
 const LINKCACHE=new Map();
 async function openLinks(id,links,opts){
   opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[],why={};let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess,why};
-  for(const u of links.slice(0,5)){
+  const okUrls=[];for(const u of links.slice(0,8)){
     let r;const hit=LINKCACHE.get(u);
     if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
     if(r.kind==='page'&&ROBOT_PAGE.test(String(r.title||'')+' '+String(r.text||'').slice(0,600)))r=Object.assign({},r,{kind:'blocked',status:'robot_check'});
@@ -124,18 +124,18 @@ async function openLinks(id,links,opts){
       /* the page is blocked, but the web address it led to often spells out the street address */
       const hops=(r.hops||[]).filter(x=>x&&x!==u);if(hops.length)pages.push({url:u,title:'(blocked page: only the web address it led to is known)',text:'This link led to: '+hops.join(' then '),redirectOnly:true});
       continue}
-    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){
+    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){okUrls.push(u);
       /* each Drive photo only once, even when research opens the same folder later */
       const dd=state.deals[id];const seen=new Set(dd.driveSeen||[]);const todo=r.images.filter(im=>!seen.has(im.id)).slice(0,Math.max(0,16-photoCount(dd)));
       const blobs=[];for(const im of todo){try{const x=await bridge('drive_image',{id:im.id});if(x.data){blobs.push(b64ToBlob(x.data,x.type));seen.add(im.id)}}catch(e){}}
       if(state.deals[id])state.deals[id].driveSeen=[...seen].slice(-200);
       if(blobs.length)photos+=await addPhotoBlobs(id,blobs,'link');continue}
-    if(r.kind==='image'){photos+=addPhotoUrls(id,[u]);continue}
+    if(r.kind==='image'){okUrls.push(u);photos+=addPhotoUrls(id,[u]);continue}
     if(r.kind==='page'){const imgs=(r.images||[]).map(x=>String(x&&x.src||x)).filter(x=>/^https:\/\//i.test(x)&&!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis|-\d{2,3}x\d{2,3}\.(jpe?g|png|webp)/i.test(x));
       if(r.text)pages.push({url:u,title:r.title||'',text:r.text,images:[...new Set(imgs)].slice(0,40)});
-      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
+      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,16))}
   }
-  return {pages,blocked,photos,noAccess,why};
+  return {pages,blocked,photos,noAccess,why,okUrls};
 }
 const ROBOT_PAGE=/just a moment|attention required|verify you are human|are you a robot|checking your browser|security check|captcha/i;
 /* ================= opening a new deal's links right away =================
@@ -178,7 +178,7 @@ async function fillFromLinks(id,quiet,fresh){
   if(!gmailOn()){delete d.checking;d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
   if(state.busy['links:'+id])return null;
   state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
-  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
+  let got;try{got=await openLinks(id,links.slice(0,8),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
   const zip5=String(dd.zip||'').slice(0,5),city=String(dd.city||'').toLowerCase(),ask=curList(dd);
@@ -186,7 +186,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(p.redirectOnly){const slug=lt.replace(/[^a-z0-9]+/g,' ');return /\b\d+\s+[a-z]/.test(slug)&&((zip5&&slug.includes(zip5))||(city&&slug.includes(city.replace(/[^a-z0-9]+/g,' '))))}
     if(t.length<120)return false;
     return (zip5&&lt.includes(zip5))||(city&&lt.includes(city))||(ask&&(t.includes(String(ask))||t.includes(Number(ask).toLocaleString('en-US'))))||(!zip5&&!city&&!ask)};
-  const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
+  const useful=got.pages.filter(about).slice(0,3).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
   if(!useful.length&&got.pages.some(p=>!p.redirectOnly&&String(p.text||'').length>=120))other=true;
   const sig=(s=>{let x=0;for(let i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))|0;return x.toString(36)})(useful.map(p=>p.url+':'+p.text).join('|'));const prevSig=(dd.linkFill||{}).sig;
   const needPh=!photoCount(dd)&&!dd.linkPhotosTried&&useful.some(p=>(p.images||[]).length);if(needPh){dd.linkPhotosTried=nowISO()}
@@ -196,7 +196,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
   const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
-  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,ok:[...new Set([...got.pages.filter(p=>!p.redirectOnly).map(p=>p.url),...(got.okUrls||[])])].slice(0,10),robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -218,17 +218,22 @@ function linkCard(d){
   if(d.example)return '';const lf=d.linkFill||{};const links=dealLinks(d);const n=esc(negName());const busy=state.busy['links:'+d.id];
   const short=u=>esc(String(u).replace(/^https?:\/\/(www\.)?/,'').slice(0,48));const out=[];
   const btn=label=>links.length?`<button class="btn sm" data-act="fill-links" ${busy||!aiOn()?'disabled':''}>${ico('link')}${label}</button>`:'';
-  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links and fill it in')}</div>`);
+  const okSet=new Set(lf.ok||[]),robot=new Set(lf.robot||[]),blocked=new Set(lf.blocked||[]),noAcc=new Set(lf.noAccess||[]);
+  const stat=u=>okSet.has(u)?['green','Opened']:robot.has(u)?['amber','Asks “not a robot”']:noAcc.has(u)?['amber','Not shared with you']:blocked.has(u)?['red','Couldn’t open']:(lf.at&&!lf.ok)?['slate','Checked']:['slate','Not opened yet'];
+  const label=u=>{try{const x=new URL(u);return (x.hostname.replace(/^www\./,'')+decodeURIComponent(x.pathname)).replace(/\/$/,'').slice(0,80)}catch(e){return String(u).slice(0,80)}};
+  const kind=u=>/drive\.google|dropbox|box\.com|photos\.app|icloud|photos\.google/i.test(u)?'Photos':/zillow|redfin|realtor\.com|trulia|homes\.com/i.test(u)?'Listing':/\.(jpe?g|png|webp|heic)(\?|$)/i.test(u)?'Photo':/youtu|vimeo|\.mov|\.mp4/i.test(u)?'Video':/\.pdf(\?|$)/i.test(u)?'PDF':'Page';
+  const list=links.length?`<ul class="lk-list">${links.map(u=>{const [c,t]=stat(u);return `<li><a href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">${ico('link')}<span class="lu">${esc(label(u))}</span></a><span class="tag slate">${kind(u)}</span><span class="tag ${c}">${t}</span></li>`}).join('')}</ul>`:`<p class="small muted">No links came with this deal.</p>`;
+  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links')}</div>`);
   if(lf.pending&&!gmailOn())out.push(`<div class="note amber">Connect Gmail (Connect → Gmail) so ${n} can open this deal’s links. She opens them through your Gmail script.</div>`);
-  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the link: ${lf.filled.map(esc).join(', ')}.</div>`);
-  if(lf.other)out.push(`<p class="xs muted">The page showed a different house, so nothing was copied from it.</p>`);
-  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own, or press <span style="white-space:nowrap">${btn('Try the links again')}</span></div>`);
+  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the links: ${lf.filled.map(esc).join(', ')}.</div>`);
+  if(lf.other)out.push(`<p class="xs muted">A page showed a different house, so nothing was copied from it.</p>`);
+  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own.</div>`);
   if((lf.robot||[]).length&&!hasStreet(d))out.push(`<div class="note amber small"><b>The site asks to prove you’re human</b> (an “I’m not a robot” box). ${n} isn’t allowed to click those, so this one is on you: ${lf.robot.slice(0,2).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">open the ${lf.robot.length>1?['first','second'][i]+' ':''}link</a>`).join(' · ')}, then paste the address here.
     <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input class="input" id="lk-addr" data-fd="address" placeholder="e.g. 1234 W 5th Ave" style="flex:1;min-width:200px" aria-label="Street address"></div></div>`);
-  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}.</p>`);
+  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}. Open ${lf.robot.length>1?'them':'it'} yourself if it matters.</p>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
-  if(!out.length&&!busy)return '';
-  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links from the email':'No address yet · links from the email'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+  const add=`<div class="row lk-add"><input class="input" id="lk-new" placeholder="Paste another link for this house (listing, photo folder, video)" aria-label="Add a link"><button class="btn sm" data-act="link-add">${ico('plus')}Add link</button>${links.length?btn(lf.at?'Open them again':'Open the links'):''}</div>`;
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links':'No address yet · links'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens every one: reads the page, takes the house photos, follows photo folders, and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${list}${out.join('')}${add}</section>`;
 }
 /* after a deal comes in: open its links first, then research (so research has the address) */
 const LQ={list:[],running:false};
@@ -290,9 +295,10 @@ async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
   const dd=state.deals[id];if(!dd)return;
   const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:(opts.model||bigModel()),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
-  if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
+  if(!res){const de=state.deals[id];const err=(state.aiErrs||{})['research:'+id];if(de&&err&&!/cancel|already/i.test(err)){de.researchErr={at:nowISO(),msg:String(err).slice(0,200)};saveDeal(de,true)}return}
+  let j;try{j=parseLoose(res.text)}catch(e){const de=state.deals[id];if(de){de.researchErr={at:nowISO(),msg:'the answer came back unreadable'};saveDeal(de,true)}if(!quiet)toast(aiErr(e),5200);return}
   const d2=state.deals[id];if(!d2)return;
-  applyResearch(d2,j,res,got);
+  delete d2.researchErr;applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
   if(!auto&&!opts.noDeep&&(photoCount(d2)||docCount(d2))&&(fresh||!d2.analysis))await aiDeep(id,true);

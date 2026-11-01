@@ -285,7 +285,9 @@ function chooseDeal(cands,m){
 function receive(d,msg){
   d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m')},msg));d.thread.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
   if(['new','sent'].includes(d.stage))d.stage='negotiating';
-  if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;if(d.agent){addDnc(d.agent.email);addDnc(digits10(d.agent.phone))}logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
+  if(msg.dir==='in'&&['sent','negotiating'].includes(d.stage)&&sellerOut(msg.text)){d.stage='dead';d.deadReason='seller_out';d.deadAt=nowISO();d.autopilot=false;d.draft=null;
+    logActivity(d.id,'warn',`${streetOf(d.address)} moved to Dead: they said “${String(msg.text||'').replace(/\s+/g,' ').match(SELLER_OUT)[0]}”. If that’s wrong, change the stage back on the deal.`)}
+  if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;d.stage=['contract','closed'].includes(d.stage)?d.stage:'dead';d.deadReason=d.deadReason||'opted_out';if(d.agent){addDnc(d.agent.email);addDnc(digits10(d.agent.phone))}logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
   else{logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
     if(!(d.autopilot&&state.settings.auto.enabled))pingOwner(d,'reply',`${((d.agent&&d.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} replied by ${msg.channel==='sms'?'text':'email'}${msg.price?` with ${money(msg.price)}`:''}: "${String(msg.text||'').replace(/\s+/g,' ').slice(0,180)}"`,msg.gmailId||msg.at)}
   d.needsYou=null;
@@ -372,7 +374,7 @@ async function sendEmailNow(id,quiet){
   try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName(),cc:ccMe()});
     const dd=state.deals[id];if(r.threadId){dd.gmailThreadId=r.threadId;dd.gmailAccount=sendAcct().id}if(r.messageId)dd.seenMsgIds=(dd.seenMsgIds||[]).concat(r.messageId).slice(-200);
     if(r.left!=null){state.conn.mailQuota={left:r.left,day:isoDay()};saveConn()}
-    markSent(id,'email');if(!quiet)toast('Email sent from '+sendEmail());return true}
+    markSent(id,'email');{const d4=state.deals[id];const lo=d4&&(d4.thread||[]).filter(t=>t.dir==='out'&&t.channel==='email').slice(-1)[0];if(lo&&r.messageId){lo.gmailId=r.messageId;lo.inbox=sendEmail();saveDeal(d4,true)}}if(!quiet)toast('Email sent from '+sendEmail());return true}
   catch(e){const m=bridgeErr(e);if(quiet)logActivity(id,'warn',`Email on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
   finally{delete state.busy[key];render()}
 }
@@ -430,6 +432,7 @@ async function autoSend(d){
 }
 const openingsToday=()=>Object.values(state.deals).filter(d=>{const f=firstOfferAt(d);return f&&isoDay(f)===isoDay()}).length;
 async function autopilotRun(manual){
+  try{autoDead()}catch(e){}
   if(!state.settings.auto.enabled){if(manual)toast('Turn autopilot on first.');return}
   if(!aiOn()){if(manual)toast(aiErr({code:'no_ai'}));return}
   if(state.autoRunning)return;state.autoRunning=true;render();
@@ -465,6 +468,7 @@ async function autopilotRun(manual){
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
+  try{autoDead()}catch(e){}
   try{resumeCapped()}catch(e){}
   if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease())){resumePdfs().catch(()=>{});return}}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);

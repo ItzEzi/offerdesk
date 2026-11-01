@@ -20,9 +20,20 @@ function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.
 const draftOpen=d=>!!(d&&d.draft&&!((d.draft.sent||{}).email||(d.draft.sent||{}).sms));
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
 function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!(d.handledAt&&String(d.handledAt)>=String(li))&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
+/* Inbox Leads sections: new / needs action, waiting for their reply, under contract, dead */
+function leadSect(d){
+  if(d.stage==='dead')return 'dead';
+  if(['contract','closed'].includes(d.stage))return 'contract';
+  if(outs(d).length&&!replyWaiting(d))return 'waiting';
+  return 'new';
+}
+const DEAD_WHY={withdrew:'We withdrew our offer',walked:'We walked away',seller_out:'Seller pulled out',no_response:'No answer after 3 follow-ups',dropped:'You dropped it',passed:'You passed',opted_out:'They asked not to be contacted'};
+/* follow-ups sent since their last message */
+function followUpsSent(d){const li=lastAt(ins(d));return outs(d).filter(t=>t.kind==='followup'&&(!li||String(t.at)>String(li))).length}
+const MAX_FOLLOWUPS=3,DEAD_AFTER_DAYS=5;
 function followDue(d){
   if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||draftOpen(d))return null;
-  const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
+  const days=(state.settings.followDays||[2,5,10]).slice(0,MAX_FOLLOWUPS);if(d.follow.step>=days.length)return null;
   const due=new Date(d.follow.base).getTime()+days[d.follow.step]*DAY;
   return {due,step:d.follow.step,overdue:Date.now()>=due};
 }

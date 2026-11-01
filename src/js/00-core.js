@@ -76,6 +76,7 @@ const ICONS={
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
   pdf:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
@@ -189,7 +190,20 @@ function saveConn(){persist('conn')}
 function cur(){return state.deals[state.dealId]}
 
 /* ================= toast ================= */
-let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
+/* notices stay until you close them; the newest is at the bottom, up to 3 older ones above it */
+function toastBody(el,msg){el.innerHTML=`<span class="tm"></span><button class="tx" data-act="toast-x" aria-label="Close this notice">${ico('close')}</button>`;el.querySelector('.tm').textContent=msg}
+function toast(msg){const t=$('#toast');if(!t)return;msg=String(msg==null?'':msg);if(!msg)return;const box=$('#toasts');
+  if(!t.hidden&&t.dataset.msg===msg)return;
+  if(!t.hidden&&t.dataset.msg&&box){const old=document.createElement('div');old.className='toast-item';toastBody(old,t.dataset.msg);old.title=t.dataset.msg;box.insertBefore(old,t);const olds=box.querySelectorAll('.toast-item');if(olds.length>2)olds[0].remove()}
+  t.dataset.msg=msg;toastBody(t,msg);t.hidden=false;toastAll()}
+/* "Close all" once there's more than one */
+function toastAll(){const box=$('#toasts');if(!box)return;let b=box.querySelector('.toasts-clear');const many=box.querySelectorAll('.toast-item').length>0&&!$('#toast').hidden;
+  if(many&&!b){b=document.createElement('button');b.className='toasts-clear';b.setAttribute('data-act','toast-all');b.textContent='Close all';box.insertBefore(b,box.firstChild)}else if(!many&&b)b.remove()}
+function toastClose(el){const t=$('#toast');const it=el&&el.closest('.toast-item,#toast');if(!it)return;
+  if(it!==t){it.remove();toastAll();return}
+  const olds=document.querySelectorAll('#toasts .toast-item');const last=olds[olds.length-1];
+  if(last){const m=last.querySelector('.tm').textContent;last.remove();t.dataset.msg=m;toastBody(t,m)}else{t.hidden=true;t.dataset.msg='';t.innerHTML=''}toastAll()}
+function toastClear(){document.querySelectorAll('#toasts .toast-item').forEach(x=>x.remove());const t=$('#toast');if(t){t.hidden=true;t.dataset.msg='';t.innerHTML=''}toastAll()}
 
 /* ================= routing ================= */
 const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','report','practice','stats','settings'];
@@ -199,7 +213,6 @@ function route(){
   state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
-  {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureDocUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();

@@ -15,10 +15,12 @@ function callCost(model,u,searches){
   const inp=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)+(u.cache_read_input_tokens||0);const hi=P.tier&&inp>P.tier;
   return inp/1e6*(hi?P.i2:P.i)+(u.output_tokens||0)/1e6*(hi?P.o2:P.o)+(searches||0)*SEARCH_USD;
 }
+/* spending days follow your clock, so “today” starts again at your midnight */
+const localDay=t=>{const d=t!=null?new Date(t):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 function addSpend(model,u,searches){
   try{
     const usd=callCost(model,u,searches);if(!(usd>0))return;
-    state.spend=state.spend||{};const day=isoDay();const id=DEVICE_ID+'_'+day;
+    state.spend=state.spend||{};const day=localDay();const id=DEVICE_ID+'_'+day;
     const r=state.spend[id]||(state.spend[id]={dev:DEVICE_ID,day,usd:0,calls:0,by:{}});
     r.usd=+(r.usd+usd).toFixed(6);r.calls++;const k=spendKind(model);r.by[k]=+((r.by[k]||0)+usd-(searches||0)*SEARCH_USD).toFixed(6);
     if(searches)r.by.search=+((r.by.search||0)+searches*SEARCH_USD).toFixed(6);
@@ -27,19 +29,19 @@ function addSpend(model,u,searches){
   }catch(e){}
 }
 function spendSince(day){let t=0;for(const r of Object.values(state.spend||{}))if(r&&String(r.day)>=day)t+=+r.usd||0;return t}
-function spendBy(days){const from=isoDay(new Date(Date.now()-(days-1)*DAY).toISOString());const by={quick:0,main:0,big:0,search:0};let t=0,calls=0;
+function spendBy(days){const from=localDay(Date.now()-(days-1)*DAY);const by={quick:0,main:0,big:0,search:0};let t=0,calls=0;
   for(const r of Object.values(state.spend||{})){if(!r||String(r.day)<from)continue;t+=+r.usd||0;calls+=r.calls||0;for(const k of Object.keys(by))by[k]+=+((r.by||{})[k])||0}
   return {t,calls,by}}
 /* what's left: the balance you typed minus what Maya spent since */
 function creditLeft(){const B=state.settings.billing||{};if(B.balance==null||!B.day)return null;return +B.balance-(spendSince(B.day)-(+B.base||0))}
 function setBalance(v){const n=parseNum(v);const B=state.settings.billing=state.settings.billing||{};
-  if(n==null||n<0){delete B.balance;delete B.day;delete B.base}else{B.balance=n;B.day=isoDay();B.base=+spendSince(B.day).toFixed(6);B.at=nowISO()}saveSettings()}
+  if(n==null||n<0){delete B.balance;delete B.day;delete B.base}else{B.balance=n;B.day=localDay();B.base=+spendSince(B.day).toFixed(6);B.at=nowISO()}saveSettings()}
 const usd=n=>n==null?'—':(n>0&&n<0.005?'<$0.01':'$'+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
 /* the money bit inside Maya's pill in the top bar */
 function meterBit(){
   const left=creditLeft();const today=spendBy(1).t;
   if(state.noCredit)return {cls:'low',txt:'Out of credits',title:'Your Anthropic account is out of credits'};
-  if(left!=null)return {cls:left<2?'low':left<5?'mid':'',txt:usd(Math.max(0,left))+' left',title:`Estimated Anthropic credit left · ${usd(today)} spent today`};
+  if(left!=null){const start=Math.max(0,left)+today;return {cls:left<2?'low':left<5?'mid':'',txt:`${usd(today)} / ${usd(start)}`,title:`${usd(today)} used today out of the ${usd(start)} you had this morning · ${usd(Math.max(0,left))} left. “Used today” starts again at midnight.`}}
   return {cls:'',txt:usd(today)+' today',title:`What ${negName()} spent today. Add your balance in Connect to see what’s left.`};
 }
 function spendCardHTML(){

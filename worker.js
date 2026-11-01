@@ -1,4 +1,4 @@
-/* OfferDesk worker 20261026-1644: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
+/* OfferDesk worker 20261102-0052: the same code the app runs, loaded by your Gmail script for Maya 24/7. */
 function OD_WORKER(host){
 /* ---- Maya 24/7: browser stand-ins so OfferDesk's own code runs inside the Gmail script ---- */
 var __timers = [];
@@ -28,7 +28,7 @@ var speechSynthesis = { cancel: __noop, speak: __noop, getVoices: function () { 
 var qrcode = function () { return { addData: __noop, make: __noop, createSvgTag: function () { return ''; } }; };
 
 'use strict';
-const APP_V='20261026-1644';
+const APP_V='20261102-0052';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -105,6 +105,7 @@ const ICONS={
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
   pdf:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
@@ -218,7 +219,20 @@ function saveConn(){persist('conn')}
 function cur(){return state.deals[state.dealId]}
 
 /* ================= toast ================= */
-let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
+/* notices stay until you close them; the newest is at the bottom, up to 3 older ones above it */
+function toastBody(el,msg){el.innerHTML=`<span class="tm"></span><button class="tx" data-act="toast-x" aria-label="Close this notice">${ico('close')}</button>`;el.querySelector('.tm').textContent=msg}
+function toast(msg){const t=$('#toast');if(!t)return;msg=String(msg==null?'':msg);if(!msg)return;const box=$('#toasts');
+  if(!t.hidden&&t.dataset.msg===msg)return;
+  if(!t.hidden&&t.dataset.msg&&box){const old=document.createElement('div');old.className='toast-item';toastBody(old,t.dataset.msg);old.title=t.dataset.msg;box.insertBefore(old,t);const olds=box.querySelectorAll('.toast-item');if(olds.length>2)olds[0].remove()}
+  t.dataset.msg=msg;toastBody(t,msg);t.hidden=false;toastAll()}
+/* "Close all" once there's more than one */
+function toastAll(){const box=$('#toasts');if(!box)return;let b=box.querySelector('.toasts-clear');const many=box.querySelectorAll('.toast-item').length>0&&!$('#toast').hidden;
+  if(many&&!b){b=document.createElement('button');b.className='toasts-clear';b.setAttribute('data-act','toast-all');b.textContent='Close all';box.insertBefore(b,box.firstChild)}else if(!many&&b)b.remove()}
+function toastClose(el){const t=$('#toast');const it=el&&el.closest('.toast-item,#toast');if(!it)return;
+  if(it!==t){it.remove();toastAll();return}
+  const olds=document.querySelectorAll('#toasts .toast-item');const last=olds[olds.length-1];
+  if(last){const m=last.querySelector('.tm').textContent;last.remove();t.dataset.msg=m;toastBody(t,m)}else{t.hidden=true;t.dataset.msg='';t.innerHTML=''}toastAll()}
+function toastClear(){document.querySelectorAll('#toasts .toast-item').forEach(x=>x.remove());const t=$('#toast');if(t){t.hidden=true;t.dataset.msg='';t.innerHTML=''}toastAll()}
 
 /* ================= routing ================= */
 const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','report','practice','stats','settings'];
@@ -228,7 +242,6 @@ function route(){
   state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
-  {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureDocUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
@@ -259,9 +272,20 @@ function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.
 const draftOpen=d=>!!(d&&d.draft&&!((d.draft.sent||{}).email||(d.draft.sent||{}).sms));
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
 function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!(d.handledAt&&String(d.handledAt)>=String(li))&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
+/* Inbox Leads sections: new / needs action, waiting for their reply, under contract, dead */
+function leadSect(d){
+  if(d.stage==='dead')return 'dead';
+  if(['contract','closed'].includes(d.stage))return 'contract';
+  if(outs(d).length&&!replyWaiting(d))return 'waiting';
+  return 'new';
+}
+const DEAD_WHY={withdrew:'We withdrew our offer',walked:'We walked away',seller_out:'Seller pulled out',no_response:'No answer after 3 follow-ups',dropped:'You dropped it',passed:'You passed',opted_out:'They asked not to be contacted'};
+/* follow-ups sent since their last message */
+function followUpsSent(d){const li=lastAt(ins(d));return outs(d).filter(t=>t.kind==='followup'&&(!li||String(t.at)>String(li))).length}
+const MAX_FOLLOWUPS=3,DEAD_AFTER_DAYS=5;
 function followDue(d){
   if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||draftOpen(d))return null;
-  const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
+  const days=(state.settings.followDays||[2,5,10]).slice(0,MAX_FOLLOWUPS);if(d.follow.step>=days.length)return null;
   const due=new Date(d.follow.base).getTime()+days[d.follow.step]*DAY;
   return {due,step:d.follow.step,overdue:Date.now()>=due};
 }
@@ -862,10 +886,12 @@ function callCost(model,u,searches){
   const inp=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)+(u.cache_read_input_tokens||0);const hi=P.tier&&inp>P.tier;
   return inp/1e6*(hi?P.i2:P.i)+(u.output_tokens||0)/1e6*(hi?P.o2:P.o)+(searches||0)*SEARCH_USD;
 }
+/* spending days follow your clock, so “today” starts again at your midnight */
+const localDay=t=>{const d=t!=null?new Date(t):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 function addSpend(model,u,searches){
   try{
     const usd=callCost(model,u,searches);if(!(usd>0))return;
-    state.spend=state.spend||{};const day=isoDay();const id=DEVICE_ID+'_'+day;
+    state.spend=state.spend||{};const day=localDay();const id=DEVICE_ID+'_'+day;
     const r=state.spend[id]||(state.spend[id]={dev:DEVICE_ID,day,usd:0,calls:0,by:{}});
     r.usd=+(r.usd+usd).toFixed(6);r.calls++;const k=spendKind(model);r.by[k]=+((r.by[k]||0)+usd-(searches||0)*SEARCH_USD).toFixed(6);
     if(searches)r.by.search=+((r.by.search||0)+searches*SEARCH_USD).toFixed(6);
@@ -874,19 +900,19 @@ function addSpend(model,u,searches){
   }catch(e){}
 }
 function spendSince(day){let t=0;for(const r of Object.values(state.spend||{}))if(r&&String(r.day)>=day)t+=+r.usd||0;return t}
-function spendBy(days){const from=isoDay(new Date(Date.now()-(days-1)*DAY).toISOString());const by={quick:0,main:0,big:0,search:0};let t=0,calls=0;
+function spendBy(days){const from=localDay(Date.now()-(days-1)*DAY);const by={quick:0,main:0,big:0,search:0};let t=0,calls=0;
   for(const r of Object.values(state.spend||{})){if(!r||String(r.day)<from)continue;t+=+r.usd||0;calls+=r.calls||0;for(const k of Object.keys(by))by[k]+=+((r.by||{})[k])||0}
   return {t,calls,by}}
 /* what's left: the balance you typed minus what Maya spent since */
 function creditLeft(){const B=state.settings.billing||{};if(B.balance==null||!B.day)return null;return +B.balance-(spendSince(B.day)-(+B.base||0))}
 function setBalance(v){const n=parseNum(v);const B=state.settings.billing=state.settings.billing||{};
-  if(n==null||n<0){delete B.balance;delete B.day;delete B.base}else{B.balance=n;B.day=isoDay();B.base=+spendSince(B.day).toFixed(6);B.at=nowISO()}saveSettings()}
+  if(n==null||n<0){delete B.balance;delete B.day;delete B.base}else{B.balance=n;B.day=localDay();B.base=+spendSince(B.day).toFixed(6);B.at=nowISO()}saveSettings()}
 const usd=n=>n==null?'—':(n>0&&n<0.005?'<$0.01':'$'+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
 /* the money bit inside Maya's pill in the top bar */
 function meterBit(){
   const left=creditLeft();const today=spendBy(1).t;
   if(state.noCredit)return {cls:'low',txt:'Out of credits',title:'Your Anthropic account is out of credits'};
-  if(left!=null)return {cls:left<2?'low':left<5?'mid':'',txt:usd(Math.max(0,left))+' left',title:`Estimated Anthropic credit left · ${usd(today)} spent today`};
+  if(left!=null){const start=Math.max(0,left)+today;return {cls:left<2?'low':left<5?'mid':'',txt:`${usd(today)} / ${usd(start)}`,title:`${usd(today)} used today out of the ${usd(start)} you had this morning · ${usd(Math.max(0,left))} left. “Used today” starts again at midnight.`}}
   return {cls:'',txt:usd(today)+' today',title:`What ${negName()} spent today. Add your balance in Connect to see what’s left.`};
 }
 function spendCardHTML(){
@@ -1190,7 +1216,9 @@ function chooseDeal(cands,m){
 function receive(d,msg){
   d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m')},msg));d.thread.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
   if(['new','sent'].includes(d.stage))d.stage='negotiating';
-  if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;if(d.agent){addDnc(d.agent.email);addDnc(digits10(d.agent.phone))}logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
+  if(msg.dir==='in'&&['sent','negotiating'].includes(d.stage)&&sellerOut(msg.text)){d.stage='dead';d.deadReason='seller_out';d.deadAt=nowISO();d.autopilot=false;d.draft=null;
+    logActivity(d.id,'warn',`${streetOf(d.address)} moved to Dead: they said “${String(msg.text||'').replace(/\s+/g,' ').match(SELLER_OUT)[0]}”. If that’s wrong, change the stage back on the deal.`)}
+  if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;d.stage=['contract','closed'].includes(d.stage)?d.stage:'dead';d.deadReason=d.deadReason||'opted_out';if(d.agent){addDnc(d.agent.email);addDnc(digits10(d.agent.phone))}logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
   else{logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
     if(!(d.autopilot&&state.settings.auto.enabled))pingOwner(d,'reply',`${((d.agent&&d.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} replied by ${msg.channel==='sms'?'text':'email'}${msg.price?` with ${money(msg.price)}`:''}: "${String(msg.text||'').replace(/\s+/g,' ').slice(0,180)}"`,msg.gmailId||msg.at)}
   d.needsYou=null;
@@ -1277,7 +1305,7 @@ async function sendEmailNow(id,quiet){
   try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName(),cc:ccMe()});
     const dd=state.deals[id];if(r.threadId){dd.gmailThreadId=r.threadId;dd.gmailAccount=sendAcct().id}if(r.messageId)dd.seenMsgIds=(dd.seenMsgIds||[]).concat(r.messageId).slice(-200);
     if(r.left!=null){state.conn.mailQuota={left:r.left,day:isoDay()};saveConn()}
-    markSent(id,'email');if(!quiet)toast('Email sent from '+sendEmail());return true}
+    markSent(id,'email');{const d4=state.deals[id];const lo=d4&&(d4.thread||[]).filter(t=>t.dir==='out'&&t.channel==='email').slice(-1)[0];if(lo&&r.messageId){lo.gmailId=r.messageId;lo.inbox=sendEmail();saveDeal(d4,true)}}if(!quiet)toast('Email sent from '+sendEmail());return true}
   catch(e){const m=bridgeErr(e);if(quiet)logActivity(id,'warn',`Email on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
   finally{delete state.busy[key];render()}
 }
@@ -1335,6 +1363,7 @@ async function autoSend(d){
 }
 const openingsToday=()=>Object.values(state.deals).filter(d=>{const f=firstOfferAt(d);return f&&isoDay(f)===isoDay()}).length;
 async function autopilotRun(manual){
+  try{autoDead()}catch(e){}
   if(!state.settings.auto.enabled){if(manual)toast('Turn autopilot on first.');return}
   if(!aiOn()){if(manual)toast(aiErr({code:'no_ai'}));return}
   if(state.autoRunning)return;state.autoRunning=true;render();
@@ -1370,6 +1399,7 @@ async function autopilotRun(manual){
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
+  try{autoDead()}catch(e){}
   try{resumeCapped()}catch(e){}
   if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease())){resumePdfs().catch(()=>{});return}}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);
@@ -1750,7 +1780,7 @@ async function extractDeals(text,meta,busyKey,quiet){
       wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||'',comps:theirComps(x)},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
-    pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
+    pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO(),gmailId:meta.channel==='email'||!meta.channel?meta.msgId||null:null,inbox:meta.acct?acctInfo(meta.acct).email||null:null,subject:meta.subject||''});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
     state.deals[d.id]=d;saveDeal(d,true);made.push(d.id);
@@ -1944,7 +1974,7 @@ async function aiChat(id,msg){
 async function quickAction(id,qa){
   const d=state.deals[id];if(!d)return;
   if(qa==='pause'){d.autopilot=false;saveDeal(d);logActivity(id,'info',`Autopilot paused on ${streetOf(d.address)}.`);toast('Autopilot paused for this deal');return}
-  if(qa==='drop'){state.modal={type:'confirm',title:'Drop this deal?',text:`It moves to Archived and autopilot stops. ${negName()} can draft a polite step-back message for you to send.`,yes:'Drop it',yes2:'Drop and draft a goodbye',run:()=>{const dd=state.deals[id];dd.stage='dead';dd.autopilot=false;dd.draft=null;saveDeal(dd)},run2:()=>{const dd=state.deals[id];dd.stage='dead';dd.autopilot=false;saveDeal(dd);if(ourCount(dd))aiReply(id,'Step back politely: thank them, say the numbers do not work for us right now, and leave the door open if anything changes. No new price.')}};render();return}
+  if(qa==='drop'){state.modal={type:'confirm',title:'Drop this deal?',text:`It moves to Dead in Inbox Leads and autopilot stops. ${negName()} can draft a polite step-back message for you to send.`,yes:'Drop it',yes2:'Drop and draft a goodbye',run:()=>{const dd=state.deals[id];dd.stage='dead';dd.deadReason='dropped';dd.deadAt=nowISO();dd.autopilot=false;dd.draft=null;dd.needsYou=null;acted(dd);saveDeal(dd);logActivity(id,'info',`You dropped ${streetOf(dd.address)}.`);toast('Dropped. It’s under Dead in Inbox Leads; change the stage to bring it back.')},run2:()=>{const dd=state.deals[id];dd.stage='dead';dd.deadReason='dropped';dd.deadAt=nowISO();dd.autopilot=false;dd.needsYou=null;acted(dd);saveDeal(dd);logActivity(id,'info',`You dropped ${streetOf(dd.address)}.`);toast('Dropped. Maya is drafting a goodbye for you to send.');if(ourCount(dd))aiReply(id,'Step back politely: thank them, say the numbers do not work for us right now, and leave the door open if anything changes. No new price.')}};render();return}
   const q=QUICK.find(x=>x.id===qa);if(!q)return;
   const c=calc(d);if(!c.ready){toast('Add an ARV first so '+negName()+' knows your ceiling.');return}
   if(!ourCount(d)&&qa!=='creative'){toast('Send the opening offer first.');return}
@@ -2044,6 +2074,18 @@ async function deepAll(){
 }
 
 /* ---------- sending / logging ---------- */
+/* something real happened on a deal (sent, changed, dropped): it leaves "Needs you" */
+function acted(d){if(!d)return;d.reviewed=true;d.actedAt=nowISO()}
+/* no answer after 3 follow-ups (and a few more days): the deal is dead */
+function autoDead(){let n=0;
+  for(const d of Object.values(state.deals)){if(d.example||!['sent','negotiating'].includes(d.stage)||replyWaiting(d)||draftOpen(d))continue;
+    if(followUpsSent(d)<MAX_FOLLOWUPS)continue;const lo=lastAt(outs(d));if(!lo||Date.now()-new Date(lo).getTime()<DEAD_AFTER_DAYS*DAY)continue;
+    d.stage='dead';d.deadReason='no_response';d.deadAt=nowISO();d.autopilot=false;saveDeal(d,true);n++;
+    logActivity(d.id,'info',`${streetOf(d.address)} moved to Dead: no answer after ${MAX_FOLLOWUPS} follow-ups.`)}
+  return n}
+/* their message says the deal is off (sold to someone else, seller backed out) */
+const SELLER_OUT=/\b(no longer available|is no longer for sale|(we|seller|owner)('s| is| are|'re)? not selling|not selling (it|anymore)|seller (backed|pulled) out|seller changed (his|her|their) mind|decided not to sell|(took|taken) (it|the property|the house) off the market|accepted (another|a different|an other) offer|went with (another|a different) buyer|(it|the property|the house) (has |already )*(been )?sold|already (been )?sold|deal (is dead|fell through)|(it'?s|it is) (gone|off the table))\b/i;
+function sellerOut(text){return SELLER_OUT.test(String(text||''))}
 function markSent(id,ch){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return;
   const at=nowISO();dr.sent=dr.sent||{};
@@ -2058,7 +2100,9 @@ function markSent(id,ch){
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
     if(dr.action==='withdraw')d.follow={base:at,step:(state.settings.followDays||[]).length};
     if(dr.action==='accept')d.stage='negotiating';
+    if(dr.action==='withdraw'||dr.action==='walk'){d.stage='dead';d.deadReason=dr.action==='withdraw'?'withdrew':'walked';d.deadAt=at;d.autopilot=false;logActivity(id,'info',`${streetOf(d.address)} moved to Dead: ${DEAD_WHY[d.deadReason].toLowerCase()}.`)}
   }
+  acted(d);
   dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;
   const other=ch==='email'?'sms':'email';const otherLeft=!dr.sent[other]&&(other==='sms'?(!!dr.sms&&canText(d)):(!!(dr.email&&dr.email.body)&&canEmail(d)));
   if(!otherLeft)d.draft=null;
@@ -2221,7 +2265,7 @@ Finish with only this JSON (no text after it):
 const LINKCACHE=new Map();
 async function openLinks(id,links,opts){
   opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[],why={};let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess,why};
-  for(const u of links.slice(0,5)){
+  const okUrls=[];for(const u of links.slice(0,8)){
     let r;const hit=LINKCACHE.get(u);
     if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
     if(r.kind==='page'&&ROBOT_PAGE.test(String(r.title||'')+' '+String(r.text||'').slice(0,600)))r=Object.assign({},r,{kind:'blocked',status:'robot_check'});
@@ -2229,18 +2273,18 @@ async function openLinks(id,links,opts){
       /* the page is blocked, but the web address it led to often spells out the street address */
       const hops=(r.hops||[]).filter(x=>x&&x!==u);if(hops.length)pages.push({url:u,title:'(blocked page: only the web address it led to is known)',text:'This link led to: '+hops.join(' then '),redirectOnly:true});
       continue}
-    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){
+    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){okUrls.push(u);
       /* each Drive photo only once, even when research opens the same folder later */
       const dd=state.deals[id];const seen=new Set(dd.driveSeen||[]);const todo=r.images.filter(im=>!seen.has(im.id)).slice(0,Math.max(0,16-photoCount(dd)));
       const blobs=[];for(const im of todo){try{const x=await bridge('drive_image',{id:im.id});if(x.data){blobs.push(b64ToBlob(x.data,x.type));seen.add(im.id)}}catch(e){}}
       if(state.deals[id])state.deals[id].driveSeen=[...seen].slice(-200);
       if(blobs.length)photos+=await addPhotoBlobs(id,blobs,'link');continue}
-    if(r.kind==='image'){photos+=addPhotoUrls(id,[u]);continue}
+    if(r.kind==='image'){okUrls.push(u);photos+=addPhotoUrls(id,[u]);continue}
     if(r.kind==='page'){const imgs=(r.images||[]).map(x=>String(x&&x.src||x)).filter(x=>/^https:\/\//i.test(x)&&!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis|-\d{2,3}x\d{2,3}\.(jpe?g|png|webp)/i.test(x));
       if(r.text)pages.push({url:u,title:r.title||'',text:r.text,images:[...new Set(imgs)].slice(0,40)});
-      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
+      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,16))}
   }
-  return {pages,blocked,photos,noAccess,why};
+  return {pages,blocked,photos,noAccess,why,okUrls};
 }
 const ROBOT_PAGE=/just a moment|attention required|verify you are human|are you a robot|checking your browser|security check|captcha/i;
 /* ================= opening a new deal's links right away =================
@@ -2283,7 +2327,7 @@ async function fillFromLinks(id,quiet,fresh){
   if(!gmailOn()){delete d.checking;d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
   if(state.busy['links:'+id])return null;
   state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
-  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
+  let got;try{got=await openLinks(id,links.slice(0,8),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
   const zip5=String(dd.zip||'').slice(0,5),city=String(dd.city||'').toLowerCase(),ask=curList(dd);
@@ -2291,7 +2335,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(p.redirectOnly){const slug=lt.replace(/[^a-z0-9]+/g,' ');return /\b\d+\s+[a-z]/.test(slug)&&((zip5&&slug.includes(zip5))||(city&&slug.includes(city.replace(/[^a-z0-9]+/g,' '))))}
     if(t.length<120)return false;
     return (zip5&&lt.includes(zip5))||(city&&lt.includes(city))||(ask&&(t.includes(String(ask))||t.includes(Number(ask).toLocaleString('en-US'))))||(!zip5&&!city&&!ask)};
-  const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
+  const useful=got.pages.filter(about).slice(0,3).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
   if(!useful.length&&got.pages.some(p=>!p.redirectOnly&&String(p.text||'').length>=120))other=true;
   const sig=(s=>{let x=0;for(let i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))|0;return x.toString(36)})(useful.map(p=>p.url+':'+p.text).join('|'));const prevSig=(dd.linkFill||{}).sig;
   const needPh=!photoCount(dd)&&!dd.linkPhotosTried&&useful.some(p=>(p.images||[]).length);if(needPh){dd.linkPhotosTried=nowISO()}
@@ -2301,7 +2345,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
   const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
-  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,ok:[...new Set([...got.pages.filter(p=>!p.redirectOnly).map(p=>p.url),...(got.okUrls||[])])].slice(0,10),robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -2323,17 +2367,22 @@ function linkCard(d){
   if(d.example)return '';const lf=d.linkFill||{};const links=dealLinks(d);const n=esc(negName());const busy=state.busy['links:'+d.id];
   const short=u=>esc(String(u).replace(/^https?:\/\/(www\.)?/,'').slice(0,48));const out=[];
   const btn=label=>links.length?`<button class="btn sm" data-act="fill-links" ${busy||!aiOn()?'disabled':''}>${ico('link')}${label}</button>`:'';
-  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links and fill it in')}</div>`);
+  const okSet=new Set(lf.ok||[]),robot=new Set(lf.robot||[]),blocked=new Set(lf.blocked||[]),noAcc=new Set(lf.noAccess||[]);
+  const stat=u=>okSet.has(u)?['green','Opened']:robot.has(u)?['amber','Asks “not a robot”']:noAcc.has(u)?['amber','Not shared with you']:blocked.has(u)?['red','Couldn’t open']:(lf.at&&!lf.ok)?['slate','Checked']:['slate','Not opened yet'];
+  const label=u=>{try{const x=new URL(u);return (x.hostname.replace(/^www\./,'')+decodeURIComponent(x.pathname)).replace(/\/$/,'').slice(0,80)}catch(e){return String(u).slice(0,80)}};
+  const kind=u=>/drive\.google|dropbox|box\.com|photos\.app|icloud|photos\.google/i.test(u)?'Photos':/zillow|redfin|realtor\.com|trulia|homes\.com/i.test(u)?'Listing':/\.(jpe?g|png|webp|heic)(\?|$)/i.test(u)?'Photo':/youtu|vimeo|\.mov|\.mp4/i.test(u)?'Video':/\.pdf(\?|$)/i.test(u)?'PDF':'Page';
+  const list=links.length?`<ul class="lk-list">${links.map(u=>{const [c,t]=stat(u);return `<li><a href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">${ico('link')}<span class="lu">${esc(label(u))}</span></a><span class="tag slate">${kind(u)}</span><span class="tag ${c}">${t}</span></li>`}).join('')}</ul>`:`<p class="small muted">No links came with this deal.</p>`;
+  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links')}</div>`);
   if(lf.pending&&!gmailOn())out.push(`<div class="note amber">Connect Gmail (Connect → Gmail) so ${n} can open this deal’s links. She opens them through your Gmail script.</div>`);
-  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the link: ${lf.filled.map(esc).join(', ')}.</div>`);
-  if(lf.other)out.push(`<p class="xs muted">The page showed a different house, so nothing was copied from it.</p>`);
-  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own, or press <span style="white-space:nowrap">${btn('Try the links again')}</span></div>`);
+  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the links: ${lf.filled.map(esc).join(', ')}.</div>`);
+  if(lf.other)out.push(`<p class="xs muted">A page showed a different house, so nothing was copied from it.</p>`);
+  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own.</div>`);
   if((lf.robot||[]).length&&!hasStreet(d))out.push(`<div class="note amber small"><b>The site asks to prove you’re human</b> (an “I’m not a robot” box). ${n} isn’t allowed to click those, so this one is on you: ${lf.robot.slice(0,2).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">open the ${lf.robot.length>1?['first','second'][i]+' ':''}link</a>`).join(' · ')}, then paste the address here.
     <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input class="input" id="lk-addr" data-fd="address" placeholder="e.g. 1234 W 5th Ave" style="flex:1;min-width:200px" aria-label="Street address"></div></div>`);
-  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}.</p>`);
+  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}. Open ${lf.robot.length>1?'them':'it'} yourself if it matters.</p>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
-  if(!out.length&&!busy)return '';
-  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links from the email':'No address yet · links from the email'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+  const add=`<div class="row lk-add"><input class="input" id="lk-new" placeholder="Paste another link for this house (listing, photo folder, video)" aria-label="Add a link"><button class="btn sm" data-act="link-add">${ico('plus')}Add link</button>${links.length?btn(lf.at?'Open them again':'Open the links'):''}</div>`;
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links':'No address yet · links'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens every one: reads the page, takes the house photos, follows photo folders, and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${list}${out.join('')}${add}</section>`;
 }
 /* after a deal comes in: open its links first, then research (so research has the address) */
 const LQ={list:[],running:false};
@@ -2395,9 +2444,10 @@ async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
   const dd=state.deals[id];if(!dd)return;
   const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:(opts.model||bigModel()),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
-  if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
+  if(!res){const de=state.deals[id];const err=(state.aiErrs||{})['research:'+id];if(de&&err&&!/cancel|already/i.test(err)){de.researchErr={at:nowISO(),msg:String(err).slice(0,200)};saveDeal(de,true)}return}
+  let j;try{j=parseLoose(res.text)}catch(e){const de=state.deals[id];if(de){de.researchErr={at:nowISO(),msg:'the answer came back unreadable'};saveDeal(de,true)}if(!quiet)toast(aiErr(e),5200);return}
   const d2=state.deals[id];if(!d2)return;
-  applyResearch(d2,j,res,got);
+  delete d2.researchErr;applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
   if(!auto&&!opts.noDeep&&(photoCount(d2)||docCount(d2))&&(fresh||!d2.analysis))await aiDeep(id,true);
@@ -2573,8 +2623,8 @@ function briefTo(){return ((state.settings.notify||{}).email||state.settings.pro
 async function briefSync(){
   const B=state.settings.brief||{};if(!cloudOn())return;
   const want=JSON.stringify({on:!!B.on,hour:B.hour??8,tz:B.tz||Intl.DateTimeFormat().resolvedOptions().timeZone,email:briefTo()});
-  if(cm().briefSetup===want)return;
-  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
+  const v=bridgeV(cm().acct);if(cm().briefSetup===want&&(v<9||cm().briefV===9))return;
+  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;if(v>=9)cm().briefV=9;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
 }
 function briefCardHTML(){
   const b=buildBrief();const n=esc(negName());const B=state.settings.brief||{};

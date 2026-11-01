@@ -439,7 +439,12 @@ details summary{cursor:pointer;padding:4px 0;font-weight:700}
 .modal-scrim{position:fixed;inset:0;background:var(--scrim);z-index:60}
 .modal-box{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(680px,calc(100% - 32px));max-height:calc(100% - 48px);overflow:auto;background:var(--surface);border-radius:16px;z-index:61;box-shadow:var(--shadow);padding:22px;display:grid;gap:14px}
 .modal-box h2{font-size:19px;font-weight:800}
-.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:11px;font-weight:650;z-index:80;max-width:min(560px,calc(100% - 32px));line-height:1.45;text-wrap:pretty;box-shadow:var(--shadow)}
+.toasts{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;align-items:stretch;gap:8px;width:min(560px,calc(100% - 32px));pointer-events:none}
+.toast,.toast-item{position:relative;background:var(--ink);color:var(--bg);padding:11px 44px 11px 18px;border-radius:11px;font-weight:650;line-height:1.45;text-wrap:pretty;box-shadow:var(--shadow);pointer-events:auto}
+.toast-item{opacity:.82;font-weight:550;font-size:13.5px}
+.toast .tx,.toast-item .tx{position:absolute;top:7px;right:7px;width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:inherit;display:grid;place-items:center;cursor:pointer;opacity:.75}
+.toast .tx:hover,.toast-item .tx:hover,.toast .tx:focus-visible,.toast-item .tx:focus-visible{opacity:1;background:rgba(127,127,127,.25)}
+.toast .tx svg,.toast-item .tx svg{width:14px;height:14px}
 
 @media (max-width:1500px){.maya-pill .lbl{display:none}.maya-pill{padding:4px 8px 4px 4px}}
 @media (max-width:1340px) and (min-width:901px){.nav a{padding:8px 8px;gap:5px}.topbar .wrap{gap:12px}}
@@ -632,7 +637,7 @@ details.card>summary{cursor:pointer}
 @media print{
   @page{margin:14mm}
   body{background:#fff!important}
-  #topbar,#alertbar,#toast,#modal-root,.no-print{display:none!important}
+  #topbar,#alertbar,#toast,#toasts,#modal-root,.no-print{display:none!important}
   .rep-page{padding:0!important;max-width:none!important}
   .rep-card{border:0!important;box-shadow:none!important;padding:0!important;margin:0!important}
   .rep h2{break-after:avoid}.rep section,.rep tr,.rep-tile{break-inside:avoid}
@@ -771,6 +776,28 @@ details.card>summary{cursor:pointer}
 .doc-chip:hover{border-color:var(--accent)}.doc-chip svg{width:16px;height:16px;flex:0 0 auto;color:#d6453d}
 .doc-chip .dn{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .docs .small{display:inline-flex;align-items:center;gap:6px}.docs .small svg{width:14px;height:14px}
+.lead-sects{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}.lead-sects button{display:inline-flex;align-items:center;gap:7px}.lead-sects svg{width:15px;height:15px}
+.lead-sects .sc{min-width:22px;padding:1px 7px;border-radius:999px;background:var(--sunk);font-size:12px;font-weight:700;text-align:center}
+.lead-sects button[aria-pressed="true"] .sc{background:rgba(255,255,255,.25)}
+.sect-help{margin:2px 0 10px}.lead-st{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:3px}
+.lk-list{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px}
+.lk-list li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.lk-list a{display:inline-flex;align-items:center;gap:7px;flex:1;min-width:0;font-weight:600;color:var(--t-blue);text-decoration:none}
+.lk-list a:hover .lu{text-decoration:underline}.lk-list a svg{width:15px;height:15px;flex:0 0 auto}
+.lk-list .lu{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lk-add{gap:8px;flex-wrap:wrap;margin-top:8px}.lk-add .input{flex:1;min-width:220px}
+.msgc .mh a.gm{color:inherit;text-decoration:none}.msgc .mh a.gm:hover{text-decoration:underline}.gm-open{font-size:12px;font-weight:600;color:var(--t-blue);text-decoration:none;white-space:nowrap}.gm-open:hover{text-decoration:underline}
+.take .take-rec{margin:2px 0 10px;line-height:1.5}
+.take-steps{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.take-steps li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:10px}
+.take-steps li>div{display:flex;flex-direction:column;gap:2px;min-width:0}.take-steps li .small{line-height:1.45}
+.vk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;margin-top:1px}
+.vk svg{width:13px;height:13px}.vk.ok{background:var(--b-green);color:var(--t-green)}.vk.bad{background:var(--b-red);color:var(--t-red)}.vk.mid{background:var(--b-amber);color:var(--t-amber)}
+.spin.sm{width:10px;height:10px;border-width:2px;margin-right:5px;vertical-align:-1px}
+.toast-item .tm{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toasts-clear{align-self:flex-end;pointer-events:auto;border:0;border-radius:999px;padding:4px 12px;background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;cursor:pointer;opacity:.85;box-shadow:var(--shadow)}
+.toasts-clear:hover,.toasts-clear:focus-visible{opacity:1}
+body.has-modal .toasts{visibility:hidden}
 
 </style>
 </head>
@@ -779,7 +806,7 @@ details.card>summary{cursor:pointer}
 <div id="alertbar"></div>
 <main id="main"></main>
 <div id="modal-root"></div>
-<div id="toast" class="toast" role="status" hidden></div>
+<div id="toasts" class="toasts" aria-live="polite"><div id="toast" class="toast" role="status" hidden></div></div>
 <script type="text/plain" id="bridge-src">
 /**
  * OfferDesk Bridge v4
@@ -796,7 +823,7 @@ details.card>summary{cursor:pointer}
 var SECRET = 'PASTE-SECRET-HERE';
 
 function doGet(e) {
-  return json_({ ok: true, service: 'offerdesk-bridge', version: 8 });
+  return json_({ ok: true, service: 'offerdesk-bridge', version: 9 });
 }
 
 function doPost(e) {
@@ -820,7 +847,7 @@ function doPost(e) {
 function handle_(req) {
   try {
     switch (req.action) {
-      case 'ping': return { ok: true, version: 8, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
+      case 'ping': return { ok: true, version: 9, cloud: true, worker: true, email: Session.getEffectiveUser().getEmail(), twilio: !!prop_('TWILIO_SID'), twilioFrom: prop_('TWILIO_FROM') || '', left: quotaLeft_() };
       case 'cloud_meta': return cloudMeta_();
       case 'cloud_get': return cloudGet_(req.names || []);
       case 'cloud_put': return cloudPut_(req.parts || {});
@@ -832,7 +859,7 @@ function handle_(req) {
       case 'fetch_url': return fetchUrl_(String(req.url || ''));
       case 'drive_image': return driveImage_(String(req.id || ''));
       case 'brief_setup': return briefSetup_(req);
-      case 'brief_test': return morningBrief();
+      case 'brief_test': return morningBrief({ force: true });
       case 'worker_setup': return workerSetup_(req);
       case 'worker_status': return workerStatus_();
       case 'pdf_part': return pdfPart_(String(req.id || ''), Number(req.idx) || 0, Number(req.part) || 0);
@@ -1223,19 +1250,33 @@ function driveImage_(id) {
 }
 
 /* ---------- Maya's morning brief ---------- */
+/* one schedule only: two devices setting it up at the same moment used to leave two daily triggers (two briefs a day) */
 function briefSetup_(req) {
-  var props = PropertiesService.getScriptProperties();
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'morningBrief') ScriptApp.deleteTrigger(t); });
-  if (!req.on) { props.setProperty('BRIEF_ON', 'no'); return { ok: true, on: false }; }
-  if (!req.email) return { ok: false, error: 'no_email' };
-  var hour = Math.max(0, Math.min(23, Number(req.hour) || 8)); var tz = String(req.tz || Session.getScriptTimeZone());
-  props.setProperties({ BRIEF_ON: 'yes', BRIEF_TO: String(req.email), BRIEF_HOUR: String(hour), BRIEF_TZ: tz });
-  ScriptApp.newTrigger('morningBrief').timeBased().everyDays(1).atHour(hour).nearMinute(0).inTimezone(tz).create();
-  return { ok: true, on: true, hour: hour, tz: tz };
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'morningBrief') ScriptApp.deleteTrigger(t); });
+    if (!req.on) { props.setProperty('BRIEF_ON', 'no'); return { ok: true, on: false }; }
+    if (!req.email) return { ok: false, error: 'no_email' };
+    var hour = Math.max(0, Math.min(23, Number(req.hour) || 8)); var tz = String(req.tz || Session.getScriptTimeZone());
+    props.setProperties({ BRIEF_ON: 'yes', BRIEF_TO: String(req.email), BRIEF_HOUR: String(hour), BRIEF_TZ: tz });
+    ScriptApp.newTrigger('morningBrief').timeBased().everyDays(1).atHour(hour).nearMinute(0).inTimezone(tz).create();
+    var mine = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'morningBrief'; });
+    for (var i = 1; i < mine.length; i++) ScriptApp.deleteTrigger(mine[i]);
+    return { ok: true, on: true, hour: hour, tz: tz, triggers: 1 };
+  } finally { lock.releaseLock(); }
 }
 function readPart_(name) { var f = partFile_(name); if (!f) return null; try { return JSON.parse(f.getBlob().getDataAsString('UTF-8')); } catch (e) { return null; } }
-function morningBrief() {
+function morningBrief(e) {
+  var force = !!(e && e.force);
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(30000)) return { ok: false, error: 'busy' };
+  try { return morningBriefRun_(force); } finally { lock.releaseLock(); }
+}
+/* at most one brief a day, even if an old schedule is still around */
+function morningBriefRun_(force) {
   var to = prop_('BRIEF_TO'); if (!to) return { ok: false, error: 'no_email' };
+  var today = Utilities.formatDate(new Date(), prop_('BRIEF_TZ') || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (!force && prop_('BRIEF_LAST') === today) return { ok: true, skipped: 'already_sent_today' };
   var part = readPart_('brief'); var b = part && part.v; if (!b) return { ok: false, error: 'no_brief' };
   var overnight = [];
   try {
@@ -1249,6 +1290,7 @@ function morningBrief() {
   var day = Utilities.formatDate(new Date(), prop_('BRIEF_TZ') || Session.getScriptTimeZone(), 'EEE, MMM d');
   var subject = 'Morning brief · ' + day + ' · ' + (b.needs || []).length + ' need you' + (overnight.length ? ' · ' + overnight.length + ' new repl' + (overnight.length === 1 ? 'y' : 'ies') : '');
   GmailApp.sendEmail(to, subject, html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 5000), { htmlBody: html, name: name });
+  if (!force) PropertiesService.getScriptProperties().setProperty('BRIEF_LAST', today);
   return { ok: true, sent: true, subject: subject };
 }
 function briefAI_(key, b, overnight) {
@@ -1378,7 +1420,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 'use strict';
-const APP_V='20261026-1644';
+const APP_V='20261102-0052';
 const ONLINE_URL='https://itzezi.github.io/offerdesk/';
 /* ================= constants ================= */
 const STAGES=[
@@ -1455,6 +1497,7 @@ const ICONS={
   pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   back:'<path d="M15 18l-6-6 6-6"/>',
   pdf:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
@@ -1568,7 +1611,20 @@ function saveConn(){persist('conn')}
 function cur(){return state.deals[state.dealId]}
 
 /* ================= toast ================= */
-let toastT;function toast(msg,ms=2800){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,ms)}
+/* notices stay until you close them; the newest is at the bottom, up to 3 older ones above it */
+function toastBody(el,msg){el.innerHTML=`<span class="tm"></span><button class="tx" data-act="toast-x" aria-label="Close this notice">${ico('close')}</button>`;el.querySelector('.tm').textContent=msg}
+function toast(msg){const t=$('#toast');if(!t)return;msg=String(msg==null?'':msg);if(!msg)return;const box=$('#toasts');
+  if(!t.hidden&&t.dataset.msg===msg)return;
+  if(!t.hidden&&t.dataset.msg&&box){const old=document.createElement('div');old.className='toast-item';toastBody(old,t.dataset.msg);old.title=t.dataset.msg;box.insertBefore(old,t);const olds=box.querySelectorAll('.toast-item');if(olds.length>2)olds[0].remove()}
+  t.dataset.msg=msg;toastBody(t,msg);t.hidden=false;toastAll()}
+/* "Close all" once there's more than one */
+function toastAll(){const box=$('#toasts');if(!box)return;let b=box.querySelector('.toasts-clear');const many=box.querySelectorAll('.toast-item').length>0&&!$('#toast').hidden;
+  if(many&&!b){b=document.createElement('button');b.className='toasts-clear';b.setAttribute('data-act','toast-all');b.textContent='Close all';box.insertBefore(b,box.firstChild)}else if(!many&&b)b.remove()}
+function toastClose(el){const t=$('#toast');const it=el&&el.closest('.toast-item,#toast');if(!it)return;
+  if(it!==t){it.remove();toastAll();return}
+  const olds=document.querySelectorAll('#toasts .toast-item');const last=olds[olds.length-1];
+  if(last){const m=last.querySelector('.tm').textContent;last.remove();t.dataset.msg=m;toastBody(t,m)}else{t.hidden=true;t.dataset.msg='';t.innerHTML=''}toastAll()}
+function toastClear(){document.querySelectorAll('#toasts .toast-item').forEach(x=>x.remove());const t=$('#toast');if(t){t.hidden=true;t.dataset.msg='';t.innerHTML=''}toastAll()}
 
 /* ================= routing ================= */
 const VIEWS=['dashboard','listings','markets','campaigns','leads','deal','report','practice','stats','settings'];
@@ -1578,7 +1634,6 @@ function route(){
   state.view=VIEWS.includes(v)?v:'dashboard';state.dealId=state.view==='deal'||state.view==='report'?id:null;
   if(state.view==='settings'&&id)state.settingsTab=id;
   if(state.view==='deal'&&state.loaded&&!state.deals[state.dealId]){location.hash='#listings';return}
-  {const dd=state.view==='deal'&&state.deals[state.dealId];if(dd&&dd.source==='wholesaler'&&!dd.reviewed){dd.reviewed=true;saveDeal(dd,true)}}
   state.bellOpen=false;window.scrollTo(0,0);render();
   if((state.view==='deal'||state.view==='report')&&state.dealId){ensurePhotoUrls(state.dealId);ensureDocUrls(state.dealId);ensureMarket(state.deals[state.dealId])}
   if(state.view==='markets')loadDiscover();
@@ -1609,9 +1664,20 @@ function firstOfferAt(d){const o=(d.offers||[]).find(x=>x.by==='us');return o?o.
 const draftOpen=d=>!!(d&&d.draft&&!((d.draft.sent||{}).email||(d.draft.sent||{}).sms));
 const ourCount=d=>(d.offers||[]).filter(x=>x.by==='us').length;
 function replyWaiting(d){const li=lastAt(ins(d)),lo=lastAt(outs(d));return !!li&&(!lo||li>lo)&&!(d.handledAt&&String(d.handledAt)>=String(li))&&!['dead','closed'].includes(d.stage)&&!d.optedOut&&!(d.source==='wholesaler'&&!lo&&!d.convo)}
+/* Inbox Leads sections: new / needs action, waiting for their reply, under contract, dead */
+function leadSect(d){
+  if(d.stage==='dead')return 'dead';
+  if(['contract','closed'].includes(d.stage))return 'contract';
+  if(outs(d).length&&!replyWaiting(d))return 'waiting';
+  return 'new';
+}
+const DEAD_WHY={withdrew:'We withdrew our offer',walked:'We walked away',seller_out:'Seller pulled out',no_response:'No answer after 3 follow-ups',dropped:'You dropped it',passed:'You passed',opted_out:'They asked not to be contacted'};
+/* follow-ups sent since their last message */
+function followUpsSent(d){const li=lastAt(ins(d));return outs(d).filter(t=>t.kind==='followup'&&(!li||String(t.at)>String(li))).length}
+const MAX_FOLLOWUPS=3,DEAD_AFTER_DAYS=5;
 function followDue(d){
   if(!d.follow||d.optedOut||['dead','closed','contract'].includes(d.stage)||replyWaiting(d)||draftOpen(d))return null;
-  const days=state.settings.followDays||[2,5,10,20];if(d.follow.step>=days.length)return null;
+  const days=(state.settings.followDays||[2,5,10]).slice(0,MAX_FOLLOWUPS);if(d.follow.step>=days.length)return null;
   const due=new Date(d.follow.base).getTime()+days[d.follow.step]*DAY;
   return {due,step:d.follow.step,overdue:Date.now()>=due};
 }
@@ -2212,10 +2278,12 @@ function callCost(model,u,searches){
   const inp=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)+(u.cache_read_input_tokens||0);const hi=P.tier&&inp>P.tier;
   return inp/1e6*(hi?P.i2:P.i)+(u.output_tokens||0)/1e6*(hi?P.o2:P.o)+(searches||0)*SEARCH_USD;
 }
+/* spending days follow your clock, so “today” starts again at your midnight */
+const localDay=t=>{const d=t!=null?new Date(t):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 function addSpend(model,u,searches){
   try{
     const usd=callCost(model,u,searches);if(!(usd>0))return;
-    state.spend=state.spend||{};const day=isoDay();const id=DEVICE_ID+'_'+day;
+    state.spend=state.spend||{};const day=localDay();const id=DEVICE_ID+'_'+day;
     const r=state.spend[id]||(state.spend[id]={dev:DEVICE_ID,day,usd:0,calls:0,by:{}});
     r.usd=+(r.usd+usd).toFixed(6);r.calls++;const k=spendKind(model);r.by[k]=+((r.by[k]||0)+usd-(searches||0)*SEARCH_USD).toFixed(6);
     if(searches)r.by.search=+((r.by.search||0)+searches*SEARCH_USD).toFixed(6);
@@ -2224,19 +2292,19 @@ function addSpend(model,u,searches){
   }catch(e){}
 }
 function spendSince(day){let t=0;for(const r of Object.values(state.spend||{}))if(r&&String(r.day)>=day)t+=+r.usd||0;return t}
-function spendBy(days){const from=isoDay(new Date(Date.now()-(days-1)*DAY).toISOString());const by={quick:0,main:0,big:0,search:0};let t=0,calls=0;
+function spendBy(days){const from=localDay(Date.now()-(days-1)*DAY);const by={quick:0,main:0,big:0,search:0};let t=0,calls=0;
   for(const r of Object.values(state.spend||{})){if(!r||String(r.day)<from)continue;t+=+r.usd||0;calls+=r.calls||0;for(const k of Object.keys(by))by[k]+=+((r.by||{})[k])||0}
   return {t,calls,by}}
 /* what's left: the balance you typed minus what Maya spent since */
 function creditLeft(){const B=state.settings.billing||{};if(B.balance==null||!B.day)return null;return +B.balance-(spendSince(B.day)-(+B.base||0))}
 function setBalance(v){const n=parseNum(v);const B=state.settings.billing=state.settings.billing||{};
-  if(n==null||n<0){delete B.balance;delete B.day;delete B.base}else{B.balance=n;B.day=isoDay();B.base=+spendSince(B.day).toFixed(6);B.at=nowISO()}saveSettings()}
+  if(n==null||n<0){delete B.balance;delete B.day;delete B.base}else{B.balance=n;B.day=localDay();B.base=+spendSince(B.day).toFixed(6);B.at=nowISO()}saveSettings()}
 const usd=n=>n==null?'—':(n>0&&n<0.005?'<$0.01':'$'+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
 /* the money bit inside Maya's pill in the top bar */
 function meterBit(){
   const left=creditLeft();const today=spendBy(1).t;
   if(state.noCredit)return {cls:'low',txt:'Out of credits',title:'Your Anthropic account is out of credits'};
-  if(left!=null)return {cls:left<2?'low':left<5?'mid':'',txt:usd(Math.max(0,left))+' left',title:`Estimated Anthropic credit left · ${usd(today)} spent today`};
+  if(left!=null){const start=Math.max(0,left)+today;return {cls:left<2?'low':left<5?'mid':'',txt:`${usd(today)} / ${usd(start)}`,title:`${usd(today)} used today out of the ${usd(start)} you had this morning · ${usd(Math.max(0,left))} left. “Used today” starts again at midnight.`}}
   return {cls:'',txt:usd(today)+' today',title:`What ${negName()} spent today. Add your balance in Connect to see what’s left.`};
 }
 function spendCardHTML(){
@@ -2540,7 +2608,9 @@ function chooseDeal(cands,m){
 function receive(d,msg){
   d.thread=d.thread||[];d.thread.push(Object.assign({id:uid('m')},msg));d.thread.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
   if(['new','sent'].includes(d.stage))d.stage='negotiating';
-  if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;if(d.agent){addDnc(d.agent.email);addDnc(digits10(d.agent.phone))}logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
+  if(msg.dir==='in'&&['sent','negotiating'].includes(d.stage)&&sellerOut(msg.text)){d.stage='dead';d.deadReason='seller_out';d.deadAt=nowISO();d.autopilot=false;d.draft=null;
+    logActivity(d.id,'warn',`${streetOf(d.address)} moved to Dead: they said “${String(msg.text||'').replace(/\s+/g,' ').match(SELLER_OUT)[0]}”. If that’s wrong, change the stage back on the deal.`)}
+  if(looksOptOut(msg.text,msg.channel)){d.optedOut=true;d.draft=null;d.stage=['contract','closed'].includes(d.stage)?d.stage:'dead';d.deadReason=d.deadReason||'opted_out';if(d.agent){addDnc(d.agent.email);addDnc(digits10(d.agent.phone))}logActivity(d.id,'warn',`${streetOf(d.address)}: they asked not to be contacted. ${negName()} stopped.`)}
   else{logActivity(d.id,'reply',`${(d.agent&&d.agent.name)||'The agent'} replied by ${msg.channel==='sms'?'text':'email'} on ${streetOf(d.address)}.`);
     if(!(d.autopilot&&state.settings.auto.enabled))pingOwner(d,'reply',`${((d.agent&&d.agent.name)||'The agent').replace(/\s*\(example\)/i,'')} replied by ${msg.channel==='sms'?'text':'email'}${msg.price?` with ${money(msg.price)}`:''}: "${String(msg.text||'').replace(/\s+/g,' ').slice(0,180)}"`,msg.gmailId||msg.at)}
   d.needsYou=null;
@@ -2627,7 +2697,7 @@ async function sendEmailNow(id,quiet){
   try{const r=await bridge('send',{to,subject:(dr.email&&dr.email.subject)||'',body:(dr.email&&dr.email.body)||'',threadId:ownThread(d),name:senderName(),cc:ccMe()});
     const dd=state.deals[id];if(r.threadId){dd.gmailThreadId=r.threadId;dd.gmailAccount=sendAcct().id}if(r.messageId)dd.seenMsgIds=(dd.seenMsgIds||[]).concat(r.messageId).slice(-200);
     if(r.left!=null){state.conn.mailQuota={left:r.left,day:isoDay()};saveConn()}
-    markSent(id,'email');if(!quiet)toast('Email sent from '+sendEmail());return true}
+    markSent(id,'email');{const d4=state.deals[id];const lo=d4&&(d4.thread||[]).filter(t=>t.dir==='out'&&t.channel==='email').slice(-1)[0];if(lo&&r.messageId){lo.gmailId=r.messageId;lo.inbox=sendEmail();saveDeal(d4,true)}}if(!quiet)toast('Email sent from '+sendEmail());return true}
   catch(e){const m=bridgeErr(e);if(quiet)logActivity(id,'warn',`Email on ${streetOf(d.address)} failed: ${m}`);else toast(m,5200);return false}
   finally{delete state.busy[key];render()}
 }
@@ -2685,6 +2755,7 @@ async function autoSend(d){
 }
 const openingsToday=()=>Object.values(state.deals).filter(d=>{const f=firstOfferAt(d);return f&&isoDay(f)===isoDay()}).length;
 async function autopilotRun(manual){
+  try{autoDead()}catch(e){}
   if(!state.settings.auto.enabled){if(manual)toast('Turn autopilot on first.');return}
   if(!aiOn()){if(manual)toast(aiErr({code:'no_ai'}));return}
   if(state.autoRunning)return;state.autoRunning=true;render();
@@ -2720,6 +2791,7 @@ async function autopilotRun(manual){
   }finally{state.autoRunning=false;persist('deals');render()}
 }
 async function tick(manual){
+  try{autoDead()}catch(e){}
   try{resumeCapped()}catch(e){}
   if(cloudOn()){await cloudSync();if(!manual&&!(await cloudLease())){resumePdfs().catch(()=>{});return}}
   if(gmailOn()&&(state.settings.conn.autoCheck||manual))await syncAll(manual);
@@ -3100,7 +3172,7 @@ async function extractDeals(text,meta,busyKey,quiet){
       wsClaims:{asking,accept:parseNum(x.acceptPrice),arv:parseNum(x.arv),rehab:parseNum(x.rehab),rent:parseNum(x.rent),terms:x.terms||'',deadline:x.deadline||'',access:x.access||'',redFlags:(x.redFlags||[]).map(String),notes:(Array.isArray(x.notes)?x.notes:[]).map(String).slice(0,12),occupancy:x.occupancy||'',comps:theirComps(x)},
       gmailThreadId:meta.threadId||null,gmailAccount:meta.acct||null,gvThreadId:meta.gvThreadId||null,seenMsgIds:meta.msgId?[meta.msgId]:[],receivedAt:meta.at||nowISO(),autopilot:!!(state.settings.auto.enabled&&state.settings.auto.wsAuto),linksOnly:list.length>1});
     {const prevA=parseNum(x.previousAsking);if(prevA&&asking&&prevA!==asking)d.priceHistory=[{date:new Date(Date.parse(meta.at||nowISO())-60000).toISOString(),price:prevA},{date:meta.at||nowISO(),price:asking}]}
-    pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO()});
+    pushMsg(d,{dir:'in',channel:meta.channel||'email',text:text.slice(0,4000),at:meta.at||nowISO(),gmailId:meta.channel==='email'||!meta.channel?meta.msgId||null:null,inbox:meta.acct?acctInfo(meta.acct).email||null:null,subject:meta.subject||''});
     const links=(x.photoLinks||[]).filter(u=>/\.(jpe?g|png|webp)(\?|$)/i.test(u));if(links.length){d.photoUrls=links.slice(0,12);d.thumbUrl=links[0]}
     d.links=[...new Set([...(x.links||[]),...(x.photoLinks||[]).filter(u=>!/\.(jpe?g|png|webp)(\?|$)/i.test(u))].map(String))].slice(0,8);
     state.deals[d.id]=d;saveDeal(d,true);made.push(d.id);
@@ -3294,7 +3366,7 @@ async function aiChat(id,msg){
 async function quickAction(id,qa){
   const d=state.deals[id];if(!d)return;
   if(qa==='pause'){d.autopilot=false;saveDeal(d);logActivity(id,'info',`Autopilot paused on ${streetOf(d.address)}.`);toast('Autopilot paused for this deal');return}
-  if(qa==='drop'){state.modal={type:'confirm',title:'Drop this deal?',text:`It moves to Archived and autopilot stops. ${negName()} can draft a polite step-back message for you to send.`,yes:'Drop it',yes2:'Drop and draft a goodbye',run:()=>{const dd=state.deals[id];dd.stage='dead';dd.autopilot=false;dd.draft=null;saveDeal(dd)},run2:()=>{const dd=state.deals[id];dd.stage='dead';dd.autopilot=false;saveDeal(dd);if(ourCount(dd))aiReply(id,'Step back politely: thank them, say the numbers do not work for us right now, and leave the door open if anything changes. No new price.')}};render();return}
+  if(qa==='drop'){state.modal={type:'confirm',title:'Drop this deal?',text:`It moves to Dead in Inbox Leads and autopilot stops. ${negName()} can draft a polite step-back message for you to send.`,yes:'Drop it',yes2:'Drop and draft a goodbye',run:()=>{const dd=state.deals[id];dd.stage='dead';dd.deadReason='dropped';dd.deadAt=nowISO();dd.autopilot=false;dd.draft=null;dd.needsYou=null;acted(dd);saveDeal(dd);logActivity(id,'info',`You dropped ${streetOf(dd.address)}.`);toast('Dropped. It’s under Dead in Inbox Leads; change the stage to bring it back.')},run2:()=>{const dd=state.deals[id];dd.stage='dead';dd.deadReason='dropped';dd.deadAt=nowISO();dd.autopilot=false;dd.needsYou=null;acted(dd);saveDeal(dd);logActivity(id,'info',`You dropped ${streetOf(dd.address)}.`);toast('Dropped. Maya is drafting a goodbye for you to send.');if(ourCount(dd))aiReply(id,'Step back politely: thank them, say the numbers do not work for us right now, and leave the door open if anything changes. No new price.')}};render();return}
   const q=QUICK.find(x=>x.id===qa);if(!q)return;
   const c=calc(d);if(!c.ready){toast('Add an ARV first so '+negName()+' knows your ceiling.');return}
   if(!ourCount(d)&&qa!=='creative'){toast('Send the opening offer first.');return}
@@ -3394,6 +3466,18 @@ async function deepAll(){
 }
 
 /* ---------- sending / logging ---------- */
+/* something real happened on a deal (sent, changed, dropped): it leaves "Needs you" */
+function acted(d){if(!d)return;d.reviewed=true;d.actedAt=nowISO()}
+/* no answer after 3 follow-ups (and a few more days): the deal is dead */
+function autoDead(){let n=0;
+  for(const d of Object.values(state.deals)){if(d.example||!['sent','negotiating'].includes(d.stage)||replyWaiting(d)||draftOpen(d))continue;
+    if(followUpsSent(d)<MAX_FOLLOWUPS)continue;const lo=lastAt(outs(d));if(!lo||Date.now()-new Date(lo).getTime()<DEAD_AFTER_DAYS*DAY)continue;
+    d.stage='dead';d.deadReason='no_response';d.deadAt=nowISO();d.autopilot=false;saveDeal(d,true);n++;
+    logActivity(d.id,'info',`${streetOf(d.address)} moved to Dead: no answer after ${MAX_FOLLOWUPS} follow-ups.`)}
+  return n}
+/* their message says the deal is off (sold to someone else, seller backed out) */
+const SELLER_OUT=/\b(no longer available|is no longer for sale|(we|seller|owner)('s| is| are|'re)? not selling|not selling (it|anymore)|seller (backed|pulled) out|seller changed (his|her|their) mind|decided not to sell|(took|taken) (it|the property|the house) off the market|accepted (another|a different|an other) offer|went with (another|a different) buyer|(it|the property|the house) (has |already )*(been )?sold|already (been )?sold|deal (is dead|fell through)|(it'?s|it is) (gone|off the table))\b/i;
+function sellerOut(text){return SELLER_OUT.test(String(text||''))}
 function markSent(id,ch){
   const d=state.deals[id];const dr=d&&d.draft;if(!dr)return;
   const at=nowISO();dr.sent=dr.sent||{};
@@ -3408,7 +3492,9 @@ function markSent(id,ch){
     if(dr.action==='walk')d.follow={base:at,step:(state.settings.followDays||[]).length-1};
     if(dr.action==='withdraw')d.follow={base:at,step:(state.settings.followDays||[]).length};
     if(dr.action==='accept')d.stage='negotiating';
+    if(dr.action==='withdraw'||dr.action==='walk'){d.stage='dead';d.deadReason=dr.action==='withdraw'?'withdrew':'walked';d.deadAt=at;d.autopilot=false;logActivity(id,'info',`${streetOf(d.address)} moved to Dead: ${DEAD_WHY[d.deadReason].toLowerCase()}.`)}
   }
+  acted(d);
   dr.sent[ch]=true;d.needsYou=null;d.handledAt=null;
   const other=ch==='email'?'sms':'email';const otherLeft=!dr.sent[other]&&(other==='sms'?(!!dr.sms&&canText(d)):(!!(dr.email&&dr.email.body)&&canEmail(d)));
   if(!otherLeft)d.draft=null;
@@ -3463,10 +3549,11 @@ function doRender(){
   const scrolls={};document.querySelectorAll('[data-keep-scroll]').forEach(el=>{if(el.id)scrolls[el.id]=[el.scrollTop,el.scrollLeft]});
   const opens={};document.querySelectorAll('details[id]').forEach(el=>{opens[el.id]=el.open});
   const y=window.scrollY;
-  $('#topbar').innerHTML=topbarHTML();
-  $('#alertbar').innerHTML=alertHTML();
-  $('#main').innerHTML=state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`;
-  $('#modal-root').innerHTML=modalHTML();
+  /* each region on its own: a problem in one never stops the others (a dialog that never opens looks like a dead button) */
+  const part=(sel,f)=>{try{$(sel).innerHTML=f()}catch(e){try{console.warn('OfferDesk render:',sel,e)}catch(x){}if(sel==='#main')$(sel).innerHTML=`<div class="wrap page"><section class="card"><p>Something on this page couldn’t load (${esc(String(e&&e.message||e).slice(0,140))}). Go back and try again; the rest of OfferDesk works.</p></section></div>`}};
+  part('#topbar',topbarHTML);part('#alertbar',alertHTML);
+  part('#main',()=>state.loaded?viewHTML():`<div class="wrap page"><div class="busy"><div class="spin"></div>Opening your desk…</div></div>`);
+  part('#modal-root',modalHTML);document.body.classList.toggle('has-modal',!!state.modal);
   try{dictDecorate()}catch(e){console.warn(e)}
   for(const [id,[t,l]] of Object.entries(scrolls)){const el=document.getElementById(id);if(el){el.scrollTop=t;el.scrollLeft=l}}
   for(const [id,o] of Object.entries(opens)){const el=document.getElementById(id);if(el)el.open=o}
@@ -3681,10 +3768,10 @@ function kcardHTML(d){
 
 /* ================= Inbox Leads ================= */
 function leadList(){
-  const L=state.leads;const q=L.q.trim().toLowerCase();
+  const L=state.leads;const q=L.q.trim().toLowerCase();const S=L.sect||'new';
   return Object.values(state.deals).filter(d=>d.source==='wholesaler').filter(d=>{
-    if(!L.showPassed&&d.stage==='dead')return false;
-    if(!L.showOver&&overBox(d))return false;
+    if(leadSect(d)!==S)return false;
+    if(S==='new'&&!L.showOver&&overBox(d))return false;
     if(checking(d))return false;
     if(q&&!([d.address,d.city,d.zip,d.wholesalerName].join(' ').toLowerCase().includes(q)))return false;
     if(L.fav&&!d.favorite)return false;
@@ -3695,6 +3782,9 @@ function leadList(){
 }
 function viewLeads(){
   const all=Object.values(state.deals).filter(d=>d.source==='wholesaler'&&d.stage!=='dead');const list=leadList();const n=esc(negName());
+  const sect=state.leads.sect||'new';const sc={new:0,waiting:0,contract:0,dead:0};for(const d of Object.values(state.deals))if(d.source==='wholesaler'&&!d.example)sc[leadSect(d)]++;
+  const sectHTML=`<div class="seg lead-sects" role="tablist" aria-label="Lead sections">${[['new','New & needs action',ico('inbox')],['waiting','Waiting for reply',ico('clock')],...(sc.contract?[['contract','Under contract',ico('check')]]:[]),['dead','Dead',ico('close')]].map(([v,l,i])=>`<button role="tab" data-act="lead-sect" data-v="${v}" aria-selected="${sect===v}" aria-pressed="${sect===v}">${i}${l}<span class="sc tnum">${sc[v]}</span></button>`).join('')}</div>
+    <p class="small muted sect-help">${{new:`Deals that just came in or where it’s your move (they replied). Once ${n} sends an email, the deal moves to Waiting for reply.`,waiting:`${n} emailed them and is waiting. She follows up ${MAX_FOLLOWUPS} times; no answer ${DEAD_AFTER_DAYS} days after the last one moves it to Dead.`,contract:'Deals under contract or closed.',dead:'We withdrew or walked away, the seller pulled out, they never answered after 3 follow-ups, or you dropped it. Change the stage on a deal to bring it back.'}[sect]}</p>`;
   const counts={};for(const d of all)for(const t of dealTags(d))counts[t]=(counts[t]||0)+1;
   const newMail=Object.values(state.mail.emails).filter(e=>e.status==='new').sort(byDate).reverse();
   const right=`<button class="btn-ghost-w" data-act="deep-all">${ico('spark')}Deep analysis</button>${gmailOn()?`<button class="btn-white" data-act="sync" ${state.syncing?'disabled':''}>${ico('refresh')}${state.syncing?'Checking…':'Check Gmail'}</button>`:`<a class="btn-white" href="#settings/connections">${ico('mail')}Connect Gmail</a>`}`;
@@ -3702,8 +3792,8 @@ function viewLeads(){
   const head=hero('g-leads','Inbox Leads (off market)',`Wholesale deals from your inbox — ${n} extracts and analyzes each one`,meta,right,`<span class="tagcount">${ico('tag')}${all.length} deal${all.length===1?'':'s'}</span>`);
   const mailHTML=newMail.length?`<section class="card"><div class="card-head"><span class="ci orange">${ico('mail')}</span><div><h2>${newMail.length} new email${newMail.length>1?'s':''} to process</h2><p>From your wholesaler search in Gmail</p></div><div class="ch-r"><button class="btn primary sm" data-act="mail-import-all"${state.pullAll?' disabled':''}>${state.pullAll?`<span class="spin"></span>Reading ${state.pullAll.i} of ${state.pullAll.n}…`:`${ico('spark')}Pull out all`}</button></div></div><div class="mailbox">${newMail.slice(0,6).map(m=>{const f=parseFrom(m.from);return `<div class="mail-row"><div style="min-width:0"><div class="row" style="gap:6px"><b>${esc(f.name||f.email)}</b><span class="xs muted">${fmtWhen(m.date)}</span>${m.atts?`<span class="tag blue">${ico('image')}${m.atts} photo${m.atts>1?'s':''}</span>`:''}${m.docs?`<span class="tag purple">${ico('pdf')}PDF</span>`:''}</div><div class="subj">${esc(m.subject||'(no subject)')}</div><div class="small muted snip">${esc((m.body||'').replace(/\s+/g,' ').slice(0,170))}</div>${busyHTML('mail:'+m.id,false)}</div><div class="row"><button class="btn sm primary" data-act="mail-import" data-id="${esc(m.id)}">${ico('spark')}Pull out deal</button><button class="btn sm ghost" data-act="mail-ignore" data-id="${esc(m.id)}">Ignore</button></div></div>`}).join('')}${newMail.length>6?`<p class="small muted">and ${newMail.length-6} more…</p>`:''}</div></section>`:'';
   const ms=gmailOn()?mailStats():null;
-  const oldBr=gmailOn()&&connectedAccts().some(a=>+((acctInfo(a.id)||{}).version||1)<7);
-  const brHTML=oldBr?`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small"><b>Update your Gmail script (2 minutes).</b> The new version lets ${n} read PDF deal sheets that wholesalers attach, get the photos people attach to emails, see links on pictures, and follow them to the property.</span><a class="btn sm" href="#settings/connections">${ico('mail')}Show me how</a></div>`:'';
+  const oldBr=gmailOn()&&connectedAccts().some(a=>+((acctInfo(a.id)||{}).version||1)<9);
+  const brHTML=oldBr?`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small"><b>Update your Gmail script (2 minutes).</b> The new version stops the double morning brief, and lets ${n} read big PDF deal sheets, get the photos people attach to emails, and follow links on pictures to the property.</span><a class="btn sm" href="#settings/connections">${ico('mail')}Show me how</a></div>`:'';
   const chk=Object.values(state.deals).filter(checking).length;
   const hidOver=state.leads.showOver?[]:all.filter(d=>overBox(d)&&!d.example&&Date.now()-new Date(d.receivedAt||d.created||0).getTime()<4*864e5);
   const overHTML=hidOver.length?`<div class="note row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small"><b>${hidOver.length} new deal${hidOver.length>1?'s are':' is'} priced over your ${moneyK(boxCap())} cap</b>, so ${hidOver.length>1?'they’re':'it’s'} hidden here: ${hidOver.slice(0,4).map(d=>`${esc(streetOf(d.address))} (${moneyK(curList(d))})`).join(' · ')}${hidOver.length>4?' …':''}</span><button class="btn sm" data-act="lead-over">Show ${hidOver.length>1?'them':'it'}</button></div>`:'';
@@ -3714,10 +3804,16 @@ function viewLeads(){
   const paste=`<details class="card" ${gmailOn()?'':'open'}><summary>${ico('doc')} Paste an email or text instead</summary><textarea class="input" id="inbox-paste" data-draft rows="5" placeholder="Paste the whole wholesaler email or text blast. ${n} pulls out the address, price, ARV and repair claims, terms and the deadline.">${esc(state.drafts['inbox-paste']||'')}</textarea><div class="row"><button class="btn primary" data-act="inbox-extract">${ico('spark')}Pull out the deal</button>${busyHTML('inbox',false)}</div></details>`;
   const tiles=`<div class="tagtiles">${TAGDEFS.map(t=>`<button class="ttile" data-act="lead-tag" data-v="${t.id}" aria-pressed="${state.leads.tag===t.id}"><span class="ic" style="background:var(--b-${t.c});color:var(--t-${t.c})">${ico(t.icon)}</span><b>${counts[t.id]||0}</b><span>${esc(t.label)}</span></button>`).join('')}</div>`;
   const favN=all.filter(d=>d.favorite).length;const overN=all.filter(overBox).length;
-  const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button><button class="fchip" data-act="lead-passed" aria-pressed="${!!state.leads.showPassed}">Show passed</button>${overN?`<button class="fchip" data-act="lead-over" aria-pressed="${!!state.leads.showOver}" title="Asking more than your buy box (${moneyK(boxCap())}); change it in Connect → Gmail">Over ${moneyK(boxCap())} <span class="cnt">${overN}</span></button>`:''}${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
+  const filt=`<div class="filters"><div class="searchbar" style="flex:1;min-width:220px">${ico('search')}<input id="leads-q" type="search" placeholder="Search leads…" value="${esc(state.leads.q)}" aria-label="Search leads"></div>${`<select class="fsel ${state.leads.type!=='all'?'on':''}" id="leads-type" aria-label="Property type"><option value="all">Property type</option>${Object.entries(PROP_TYPES).map(([k,v])=>`<option value="${k}" ${state.leads.type===k?'selected':''}>${v}</option>`).join('')}</select>`}<button class="fchip" data-act="lead-fav" aria-pressed="${state.leads.fav}">${ico('star')}Favorites <span class="cnt">${favN}</span></button>${overN?`<button class="fchip" data-act="lead-over" aria-pressed="${!!state.leads.showOver}" title="Asking more than your buy box (${moneyK(boxCap())}); change it in Connect → Gmail">Over ${moneyK(boxCap())} <span class="cnt">${overN}</span></button>`:''}${state.leads.tag||state.leads.q||state.leads.fav||state.leads.type!=='all'?`<button class="clear" data-act="clear-leads">${ico('close')}Clear all</button>`:''}</div>`;
+  const status=d=>{const S=leadSect(d);
+    if(S==='waiting'){const lo=lastAt(outs(d));const f=followUpsSent(d);const fd=followDue(d);return `<span class="tag blue">Sent ${ago(lo)}</span><span class="xs muted"> ${f?`${f} of ${MAX_FOLLOWUPS} follow-ups`:'no follow-ups yet'}${fd?` · next ${fd.overdue?'due now':fmtDate(new Date(fd.due).toISOString())}`:''}</span>`}
+    if(S==='dead')return `<span class="tag red">${esc(DEAD_WHY[d.deadReason]||'Dead')}</span>${d.deadAt?`<span class="xs muted"> ${fmtDate(d.deadAt)}</span>`:''}`;
+    if(S==='new'&&replyWaiting(d))return '<span class="tag green">They replied · your move</span>'+takeTag(d);
+    if(S==='new'&&draftOpen(d))return `<span class="tag purple">${n}’s draft ready to send</span>`+takeTag(d);
+    return S==='new'?takeTag(d):''};
   const rows=list.map(d=>{const c=calc(d);const tags=dealTags(d);const rent=d.rent||d.rentEst;const v=verdict(d,c);
     const arvSrc=d.arvSource==='maya'?'<span class="tag purple">'+n+'’s est</span>':d.arvSource==='comps'?'<span class="tag green">Comps</span>':d.arvSource==='wholesaler'?'<span class="tag orange">Wholesaler</span>':'';
-    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span>${(w=>w?`<span class="tag ${w.c}" style="margin-top:3px">${esc(w.t)}</span>`:'')(noAddrWhy(d))}</div></div></td>
+    return `<tr data-act="open" data-id="${d.id}"${d.example?' class="is-ex"':''}><td><div class="prop">${thumbHTML(d)}<div><b>${esc(streetOf(d.address))}${d.example?'<span class="tag ex">Fake · practice</span>':''}</b><span class="ps">${d.beds??'?'} bd · ${d.baths??'?'} ba · ${numFmt(d.sqft)} sqft · ${esc(PROP_TYPES[d.propertyType]||'Single family')}</span>${(st=>st?`<span class="lead-st">${st}</span>`:'')(status(d))}${(w=>w?`<span class="tag ${w.c}" style="margin-top:3px">${esc(w.t)}</span>`:'')(noAddrWhy(d))}</div></div></td>
     <td class="r tnum"><b>${money(curList(d))}</b></td>
     <td class="r tnum">${d.arv?`<b>${money(d.arv)}</b><div>${arvSrc}</div>`:'<span class="tag amber">No data</span>'}</td>
     <td class="r tnum">${money(d.rehab)}</td><td class="r tnum">${rent?money(rent):'—'}</td>
@@ -3726,7 +3822,7 @@ function viewLeads(){
     <td>${esc((d.wholesalerName||'').replace(/\s*\(example\)/i,''))}</td><td class="tnum">${fmtDate(d.receivedAt||d.created)}</td>
     <td><div class="row" style="flex-wrap:nowrap;gap:2px"><button class="btn ghost sm" data-act="fav" data-id="${d.id}" aria-label="Favorite" style="color:${d.favorite?'var(--s-amber)':'var(--muted)'}">${d.favorite?icoFill('star'):ico('star')}</button><button class="btn ghost sm" data-act="deep" data-id="${d.id}" aria-label="Analyze with ${n}" title="Analyze photos and condition">${ico('bolt')}</button><button class="btn ghost sm" data-act="ws-pass" data-id="${d.id}" aria-label="Pass" title="Pass on this deal">${ico('trash')}</button></div>${busyHTML('deep:'+d.id,false)}</td></tr>`}).join('');
   const table=list.length?`<div class="tbl-wrap" id="leads-wrap" data-keep-scroll><table class="tbl" style="min-width:1180px"><thead><tr><th>Property</th><th class="r">Asking price</th><th class="r">ARV</th><th class="r">Rehab</th><th class="r">Est. rent</th><th class="r">Your ceiling</th><th>Deal tags</th><th>Wholesaler</th><th>Received</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`:emptyHTML('leads',all.length?'No leads match':'No wholesaler deals yet',all.length?'Try clearing the filters.':gmailOn()?'Check Gmail, or label deal emails “Wholesalers” in Gmail so they get picked up.':'Connect Gmail and deals land here automatically, or paste an email above.','');
-  return `<div class="wrap page">${head}${brHTML}${overHTML}${chkHTML}${recapHTML}${mailHTML}${textsHTML}${paste}${tiles}${filt}${table}</div><button class="fab" data-act="ask-fab">${ico('spark')}Ask ${n}</button>`;
+  return `<div class="wrap page">${head}${brHTML}${sect==='new'?overHTML:''}${chkHTML}${recapHTML}${mailHTML}${textsHTML}${paste}${sectHTML}${tiles}${filt}${table}</div><button class="fab" data-act="ask-fab">${ico('spark')}Ask ${n}</button>`;
 }
 
 /* ================= Deal page ================= */
@@ -3743,8 +3839,11 @@ function viewDeal(){
   const dm=dom(d);
   const band=`<div class="band"><div class="bl"><span class="bic">${ico(d.source==='wholesaler'?'leads':'building')}</span><div><div style="font-size:12px;opacity:.85;font-weight:700">${d.source==='wholesaler'?'Wholesale deal':'MLS listing'}</div><b>${ms[0]}</b></div></div>${d.mlsId?`<span class="bchip">ID: ${esc(d.mlsId)}</span>`:''}${dm!=null?`<span class="bchip">${dm} days on market</span>`:''}${(()=>{const ms=marketSignal(d);return ms?`<span class="bchip warn">${ico('down')}${ms.level==='rejection'?'Market rejection':'Stale listing'}</span>`:''})()}${zipDom(d)?`<span class="bchip">ZIP median ${zipDom(d)} days</span>`:''}${dealTarget(d)?`<span class="bchip good">${ico('target')}Target market</span>`:''}${d.campaign&&state.campaigns[d.campaign.id]?`<a class="bchip" href="#campaigns" data-act="cp-open" data-id="${d.campaign.id}">${ico('send')}${esc(state.campaigns[d.campaign.id].name)}</a>`:''}<span class="bchip">${os[0]}</span><span class="spacer"></span>
     <a class="btn-ghost-w" href="https://www.zillow.com/homes/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}_rb/" target="_blank" rel="noopener">${ico('link')}Zillow</a>${d.listingUrl?`<a class="btn-ghost-w" href="${esc(d.listingUrl)}" target="_blank" rel="noopener">${ico('link')}View listing</a>`:''}<a class="btn-ghost-w" href="https://www.google.com/maps/search/${encodeURIComponent([streetOf(d.address),d.city,d.state,d.zip].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${ico('pin')}Map</a></div>`;
-  const main=[...(hasStreet(d)?[historyCard(d),linkCard(d)]:[linkCard(d),historyCard(d)]),overviewCard(d,c),researchCard(d),stripHTML(d),conversationCard(d,c),autopilotCard(d,c),numbersCard(d,c),scoreCard(d,c),marketCard(d,c),eyesCard(d,c),compsCard(d,c),sfCard(d,c),rentalCard(d,c),timelineCard(d,c),detailsCard(d,c),mapCard(d)].join('');
-  return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${mayaPanel(d,c)}</aside></div></div>`;
+  /* one broken section must never freeze the whole deal page (its buttons would stop responding) */
+  const safe=(f,name)=>{try{return f()}catch(e){try{console.warn('OfferDesk section failed:',name,e)}catch(x){}return `<section class="card"><p class="small muted">The ${esc(name)} section couldn’t load for this deal (${esc(String(e&&e.message||e).slice(0,120))}). The rest of the page works.</p></section>`}};
+  const cards=[...(hasStreet(d)?[['history',()=>historyCard(d)],['links',()=>linkCard(d)]]:[['links',()=>linkCard(d)],['history',()=>historyCard(d)]]),['overview',()=>overviewCard(d,c)],['Maya’s take',()=>verdictCard(d)],['research',()=>researchCard(d)],['photo strip',()=>stripHTML(d)],['conversation',()=>conversationCard(d,c)],['autopilot',()=>autopilotCard(d,c)],['numbers',()=>numbersCard(d,c)],['score',()=>scoreCard(d,c)],['market',()=>marketCard(d,c)],['inspection',()=>eyesCard(d,c)],['comps',()=>compsCard(d,c)],['seller finance',()=>sfCard(d,c)],['rental',()=>rentalCard(d,c)],['timeline',()=>timelineCard(d,c)],['details',()=>detailsCard(d,c)],['map',()=>mapCard(d)]];
+  const main=cards.map(([n2,f])=>safe(f,n2)).join('');
+  return `<div class="wrap page">${head}${band}<div class="deal-grid"><div class="main-col">${main}</div><aside class="rail-col" id="rail-col" data-keep-scroll>${safe(()=>mayaPanel(d,c),'Maya panel')}</aside></div></div>`;
 }
 function photoNote(d){
   const sk=d.attSkipped||[];if(!sk.length)return '';const cnt=w=>sk.filter(x=>x.why===w).reduce((a,x)=>a+(x.n||1),0);const out=[];
@@ -3783,12 +3882,17 @@ function stripHTML(d){
   <div class="sbox"><span class="lab">Deal motivation</span><span class="v" style="color:var(--t-orange)">${ico('flame')}${a&&a.motivation?esc(a.motivation.replace(/^./,m=>m.toUpperCase())):'<span class="muted">Run an inspection</span>'}</span></div>
   <div class="sbox"><span class="lab">Your instructions to ${esc(negName())}</span><textarea data-dict id="d-instr" data-fd="instructions" rows="1" placeholder="e.g. Don’t go above 150K, seller is an estate">${esc(d.instructions||'')}</textarea></div></div>`;
 }
+/* the real email in Gmail: the message itself when known, otherwise the deal's Gmail thread */
+function gmailUrl(id,inbox){return `https://mail.google.com/mail/${inbox?'?authuser='+encodeURIComponent(inbox):'u/0/'}#all/${encodeURIComponent(id)}`}
+function msgGmailUrl(d,t){if(t.channel!=='email')return null;const inbox=t.inbox||(d.gmailAccount&&acctInfo(d.gmailAccount).email)||(gmailOn()?sendEmail():'');
+  const id=t.gmailId||(t.dir==='in'&&(d.seenMsgIds||[]).length===1?d.seenMsgIds[0]:null)||d.gmailThreadId;return id&&gmailOn()?gmailUrl(id,inbox):null}
 function conversationCard(d,c){
   const th=(d.thread||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));const n=negName();const agent=((d.agent&&d.agent.name)||counterpart(d)).replace(/\s*\(example\)/i,'');
   const k=state.logKind;
   const msgs=th.map(t=>{const out=t.dir==='out',note=t.dir==='note';const who=out?(t.by==='you'?'You':n):note?'Note':agent;
     const title=note?'Call note':`${t.channel==='sms'?'Text':t.channel==='call'?'Call':'Email'} from ${who} to ${out?agent:(t.by==='you'?'':n)}`.replace(/ to $/,'');
-    return `<div class="msgc ${t.dir}"><div class="mh"><span class="mi" style="background:${out?'var(--s-purple)':note?'var(--s-slate)':'var(--s-green)'}">${ico(t.channel==='sms'?'sms':t.channel==='call'||note?'phone':'mail')}</span>${esc(title)}${t.price!=null?`<span class="tag ${out?'blue':'green'} tnum">${money(t.price)}</span>`:''}<span class="when">${fmtWhen(t.at)}</span><button class="btn ghost sm" data-act="del-msg" data-mid="${t.id}" aria-label="Delete message">${ico('close')}</button></div>${t.subject?`<div class="subj">Subject: ${esc(t.subject)}</div>`:''}<div class="body">${esc(t.text)}</div></div>`}).join('');
+    const gu=msgGmailUrl(d,t);
+    return `<div class="msgc ${t.dir}"><div class="mh"><span class="mi" style="background:${out?'var(--s-purple)':note?'var(--s-slate)':'var(--s-green)'}">${ico(t.channel==='sms'?'sms':t.channel==='call'||note?'phone':'mail')}</span>${gu?`<a class="gm" href="${esc(gu)}" target="_blank" rel="noopener" title="Open this email in Gmail">${esc(title)}</a>`:esc(title)}${t.price!=null?`<span class="tag ${out?'blue':'green'} tnum">${money(t.price)}</span>`:''}<span class="when">${fmtWhen(t.at)}</span>${gu?`<a class="gm-open" href="${esc(gu)}" target="_blank" rel="noopener">Open in Gmail ↗</a>`:''}<button class="btn ghost sm" data-act="del-msg" data-mid="${t.id}" aria-label="Delete message">${ico('close')}</button></div>${t.subject?`<div class="subj">Subject: ${gu?`<a class="gm" href="${esc(gu)}" target="_blank" rel="noopener">${esc(t.subject)}</a>`:esc(t.subject)}</div>`:''}<div class="body">${esc(t.text)}</div></div>`}).join('');
   return `<section class="card" id="conversation"><div class="card-head"><span class="ci purple">${ico('chat')}</span><div><h2>Conversation</h2><p>Email, texts and calls in one thread · newest first</p></div></div>
   ${th.length?`<div class="thread">${msgs}</div>`:`<p class="small muted">No messages yet. ${esc(n)} drafts the opening offer from the panel on the right.</p>`}
   <details ${th.length?'':'open'}><summary>${ico('plus')} Log a message, reply or call note</summary><div style="display:grid;gap:10px;margin-top:10px">
@@ -3931,7 +4035,7 @@ function mayaPanel(d,c){
   let body='';
   if(tab==='chat'){
     body=`<div class="chatlog" id="chatlog" data-stick="1">${chat.length?chat.map(m=>`<div class="bub ${m.role==='user'?'me':''}"><span class="who">${m.role==='user'?'You':n}</span>${esc(m.content)}</div>`).join(''):`<div class="bub"><span class="who">${n}</span>Ask me anything about this deal, or tap an action. I’ll draft the message and you approve it${d.autopilot&&state.settings.auto.enabled?' (on autopilot I send safe ones myself)':''}.</div>`}${state.busy['chat:'+d.id]?`<div class="bub"><span class="who">${n}</span><span class="muted">thinking…</span></div>`:''}</div>
-    <div class="qchips">${QUICK.map(q=>`<button class="qchip ${q.c}" data-act="quick" data-q="${q.id}" ${busyAny?'disabled':''}>${esc(q.label)}</button>`).join('')}</div>
+    <div class="qchips">${QUICK.map(q=>`<button class="qchip ${q.c}" data-act="quick" data-q="${q.id}" ${busyAny&&!['drop','pause'].includes(q.id)?'disabled':''}>${esc(q.label)}</button>`).join('')}</div>
     <div class="chat-in"><textarea data-dict class="input" id="maya-msg" data-draft rows="2" placeholder="Chat with ${n} about this property…">${esc(state.drafts['maya-msg']||'')}</textarea><button class="send-btn" data-act="maya-send" aria-label="Send to ${n}" ${busyAny?'disabled':''}>${ico('send')}</button></div>`;
   }else{
     const isSms=tab==='sms';
@@ -4198,6 +4302,96 @@ function rentalCard(d,c){
   ${kp}${brrrr}${comps}</section>`;
 }
 
+/* ================= Maya's take: one honest verdict per listing =================
+   What she did (links, photos, email/PDF, comps, repairs, your buy box, the formula), what didn't work and why,
+   how sure she is about the offer, and the next step: negotiate, ask for more, or run the Opus in-depth analysis. */
+const LEVEL_RANK={light:1,moderate:2,full:3};
+function levelOf(a){const l=String((a&&a.level)||'').toLowerCase();return l.includes('gut')?'full':l.includes('light')?'light':l?'moderate':null}
+function inMyAreas(d){
+  const T=typeof mkTargets==='function'?mkTargets():[];if(!T.length)return null;
+  const z=String(d.zip||'').slice(0,5),city=String(d.city||'').toLowerCase();if(!z&&!city)return null;
+  return T.some(t=>(t.type==='zip'&&t.key===z)||(Array.isArray(t.zips)&&z&&t.zips.includes(z))||(city&&String(t.label||t.key||'').toLowerCase().includes(city)));
+}
+function mayaWorking(d){const id=d.id;return ['links:','research:','deep:','depth:','send:'].some(k=>state.busy[k+id])||Object.keys(state.busy).some(k=>k.startsWith('mail:')&&(d.seenMsgIds||[]).includes(k.slice(5)))||!!d.checking||!!(d.linkFill&&d.linkFill.pending)}
+function mayaTake(d){
+  const c=calc(d);const n=negName();const steps=[];const miss=[];let score=0;
+  const add=(ok,label,detail,fix)=>steps.push({ok,label,detail,fix});
+  /* 1. the email and its PDF */
+  const mails=(d.seenMsgIds||[]).map(id=>state.mail.emails[id]).filter(Boolean);const pdfWait=mails.filter(m=>(m.docs||0)>0&&!m.docRead);
+  const pdfs=(d.docs||[]).length;const big=(d.docSkipped||[]).filter(x=>x.why==='too_big');
+  if(d.source==='wholesaler'||ins(d).length)add(pdfWait.length?null:big.length&&!pdfs?false:true,'Email'+(pdfs||pdfWait.length||big.length?' and PDF':''),
+    pdfWait.length?`The PDF hasn’t been read yet; ${n} reads it on the next Gmail check.`:big.length&&!pdfs?`The PDF is too big for your Gmail script. Update the script (Connect → Gmail).`:`Read every line${pdfs?` and the ${pdfs>1?pdfs+' PDFs':'PDF'} (${(d.docs||[]).map(x=>x.pages?x.pages+' pages':'').filter(Boolean).join(', ')||'all pages'})`:''}.`);
+  /* 2. links */
+  const links=typeof dealLinks==='function'?dealLinks(d):[];const lf=d.linkFill||{};
+  if(links.length){const ok=(lf.ok||[]).length,bad=(lf.robot||[]).length+(lf.blocked||[]).length+(lf.noAccess||[]).length;
+    if(!lf.at)add(null,'Links',`${links.length} link${links.length>1?'s':''} not opened yet${gmailOn()?'':' (connect Gmail so she can)'}.`);
+    else add(bad?(ok?null:false):true,'Links',`Opened ${ok||lf.opened||0} of ${links.length}${bad?`; ${bad} couldn’t be opened (${[(lf.robot||[]).length?'asks “not a robot”':'',(lf.noAccess||[]).length?'photo folder not shared':'',(lf.blocked||[]).length?'site blocks robots':''].filter(Boolean).join(', ')})`:''}${(lf.filled||[]).length?`; filled in ${lf.filled.join(', ')}`:''}.`,bad?'links':null)}
+  /* 3. photos */
+  const ph=photoCount(d);
+  if(ph)add(ph>=6?true:null,'Photos',`${ph} photo${ph>1?'s':''}${ph<6?' (few: interiors may be missing)':''}.`);
+  else{add(false,'Photos','No photos yet.','photos');miss.push('photos')}
+  /* 4. ARV from comps */
+  const R=d.research;const sold=(d.comps||[]).filter(x=>(x.status||'sold')==='sold');const reno=sold.filter(x=>x.reno!==false).length;
+  let arvPts=0;
+  if(!d.arv){add(false,'ARV (comps)',R?'Research ran but found no usable sold comps.':researchWhy(d),R?'opus':'research');miss.push('a checked ARV')}
+  else if(d.arvSource==='you'&&!arvTheirs(d)){arvPts=2;add(true,'ARV (comps)',`${money(d.arv)}: your number.`)}
+  else if(d.arvSource==='comps'||(R&&sold.length>=3&&!arvTheirs(d)&&d.arvSource!=='maya')){arvPts=2;add(true,'ARV (comps)',`${money(d.arv)} from ${sold.length} sold comp${sold.length===1?'':'s'}${reno?` (${reno} renovated)`:''}.`)}
+  else if(d.arvSource==='maya'){arvPts=1;add(null,'ARV (comps)',`${money(d.arv)} is ${n}’s estimate: few good sold comps nearby, so it’s rough.`,'opus');miss.push('more sold comps')}
+  else{add(false,'ARV (comps)',`${money(d.arv)} is the wholesaler’s claim, not checked yet. ${R?'':researchWhy(d)}`,R?'opus':'research');miss.push('a checked ARV')}
+  /* 5. repairs */
+  const a=d.analysis;let rehPts=0;
+  if(d.deepErr&&!a){add(false,'Repairs',`The repair inspection didn’t finish (${d.deepErr.msg}).`,'opus');miss.push('a repair estimate')}
+  else if(a&&d.rehab){const seen=a.photos||0,ns=(a.notSeen||[]).length;rehPts=seen>=6&&ns<=2?2:1;
+    add(rehPts===2?true:null,'Repairs',`${money(d.rehab)} from a photo inspection${seen?` of ${seen} photo${seen>1?'s':''}`:' of the listing'} (${a.level||'report'})${ns?`; not seen: ${a.notSeen.slice(0,4).join(', ')}`:''}.`,rehPts===2?null:'photos');if(rehPts<2)miss.push('photos of '+((a.notSeen||[]).slice(0,2).join(' and ')||'the inside'))}
+  else if(d.rehab&&d.rehabSource==='you'){rehPts=2;add(true,'Repairs',`${money(d.rehab)}: your number.`)}
+  else if(d.rehab&&rehabTheirs(d)){add(false,'Repairs',`${money(d.rehab)} is the wholesaler’s claim, not checked.${ph?` ${n} prices repairs from the photos after research.`:''}`,ph?'opus':'photos');miss.push('a checked repair estimate')}
+  else if(d.rehab){rehPts=1;add(null,'Repairs',`${money(d.rehab)} (no inspection yet).`)}
+  else{add(false,'Repairs','No repair estimate yet.',ph?'opus':'photos');miss.push('a repair estimate')}
+  /* 6. your buy box */
+  const box=[];const cap=boxCap();const L=curList(d);
+  if(L==null)box.push([null,'no asking price yet']);else if(cap&&L>cap)box.push([false,`asking ${moneyK(L)} is over your ${moneyK(cap)} cap`]);else box.push([true,`asking ${moneyK(L)}${cap?` is under your ${moneyK(cap)} cap`:''}`]);
+  const area=inMyAreas(d);if(area!=null)box.push([area,area?'in your markets':`${d.city||d.zip} isn’t one of your markets`]);
+  const pt=d.propertyType||'single_family';box.push([pt==='single_family'?true:null,pt==='single_family'?'single-family':(PROP_TYPES[pt]||pt).toLowerCase()+' (you buy single-family)']);
+  const lv=levelOf(a);const maxLv=(state.settings.buy||{}).rehabMax||'moderate';if(lv)box.push([LEVEL_RANK[lv]<=LEVEL_RANK[maxLv],lv==='full'?'full gut (heavier than your cosmetic-to-medium rehab)':lv==='light'?'light rehab':'medium rehab']);
+  const boxBad=box.some(x=>x[0]===false);
+  add(boxBad?false:box.some(x=>x[0]===null)?null:true,'Your buy box',box.map(x=>x[1]).join(' · ').replace(/^./,m=>m.toUpperCase())+'.');
+  /* 7. the formula */
+  if(c.ready){const wsx=c.strat==='wholesale';
+    const f=wsx?`ARV ${moneyK(c.A)} × ${(state.settings.buy.wsBuyerPct||70)}% − repairs ${moneyK(c.R)} − your fee ${moneyK(state.settings.buy.wsFee||0)}`:`ARV ${moneyK(c.A)} minus selling costs, repairs ${moneyK(c.R)}, holding ${moneyK(c.H)} and your ${(state.settings.buy.targetRoi||0)}% return / ${moneyK(state.settings.buy.minProfit||0)} profit`;
+    if(c.dead)add(false,'Offer math',`${f} leaves nothing: no deal at this ARV.`);
+    else add(true,'Offer math',`${f} → most you pay ${money(c.mao)}${c.capByThem?' (capped at what they said they’d take)':''}; open at ${money(c.opening)}${L?`; asking is ${L<=c.mao?'within it':pct((L-c.mao)/L,0)+' over it'}`:''}.`)}
+  else add(false,'Offer math','Needs an ARV before there’s a number.');
+  /* how sure */
+  if(hasStreet(d))score++;else miss.unshift('the street address');if(L!=null)score++;
+  score+=arvPts+rehPts;const conf=arvPts>=1&&rehPts>=1&&score>=5?'high':score>=3&&arvPts>=1?'medium':'low';
+  let verdict;
+  if(mayaWorking(d))verdict='working';
+  else if((c.ready&&c.dead)||(cap&&L!=null&&L>cap&&leadSect(d)==='new')||(boxBad&&lv==='full'))verdict='nofit';
+  else verdict=conf==='high'?'ready':conf==='medium'?'close':'thin';
+  return {c,steps,conf,verdict,miss:[...new Set(miss)],score};
+}
+function researchWhy(d){const n=negName();const cap=(state.settings.research||{}).dailyMax??3;
+  return d.researchErr?`Research didn’t finish (${d.researchErr.msg}).`:d.researchSkip==='cap'?`Research is waiting: ${n} already did today’s ${cap} automatic ones (Settings → research limit). She does it tomorrow, or press Research now.`:d.researchSkip==='over'?'Not researched: over your price cap.':d.researchSkip==='price'?'Not researched: asking is far above your ceiling.':!hasStreet(d)?'Needs a street address before research.':!(state.settings.research||{}).auto?'Automatic research is off.':'Research hasn’t run yet.'}
+const TAKE_LABEL={working:['purple','Working on it'],ready:['green','Ready to negotiate'],close:['amber','Almost there'],thin:['orange','Not enough info'],nofit:['red','Not a fit']};
+function takeTag(d){if(d.example)return '';const t=mayaTake(d);const [c,l]=TAKE_LABEL[t.verdict];return `<span class="tag ${c}">${t.verdict==='working'?'<span class="spin sm"></span>':''}${l}</span>`}
+function verdictCard(d){
+  if(d.example)return '';const t=mayaTake(d);const n=esc(negName());const c=t.c;const [cls,label]=TAKE_LABEL[t.verdict];
+  const icon=s=>s.ok===true?`<span class="vk ok" aria-label="done">${ico('check')}</span>`:s.ok===false?`<span class="vk bad" aria-label="problem">${ico('close')}</span>`:`<span class="vk mid" aria-label="partly">!</span>`;
+  const fixBtn=f=>f==='opus'?`<button class="btn sm" data-act="in-depth" ${state.busy['depth:'+d.id]||!aiOn()?'disabled':''}>${ico('spark')}In-depth (Opus)</button>`:f==='research'?`<button class="btn sm" data-act="research" ${state.busy['research:'+d.id]||!aiOn()?'disabled':''}>${ico('search')}Research now</button>`:f==='photos'?`<button class="btn sm" data-act="ask-for-photos" ${!aiOn()?'disabled':''}>${ico('camera')}Ask them for photos</button>`:f==='links'?`<a class="btn sm" href="#links">${ico('link')}See the links</a>`:'';
+  const missTxt=t.miss.length?t.miss.slice(0,3).join(', '):'';
+  const rec=t.verdict==='working'?`${n} is still working through this one (links, research or the photo inspection). This updates when she’s done.`
+    :t.verdict==='ready'?`<b>She’s confident in the number.</b> Open at <b>${money(c.opening)}</b> and don’t go above <b>${money(c.mao)}</b>.`
+    :t.verdict==='close'?`<b>Close, but not solid yet.</b> Still missing: ${esc(missTxt)}. Ask the wholesaler, or run the in-depth analysis (Opus, about $0.50–1.50) to firm up the ARV and repairs before you negotiate.`
+    :t.verdict==='thin'?`<b>Not enough to trust an offer yet.</b> Missing: ${esc(missTxt||'checked numbers')}. Run the in-depth analysis (Opus, about $0.50–1.50); it opens every link, finds the sold comps and prices the repairs from the photos.`
+    :c.ready&&c.dead?`<b>The numbers don’t work.</b> At this ARV and repair cost there’s no price that hits your return. Pass, or ask for better numbers.`
+    :`<b>Outside your buy box.</b> ${esc(t.steps.find(s=>s.label==='Your buy box').detail)} Pass, or open low if you want to try.`;
+  const actions=t.verdict==='ready'&&!ourCount(d)?`<button class="btn primary sm" data-act="ai-opening" ${!aiOn()?'disabled':''}>${ico('spark')}Draft opening offer · ${moneyK(c.opening)}</button>`
+    :['close','thin'].includes(t.verdict)?`${fixBtn('opus')}${t.miss.some(m=>/photo/.test(m))?fixBtn('photos'):''}`:'';
+  return `<section class="card take ${cls}" id="maya-take"><div class="card-head"><span class="ci ${cls==='orange'?'amber':cls}">${ico('spark')}</span><div><h2>${n}’s take</h2><p>Everything she checked on this listing, and how sure she is</p></div><div class="ch-r"><span class="pill ${cls==='slate'?'':cls}">${label}</span>${t.verdict!=='working'?`<span class="small muted">Confidence: <b>${t.conf}</b></span>`:''}</div></div>
+    <p class="take-rec">${rec}</p>${actions?`<div class="row" style="gap:8px;flex-wrap:wrap">${actions}</div>`:''}
+    <ul class="take-steps">${t.steps.map(s=>`<li>${icon(s)}<div><b>${esc(s.label)}</b><span class="small">${esc(s.detail)}</span></div>${s.ok!==true&&s.fix&&!(actions&&['opus','photos'].includes(s.fix))?fixBtn(s.fix):''}</li>`).join('')}</ul></section>`;
+}
+
 /* ================= Preview offer (review, rewrite, send) ================= */
 const REWRITES=[
   {id:'short',label:'Shorter and to the point',ins:'Make it shorter and to the point: at most 90 words in the email and 200 characters in the text. Keep the price, the terms and the one-line math.'},
@@ -4403,7 +4597,7 @@ Finish with only this JSON (no text after it):
 const LINKCACHE=new Map();
 async function openLinks(id,links,opts){
   opts=opts||{};const d=state.deals[id];const pages=[],blocked=[],noAccess=[],why={};let photos=0;if(!gmailOn()||!links.length)return {pages,blocked,photos,noAccess,why};
-  for(const u of links.slice(0,5)){
+  const okUrls=[];for(const u of links.slice(0,8)){
     let r;const hit=LINKCACHE.get(u);
     if(hit&&!opts.fresh&&Date.now()-hit.t<30*60*1000)r=hit.r;else{try{r=await bridge('fetch_url',{url:u});LINKCACHE.set(u,{t:Date.now(),r})}catch(e){blocked.push(u);continue}}
     if(r.kind==='page'&&ROBOT_PAGE.test(String(r.title||'')+' '+String(r.text||'').slice(0,600)))r=Object.assign({},r,{kind:'blocked',status:'robot_check'});
@@ -4411,18 +4605,18 @@ async function openLinks(id,links,opts){
       /* the page is blocked, but the web address it led to often spells out the street address */
       const hops=(r.hops||[]).filter(x=>x&&x!==u);if(hops.length)pages.push({url:u,title:'(blocked page: only the web address it led to is known)',text:'This link led to: '+hops.join(' then '),redirectOnly:true});
       continue}
-    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){
+    if((r.kind==='drive_folder'||r.kind==='drive_file')&&(r.images||[]).length){okUrls.push(u);
       /* each Drive photo only once, even when research opens the same folder later */
       const dd=state.deals[id];const seen=new Set(dd.driveSeen||[]);const todo=r.images.filter(im=>!seen.has(im.id)).slice(0,Math.max(0,16-photoCount(dd)));
       const blobs=[];for(const im of todo){try{const x=await bridge('drive_image',{id:im.id});if(x.data){blobs.push(b64ToBlob(x.data,x.type));seen.add(im.id)}}catch(e){}}
       if(state.deals[id])state.deals[id].driveSeen=[...seen].slice(-200);
       if(blobs.length)photos+=await addPhotoBlobs(id,blobs,'link');continue}
-    if(r.kind==='image'){photos+=addPhotoUrls(id,[u]);continue}
+    if(r.kind==='image'){okUrls.push(u);photos+=addPhotoUrls(id,[u]);continue}
     if(r.kind==='page'){const imgs=(r.images||[]).map(x=>String(x&&x.src||x)).filter(x=>/^https:\/\//i.test(x)&&!/logo|icon|sprite|avatar|badge|favicon|placeholder|pixel|banner|staticmap|maps\.googleapis|-\d{2,3}x\d{2,3}\.(jpe?g|png|webp)/i.test(x));
       if(r.text)pages.push({url:u,title:r.title||'',text:r.text,images:[...new Set(imgs)].slice(0,40)});
-      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,12))}
+      if(opts.pagePhotos!==false&&imgs.length&&photoCount(state.deals[id])<6)photos+=addPhotoUrls(id,imgs.slice(0,16))}
   }
-  return {pages,blocked,photos,noAccess,why};
+  return {pages,blocked,photos,noAccess,why,okUrls};
 }
 const ROBOT_PAGE=/just a moment|attention required|verify you are human|are you a robot|checking your browser|security check|captcha/i;
 /* ================= opening a new deal's links right away =================
@@ -4465,7 +4659,7 @@ async function fillFromLinks(id,quiet,fresh){
   if(!gmailOn()){delete d.checking;d.linkFill={pending:true,needGmail:true};saveDeal(d,true);if(!quiet)toast('Connect Gmail first: Maya opens links through your Gmail script.',5200);return d.linkFill}
   if(state.busy['links:'+id])return null;
   state.busy['links:'+id]={label:`${negName()} is opening the links…`};render();
-  let got;try{got=await openLinks(id,links.slice(0,4),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
+  let got;try{got=await openLinks(id,links.slice(0,8),{pagePhotos:false,fresh:fresh==null?!quiet:fresh})}catch(e){got={pages:[],blocked:[],photos:0,noAccess:[],why:{}}}finally{delete state.busy['links:'+id];render()}
   let dd=state.deals[id];if(!dd)return null;let filled=[],other=false;
   if(got.photos)filled.push(got.photos+' Drive photo'+(got.photos>1?'s':''));
   const zip5=String(dd.zip||'').slice(0,5),city=String(dd.city||'').toLowerCase(),ask=curList(dd);
@@ -4473,7 +4667,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(p.redirectOnly){const slug=lt.replace(/[^a-z0-9]+/g,' ');return /\b\d+\s+[a-z]/.test(slug)&&((zip5&&slug.includes(zip5))||(city&&slug.includes(city.replace(/[^a-z0-9]+/g,' '))))}
     if(t.length<120)return false;
     return (zip5&&lt.includes(zip5))||(city&&lt.includes(city))||(ask&&(t.includes(String(ask))||t.includes(Number(ask).toLocaleString('en-US'))))||(!zip5&&!city&&!ask)};
-  const useful=got.pages.filter(about).slice(0,2).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
+  const useful=got.pages.filter(about).slice(0,3).map(p=>Object.assign({},p,{text:String(p.text).slice(0,8000)}));
   if(!useful.length&&got.pages.some(p=>!p.redirectOnly&&String(p.text||'').length>=120))other=true;
   const sig=(s=>{let x=0;for(let i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))|0;return x.toString(36)})(useful.map(p=>p.url+':'+p.text).join('|'));const prevSig=(dd.linkFill||{}).sig;
   const needPh=!photoCount(dd)&&!dd.linkPhotosTried&&useful.some(p=>(p.images||[]).length);if(needPh){dd.linkPhotosTried=nowISO()}
@@ -4483,7 +4677,7 @@ async function fillFromLinks(id,quiet,fresh){
     if(res&&res.samePropertyAsEmail===false)other=true;else if(res)filled=filled.concat(applyLinkPage(dd,res));
   }
   const tries=((dd.linkFill||{}).tries||0)+1;delete dd.checking;
-  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
+  dd.linkFill={at:nowISO(),tries,sig,opened:got.pages.filter(p=>!p.redirectOnly).length,ok:[...new Set([...got.pages.filter(p=>!p.redirectOnly).map(p=>p.url),...(got.okUrls||[])])].slice(0,10),robot:got.blocked.filter(u=>got.why[u]==='robot_check').slice(0,6),blocked:got.blocked.filter(u=>!got.noAccess.includes(u)&&got.why[u]!=='robot_check').slice(0,6),noAccess:got.noAccess.slice(0,6),filled,other};
   saveDeal(dd,true);
   if(filled.length)logActivity(id,'info',`${negName()} opened the links for ${streetOf(dd.address)} and filled in: ${filled.join(', ')}.`);
   render();
@@ -4505,17 +4699,22 @@ function linkCard(d){
   if(d.example)return '';const lf=d.linkFill||{};const links=dealLinks(d);const n=esc(negName());const busy=state.busy['links:'+d.id];
   const short=u=>esc(String(u).replace(/^https?:\/\/(www\.)?/,'').slice(0,48));const out=[];
   const btn=label=>links.length?`<button class="btn sm" data-act="fill-links" ${busy||!aiOn()?'disabled':''}>${ico('link')}${label}</button>`:'';
-  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links and fill it in')}</div>`);
+  const okSet=new Set(lf.ok||[]),robot=new Set(lf.robot||[]),blocked=new Set(lf.blocked||[]),noAcc=new Set(lf.noAccess||[]);
+  const stat=u=>okSet.has(u)?['green','Opened']:robot.has(u)?['amber','Asks “not a robot”']:noAcc.has(u)?['amber','Not shared with you']:blocked.has(u)?['red','Couldn’t open']:(lf.at&&!lf.ok)?['slate','Checked']:['slate','Not opened yet'];
+  const label=u=>{try{const x=new URL(u);return (x.hostname.replace(/^www\./,'')+decodeURIComponent(x.pathname)).replace(/\/$/,'').slice(0,80)}catch(e){return String(u).slice(0,80)}};
+  const kind=u=>/drive\.google|dropbox|box\.com|photos\.app|icloud|photos\.google/i.test(u)?'Photos':/zillow|redfin|realtor\.com|trulia|homes\.com/i.test(u)?'Listing':/\.(jpe?g|png|webp|heic)(\?|$)/i.test(u)?'Photo':/youtu|vimeo|\.mov|\.mp4/i.test(u)?'Video':/\.pdf(\?|$)/i.test(u)?'PDF':'Page';
+  const list=links.length?`<ul class="lk-list">${links.map(u=>{const [c,t]=stat(u);return `<li><a href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">${ico('link')}<span class="lu">${esc(label(u))}</span></a><span class="tag slate">${kind(u)}</span><span class="tag ${c}">${t}</span></li>`}).join('')}</ul>`:`<p class="small muted">No links came with this deal.</p>`;
+  if(!hasStreet(d)&&!(lf.robot||[]).length)out.push(`<div class="note amber row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><span><b>No street address yet.</b> ${links.length?(lf.at?`${n} opened the links but didn’t find it. Ask the wholesaler, or type it into Details below.`:`${n} can open the link that came with this deal and fill it in.`):'The email didn’t include one or a link to the property. Ask the wholesaler, or type it into Details below.'}</span>${btn(lf.at?'Try the links again':'Open the links')}</div>`);
   if(lf.pending&&!gmailOn())out.push(`<div class="note amber">Connect Gmail (Connect → Gmail) so ${n} can open this deal’s links. She opens them through your Gmail script.</div>`);
-  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the link: ${lf.filled.map(esc).join(', ')}.</div>`);
-  if(lf.other)out.push(`<p class="xs muted">The page showed a different house, so nothing was copied from it.</p>`);
-  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own, or press <span style="white-space:nowrap">${btn('Try the links again')}</span></div>`);
+  if((lf.filled||[]).length)out.push(`<div class="note green small">${ico('check')} Filled in from the links: ${lf.filled.map(esc).join(', ')}.</div>`);
+  if(lf.other)out.push(`<p class="xs muted">A page showed a different house, so nothing was copied from it.</p>`);
+  if((lf.noAccess||[]).length)out.push(`<div class="note amber small"><b>Photo folder not shared with you:</b> ${lf.noAccess.map(short).join(' · ')}. Ask the wholesaler to share it with your Gmail or set it to “Anyone with the link”. ${n} tries again on her own.</div>`);
   if((lf.robot||[]).length&&!hasStreet(d))out.push(`<div class="note amber small"><b>The site asks to prove you’re human</b> (an “I’m not a robot” box). ${n} isn’t allowed to click those, so this one is on you: ${lf.robot.slice(0,2).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">open the ${lf.robot.length>1?['first','second'][i]+' ':''}link</a>`).join(' · ')}, then paste the address here.
     <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input class="input" id="lk-addr" data-fd="address" placeholder="e.g. 1234 W 5th Ave" style="flex:1;min-width:200px" aria-label="Street address"></div></div>`);
-  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}.</p>`);
+  else if((lf.robot||[]).length)out.push(`<p class="xs muted">${lf.robot.length} link${lf.robot.length>1?'s':''} asked to prove you’re human, so ${n} skipped ${lf.robot.length>1?'them':'it'}. Open ${lf.robot.length>1?'them':'it'} yourself if it matters.</p>`);
   if((lf.blocked||[]).length)out.push(`<p class="xs muted">Couldn’t open: ${lf.blocked.map(short).join(' · ')} (the site blocks robots or needs a login). Open it yourself and paste the details if they matter.</p>`);
-  if(!out.length&&!busy)return '';
-  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links from the email':'No address yet · links from the email'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens them, pulls Google Drive photos and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${out.join('')}</section>`;
+  const add=`<div class="row lk-add"><input class="input" id="lk-new" placeholder="Paste another link for this house (listing, photo folder, video)" aria-label="Add a link"><button class="btn sm" data-act="link-add">${ico('plus')}Add link</button>${links.length?btn(lf.at?'Open them again':'Open the links'):''}</div>`;
+  return `<section class="card" id="links"><div class="card-head"><span class="ci blue">${ico('link')}</span><div><h2>${hasStreet(d)?'Links':'No address yet · links'}</h2><p>${links.length} link${links.length===1?'':'s'} · ${n} opens every one: reads the page, takes the house photos, follows photo folders, and fills in what the email left out</p></div></div>${busyHTML('links:'+d.id,false)}${list}${out.join('')}${add}</section>`;
 }
 /* after a deal comes in: open its links first, then research (so research has the address) */
 const LQ={list:[],running:false};
@@ -4577,9 +4776,10 @@ async function researchDeal(id,quiet,auto,opts){opts=opts||{};
   let got;try{got=await openLinks(id,links)}catch(e){got={pages:[],blocked:[],photos:0}}finally{delete state.busy['research:'+id]}
   const dd=state.deals[id];if(!dd)return;
   const res=await runAI('research:'+id,`${negName()} is researching ${streetOf(dd.address)}: history, comps and the numbers…`,(ai,signal)=>apiTools(promptResearch(dd,{links,pages:got.pages,blocked:got.blocked}),{signal,model:auto?undefined:(opts.model||bigModel()),maxTokens:auto?6000:9000,tools:auto?WEB_TOOLS(4):undefined}),quiet);
-  if(!res)return;let j;try{j=parseLoose(res.text)}catch(e){if(!quiet)toast(aiErr(e),5200);return}
+  if(!res){const de=state.deals[id];const err=(state.aiErrs||{})['research:'+id];if(de&&err&&!/cancel|already/i.test(err)){de.researchErr={at:nowISO(),msg:String(err).slice(0,200)};saveDeal(de,true)}return}
+  let j;try{j=parseLoose(res.text)}catch(e){const de=state.deals[id];if(de){de.researchErr={at:nowISO(),msg:'the answer came back unreadable'};saveDeal(de,true)}if(!quiet)toast(aiErr(e),5200);return}
   const d2=state.deals[id];if(!d2)return;
-  applyResearch(d2,j,res,got);
+  delete d2.researchErr;applyResearch(d2,j,res,got);
   saveDeal(d2);logActivity(id,'info',`${negName()} researched ${streetOf(d2.address)}: ${(j.comps||[]).length} comps, ${(j.history||[]).length} history events${got.photos?`, ${got.photos} photos from the links`:''}.`);
   const fresh=photoCount(d2)>before;
   if(!auto&&!opts.noDeep&&(photoCount(d2)||docCount(d2))&&(fresh||!d2.analysis))await aiDeep(id,true);
@@ -4918,8 +5118,8 @@ function briefTo(){return ((state.settings.notify||{}).email||state.settings.pro
 async function briefSync(){
   const B=state.settings.brief||{};if(!cloudOn())return;
   const want=JSON.stringify({on:!!B.on,hour:B.hour??8,tz:B.tz||Intl.DateTimeFormat().resolvedOptions().timeZone,email:briefTo()});
-  if(cm().briefSetup===want)return;
-  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
+  const v=bridgeV(cm().acct);if(cm().briefSetup===want&&(v<9||cm().briefV===9))return;
+  try{const r=await bridge('brief_setup',JSON.parse(want),cm().acct);if(r.ok){cm().briefSetup=want;if(v>=9)cm().briefV=9;saveCM()}}catch(e){logActivity(null,'warn','Couldn’t schedule the morning brief: '+bridgeErr(e))}
 }
 function briefCardHTML(){
   const b=buildBrief();const n=esc(negName());const B=state.settings.brief||{};
@@ -6642,7 +6842,7 @@ document.addEventListener('click',e=>{
 const D=()=>(state.modal&&state.modal.id&&state.deals[state.modal.id])||cur();
 A.bell=()=>{state.bellOpen=!state.bellOpen;if(state.bellOpen){state.conn.seenAt=nowISO();saveConn()}render()};
 A['stop-ai']=el=>{const b=state.busy[el.dataset.key];if(b&&b.ctl)b.ctl.abort()};
-A.open=el=>{const d=state.deals[el.dataset.id];if(!d)return;state.bellOpen=false;state.logKind='in';if(d.source==='wholesaler'&&!d.reviewed){d.reviewed=true;saveDeal(d,true)}go('deal',d.id)};
+A.open=el=>{const d=state.deals[el.dataset.id];if(!d)return;state.bellOpen=false;state.logKind='in';go('deal',d.id)};
 A['open-chat']=el=>{state.mayaTab='chat';A.open(el)};
 A.star=el=>{const d=state.deals[el.dataset.id||state.dealId];if(!d)return;d.starred=!d.starred;saveDeal(d)};
 A.fav=el=>{const d=state.deals[el.dataset.id];if(!d)return;d.favorite=!d.favorite;saveDeal(d)};
@@ -6708,7 +6908,13 @@ A.deep=el=>aiDeep(el.dataset.id||state.dealId);
 A.research=()=>{const d=D();if(d)researchDeal(d.id)};
 A['in-depth']=()=>{const d=D();if(d){inDepth(d.id);setTimeout(()=>{const el=document.getElementById('research');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},50)}};
 A['fill-links']=()=>{const d=D();if(d)fillFromLinks(d.id)};
+A['link-add']=()=>{const d=D();const el=document.getElementById('lk-new');if(!d||!el)return;const u=el.value.trim();
+  if(!/^https?:\/\/\S+\.\S+/i.test(u)){toast('Paste a full link that starts with https://');return}
+  d.links=[u,...(d.links||[]).filter(x=>x!==u)].slice(0,10);if(d.linksOnly)d.linksOnly=false;delete d.linkFill;delete d.linkPhotosTried;acted(d);saveDeal(d);el.value='';
+  if(gmailOn()&&aiOn())fillFromLinks(d.id);else toast('Link added. Connect Gmail so '+negName()+' can open it.')};
 A['ask-photos']=()=>{const d=D();if(d)askPhotosDraft(d.id)};
+A['ask-for-photos']=()=>{const d=D();if(!d)return;d.mayaChat=d.mayaChat||[];d.mayaChat.push({role:'user',content:'Ask them for photos',at:nowISO()});saveDeal(d,true);
+  aiReply(d.id,'Ask them for clear photos of the whole house: every room inside, the kitchen, bathrooms, roof, furnace and water heater, the basement and the outside. Ask how to get access for a walkthrough. Short and friendly. No price.',false,`${negName()} is drafting a request for photos…`).then(()=>{const dd=state.deals[d.id];if(dd&&dd.draft){dd.mayaChat.push({role:'assistant',content:'Draft ready below: asking them for photos.',at:nowISO()});saveDeal(dd)}})};
 A['hist-add-toggle']=()=>{state.histAdd=!state.histAdd;state.histPaste=false;render()};
 A['hist-paste-toggle']=()=>{state.histPaste=!state.histPaste;state.histAdd=false;render()};
 A['hist-save']=()=>{const d=D();const dt=state.drafts['he-date'];if(!dt){toast('Pick the date.');return}const ev=state.drafts['he-ev']||'listed';d.history=d.history||[];d.history.push({date:dt,event:HEV[ev]?ev:'other',price:parseNum(state.drafts['he-price']),src:'you'});state.drafts['he-price']='';state.histAdd=false;saveDeal(d)};
@@ -6803,9 +7009,12 @@ A['text-ignore']=el=>{const t=(state.mail.texts||[]).find(x=>x.sid===el.dataset.
 A['lead-over']=()=>{state.leads.showOver=!state.leads.showOver;render()};
 A['lead-tag']=el=>{state.leads.tag=state.leads.tag===el.dataset.v?null:el.dataset.v;render()};
 A['lead-fav']=()=>{state.leads.fav=!state.leads.fav;render()};
-A['lead-passed']=()=>{state.leads.showPassed=!state.leads.showPassed;render()};
-A['clear-leads']=()=>{state.leads={q:'',tag:null,fav:false,type:'all',showPassed:false};render()};
-A['ws-pass']=el=>{const d=state.deals[el.dataset.id];d.stage='dead';d.reviewed=true;d.autopilot=false;saveDeal(d);toast('Passed. It’s under Show passed.')};
+A['lead-passed']=()=>{state.leads.sect='dead';render()};
+A['toast-x']=el=>toastClose(el);
+A['toast-all']=()=>toastClear();
+A['lead-sect']=el=>{state.leads.sect=el.dataset.v;state.leads.tag=null;render()};
+A['clear-leads']=()=>{state.leads={q:'',tag:null,fav:false,type:'all',sect:state.leads.sect||'new'};render()};
+A['ws-pass']=el=>{const d=state.deals[el.dataset.id];d.stage='dead';d.deadReason='passed';d.deadAt=nowISO();acted(d);d.autopilot=false;saveDeal(d);toast('Passed. It’s under Dead in Inbox Leads.')};
 A['inbox-extract']=async()=>{const t=(state.drafts['inbox-paste']||'').trim();if(!t){toast('Paste a wholesaler email first.');return}
   const r=await extractDeals(t,{channel:'email'},'inbox');if(!r)return;
   if(!r.deals.length){toast('No property found in that message.');return}
@@ -6949,14 +7158,14 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const t=e.target;
-  if(t.id==='deal-stage'){const d=cur();d.stage=t.value;if(['contract','closed','dead'].includes(t.value))d.autopilot=false;saveDeal(d);return}
+  if(t.id==='deal-stage'){const d=cur();d.stage=t.value;if(['contract','closed','dead'].includes(t.value))d.autopilot=false;if(t.value==='dead'){d.deadReason=d.deadReason||'dropped';d.deadAt=nowISO()}else delete d.deadReason;acted(d);saveDeal(d);return}
   if(t.dataset.lf){state.lf[t.dataset.lf]=t.value;state.page=1;render();return}
   if(t.id==='leads-type'){state.leads.type=t.value;render();return}
   if(t.hasAttribute('data-draft')){state.drafts[t.id]=t.value;return}
   if(t.dataset.mfBool&&state.modal){state.modal.form[t.dataset.mfBool]=t.checked;return}
-  if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();saveDeal(d,true)}return}
+  if(t.dataset.qnote){const d=state.deals[t.dataset.qnote];if(d){d.quickNote=t.value.trim();acted(d);saveDeal(d,true)}return}
   if(t.dataset.compsCsv&&t.files&&t.files[0]){const id=t.dataset.compsCsv;const fr=new FileReader();fr.onload=()=>importCompsCSV(id,String(fr.result||''));fr.readAsText(t.files[0]);t.value='';return}
-  if(t.dataset.photos){const files=[...t.files];t.value='';addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
+  if(t.dataset.photos){const files=[...t.files];t.value='';acted(state.deals[t.dataset.photos]);addPhotoBlobs(t.dataset.photos,files,'upload').then(n=>{if(n)toast(`Added ${n} photo${n>1?'s':''}. Run the inspection when you’re ready.`)});return}
   if(t.dataset.sec){const v=t.value.trim().replace(/\s+/g,'');setSecret(t.dataset.sec,t.dataset.sec==='apiKey'?v:t.value.trim());if(t.dataset.sec==='apiKey'){delete state.conn.aiCheck;saveConn();render();if(v)testKey()}else if(t.dataset.sec==='model'){delete state.conn.aiCheck;saveConn();render()}else render();return}
   if(t.id==='import-file'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o||o.app!=='offerdesk')throw 0;state.settings=deepMerge(DEFAULTS,o.settings);state.deals=Object.assign({},state.deals,o.deals||{});state.practice=Object.assign({},state.practice,o.practice||{});['settings','deals','practice'].forEach(persist);render();toast(`Restored ${Object.keys(o.deals||{}).length} deals`)}catch(err){toast('That file isn’t an OfferDesk backup.')}};fr.readAsText(t.files[0]);t.value='';return}
   if(t.dataset.cpCsv&&t.files&&t.files[0]){const c=state.campaigns[t.dataset.cpCsv];const fr=new FileReader();fr.onload=async()=>{const items=cpItemsFromCSV(String(fr.result||''));if(!items.length){toast('That file has no addresses. Use Redfin’s Download All.',5200);return}const n=await cpAddItems(c,items);toast(`Added ${n} listing${n===1?'':'s'}${n<items.length?` (${items.length-n} were already here)`:''}.`)};fr.readAsText(t.files[0]);t.value='';return}
@@ -6976,7 +7185,7 @@ document.addEventListener('change',e=>{
     if(p==='listedDate')d.domAtAdd=null;
     if(p==='arv')d.arvSource='you';if(p==='rehab')d.rehabSource='you';
     if(p==='address'&&hasStreet(d)){d.linkFill=Object.assign({},d.linkFill,{robot:[]});setTimeout(()=>maybeResearch(d.id),0)}
-    saveDeal(d);return;
+    if(p!=='instructions')acted(d);saveDeal(d);return;
   }
   if(t.dataset.fs){setPath(state.settings,t.dataset.fs,val);saveSettings();if(/^(brief\.|notify\.email)/.test(t.dataset.fs))briefSync();return}
 });
