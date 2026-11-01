@@ -1,0 +1,11 @@
+{
+ "job": "batchdata4",
+ "at": "2026-10-22T13:47:14.643292Z",
+ "ok": true,
+ "log": [
+  "ok-tulsa ['flip-activity', 'on-market-off-market', 'property-ownership']",
+  "ok-oklahoma ['flip-activity', 'on-market-off-market', 'property-ownership']",
+  "in-elkhart ['flip-activity', 'on-market-off-market', 'property-ownership']",
+  "in-marion ['flip-activity', 'on-market-off-market', 'property-ownership']"
+ ]
+}

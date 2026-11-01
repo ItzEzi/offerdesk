@@ -1,0 +1,29 @@
+{
+ "job": "batchdata",
+ "at": "2026-10-22T00:40:43.847102Z",
+ "ok": true,
+ "log": [
+  "state:pa 2026-09 12091 54.3",
+  "state:in 2026-09 6906 36.2",
+  "state:md 2026-09 7837 36.1",
+  "state:mi 2026-09 12688 48.9",
+  "pa-allegheny 2026-07 150 49.0",
+  "pa-lackawanna 2026-07 292 76.3",
+  "pa-luzerne 2026-07 457 79.0",
+  "pa-philadelphia 2026-07 2342 73.7",
+  "pa-delaware 2026-07 818 58.2",
+  "pa-montgomery 2026-07 643 47.3",
+  "in-marion 2026-07 1642 36.0",
+  "in-lake 2026-07 728 35.5",
+  "md-baltimore 2026-07 2620 29.3",
+  "mi-wayne 2026-07 3481 70.9",
+  "mi-oakland 2026-07 1393 41.0",
+  "oh-cuyahoga 2026-07 3625 63.1",
+  "ny-erie 2026-07 826 62.1",
+  "ny-monroe 2026-07 678 54.9",
+  "il-cook 2026-07 4322 51.6",
+  "ok-oklahoma 2026-07 1152 42.2",
+  "tx-dallas 2026-07 2443 18.0",
+  "fl-hillsborough 2026-07 3081 2.8"
+ ]
+}

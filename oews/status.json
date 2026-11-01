@@ -1,0 +1,10 @@
+{
+ "job": "oews",
+ "at": "2026-10-21T23:09:34.591780Z",
+ "ok": false,
+ "error": "RuntimeError: https://www.bls.gov/oes/special-requests/oesm24ma.zip: HTTP Error 403: Forbidden; https://www.bls.gov/oes/special.requests/oesm24ma.zip: HTTP Error 403: Forbidden",
+ "trace": "Traceback (most recent call last):\n  File \"/home/runner/work/offerdesk/offerdesk/research/run.py\", line 284, in main\n    globals()['job_' + job](d); status['ok'] = True\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/offerdesk/offerdesk/research/run.py\", line 235, in job_oews\n    raise RuntimeError('; '.join(err))\nRuntimeError: https://www.bls.gov/oes/special-requests/oesm24ma.zip: HTTP Error 403: Forbidden; https://www.bls.gov/oes/special.requests/oesm24ma.zip: HTTP Error 403: Forbidden\n",
+ "log": [
+  "FAILED RuntimeError: https://www.bls.gov/oes/special-requests/oesm24ma.zip: HTTP Error 403: Forbidden; https://www.bls.gov/oes/special.requests/oesm24ma.zip: HTTP Error 403: Forbidden"
+ ]
+}

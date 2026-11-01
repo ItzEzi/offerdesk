@@ -1,0 +1,9 @@
+{
+ "job": "detroit",
+ "at": "2026-10-22T00:54:37.386450Z",
+ "ok": true,
+ "log": [
+  "rows 542054 cols ['Sales ID', 'Parcel ID', 'Address', 'Sale Date', 'Sale Price', 'Grantor', 'Grantee', 'Liber Page', 'Terms of Sale', 'Sale Verification', 'Sale Instrument', 'sale_number', 'Property Transfer Percentage', 'Multi Parcel Sale', 'Property Class Code', 'Property Class Description', 'ECF Neighborhood', 'Neighborhood', 'Council District', 'Zip Code', 'Street Number', 'Street Prefix', 'Street Name', 'Street Type', 'Unit Number', 'Longitude', 'Latitude', 'ObjectId', 'x', 'y']",
+  "using Parcel ID Sale Date Sale Price Terms of Sale Sale Instrument Zip Code Property Class Code"
+ ]
+}

@@ -1,0 +1,8 @@
+{
+ "job": "nri",
+ "at": "2026-10-22T15:16:00.476322Z",
+ "ok": true,
+ "log": [
+  "nri rows 12 ['https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload//NRI_Table_Counties/NRI_Table_Counties.zip <urlopen error [Errno 104] Connection reset by peer>', 'https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload/NRI_Table_Counties/NRI_Table_Counties.zip HTTP Error 403: Forbidden']"
+ ]
+}
